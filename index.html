@@ -149,7 +149,7 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 *   UP / DOWN       navega                          LEFT / RIGHT  ajusta valor
 *   L1 / R1         muda de tela                    SHARE 1s  salva na EEPROM
 *   TRIANGLE 1s     deleta o MOD                    L2 + UP/DOWN  reordena
-*   SQUARE 1s       reseta a pagina
+*   (o "SQUARE 1s reseta a pagina" que constava aqui nunca foi implementado — v7i)
 * -----------------------------------------------------------------------------------
 * INDICADORES NA LISTA
 *   (nada) aberto, nunca configurado      M  gravado por movimentacao (reordenar/deletar)
@@ -669,6 +669,7 @@ int Work_N               = 0;   // índice de loop genérico
 int Cond_Tmp             = 0;   // rascunho do unpack das condicionais (Secao 9B)
 int Btn_Tmp              = 0;   // v3zb: rascunho do unpack do trio de botoes
 int Cmb_P=0;
+int Esp_I=0; int Esp_N=0;   // v7i: contador e acumulador da espera do combo — dedicados
 // v3zu: temporarios da REORDENACAO. Dedicados porque Swap_Pos chama getters/setters que
 // usam o rodizio Work_ por dentro (Set_Combo_*, Set_Cond_*), e o valor guardado tem de
 // sobreviver a essas chamadas.
@@ -940,6 +941,10 @@ int SR_F1_BLOQ_17=0; int SR_F1_BLOQ_18=0; int SR_F1_BLOQ_19=0; int SR_F1_BLOQ_20
 int Cfg_Selo = 0;
 function Config_Inicial() {
     // ---- o app escreve aqui: os 3 SPVARs de cada MOD (persistente) ----
+    // A linha abaixo existe so para o corpo nao ficar vazio: sem config o ZenStudio
+    // emite "Empty function detected", e o aviso confunde. O app substitui a funcao
+    // inteira, entao ela desaparece no script gerado.
+    Work_A = Work_A;
 }
 // v6b: as relacoes ZETA vivem em RAM e se perdem a cada desligamento — nao ha bits na
 // EEPROM para elas. Ate agora o app as escrevia dentro de Config_Inicial(), que so roda
@@ -949,7 +954,8 @@ function Config_Inicial() {
 // Consequencia assumida: alterar o ZETA pelo OLED vale ate desligar; ao ligar, volta ao
 // que o app gerou. Para mudar de vez, mude no app e gere o script de novo.
 function Config_Zeta() {
-    // ---- o app escreve aqui: mascaras ZETA e botao do BLOK (RAM, reaplicados sempre) ----
+    // ---- o app escreve aqui: ZETA, botao do BLOK e modo FINALIZA (RAM) ----
+    Work_A = Work_A;   // v7i: idem — evita o aviso de funcao vazia no template
 }
 function Salvar_Tudo() {
     Work_N = 1;
@@ -994,13 +1000,16 @@ function Marcar_Selo(migrado, selo) {
     set_pvar(SPVAR_64, Work_A);
 }
 function Migrar_V5() {
-    Work_N = 1;
-    while(Work_N <= 21) {
-        if(Get_Spvar_A(Work_N) & 1) {   // so MODs que existem
-            Work_A = Get_Spvar_B(Work_N) & (~(0x1F << 22));
-            Set_Spvar_B(Work_N, Work_A);
+    // v7i: contador dedicado. Work_N funcionava por sorte — Salvar_Tudo tambem o usa como
+    // contador, e so nao quebrava porque roda DEPOIS do laco. Uma reordenacao futura
+    // transformaria isso num bug silencioso.
+    Esp_I = 1;
+    while(Esp_I <= 21) {
+        if(Get_Spvar_A(Esp_I) & 1) {   // so MODs que existem
+            Work_A = Get_Spvar_B(Esp_I) & (~(0x1F << 22));
+            Set_Spvar_B(Esp_I, Work_A);
         }
-        Work_N++;
+        Esp_I++;
     }
     Salvar_Tudo();
     Marcar_Selo(1, Selo_Cfg_Gravado());   // marca a migracao SEM tocar no selo do app
@@ -1866,7 +1875,14 @@ function Executar_Turbo_Fonte(num) {
                 Trb_Aplicar_Cond(num, Trb_Valor_Eixo(Get_Turbo_Modo(num), Work_B, Work_E)));
         } else if((Work_B >> 11) & 1) {
             // destino DIGITAL: so na fase ligada
-            Acc_Um(Cmb_N, Trb_Aplicar_Cond(num, 100));
+            // v7i: num orfao adotado, o pulso sai com a INTENSIDADE do alvo em vez de
+            // 100% fixo — mesma razao do DIRECT: quem manda e o ALFA/BETA da matriz.
+            Est_Tmp = 100;
+            if(Orfao_Adotado(num)) {
+                Work_D = Valor_Alvo_Assoc(num);
+                if(Work_D != -1) Est_Tmp = abs(Work_D);
+            }
+            Acc_Um(Cmb_N, Trb_Aplicar_Cond(num, Est_Tmp));
         }
     }
     // v3y/v3ze: com CICLOS definidos, esgotar as sequencias AUTOFINALIZA a instancia —
@@ -1976,6 +1992,14 @@ function Set_Dly(n, v) {
 // O timer zera quando o MOD para de responder, entao a proxima subida recomeca limpo.
 function Delay_Passou(num) {
     if(Get_Delay(num) == 0) return 1;   // v5a: OFF — responde na hora, sem armar timer
+    // v7i CORRIGIDO: o timer so era rearmado quando a INSTANCIA desligava. Mas um MOD
+    // com ALFA nao desliga ao sair da zona — fica ativo, apenas sem responder. O timer
+    // ficava zerado e o delay valia so na primeira subida, nunca mais.
+    // Agora, havendo ALFA, sair da zona rearma: a resposta ia parar, entao a proxima
+    // subida recomeca a contagem, que e o que o campo promete.
+    if(Get_Fonte_Tipo(num) != FONTE_NENHUMA) {
+        if(!Zona_Ativa_Fonte(num)) { Delay_Zerar(num); return 0; }
+    }
     if(!((Dly_Arm >> (num - 1)) & 1)) {
         Set_Dly(num, Delay_Ms(Get_Delay(num)));
         Dly_Arm = Dly_Arm | (1 << (num - 1));
@@ -2091,7 +2115,7 @@ function Run_Instance_v3(num) {
         return;
     }
     if((Excl_Veto  >> (num - 1)) & 1) return;    // MOD_EXCL
-    if((Assoc_Mask >> (num - 1)) & 1) return;    // MOD_ASSOC
+    if((Assoc_Mask >> (num - 1)) & 1) { Delay_Zerar(num); return; }   // v7i: rearma o DELAY    // MOD_ASSOC
     if(BTN_FN_Bloqueia_v3(num)) return;   // v6c: BLOK segurado suspende a resposta
     if((Resp_Off_Fonte >> (num - 1)) & 1) return; // suprimida (desligada)
     // v5: DELAY — ultimo gate antes de responder. Fica aqui de proposito: neste ponto
@@ -2118,6 +2142,11 @@ function Run_Instance_v3(num) {
         // ESTATC (travava em 100%), que é o comportamento certo só pro ESTATC.
         if(Get_F1_Tipo(num) == DST_TIPO_DIRECT) {
             Work_D = Gatilho_Btn_Val(num);
+            // v7i: orfao adotado herda a INTENSIDADE do alvo, em vez de 100% fixo.
+            if(Orfao_Adotado(num)) {
+                Est_Tmp = Valor_Alvo_Assoc(num);
+                if(Est_Tmp != -1) Work_D = Est_Tmp;
+            }
             // v3zp AUTOENCERRAMENTO (proposta do Daniel apos o teste do Mad Max).
             // DIRECT sem fonte espelha o botao do gatilho, entao o destino ja cai ao
             // soltar — mas o ESTADO ficava ligado, e como sem fonte o gatilho ALTERNA, o
@@ -2766,6 +2795,32 @@ function Computar_Mods_Excl_v3() {
 // entao um GAMA em FINALIZA consegue derruba-lo — e ele so volta quando o alvo subir
 // de novo. E o comportamento que o MOD_03 do futebol pede: a corrida sobe com o
 // movimento, o toque no TOUCH corta, e voltar a mover traz de volta.
+// v7i: um MOD ORFAO com DELTA DIRECT ou TURBO passa a responder com a INTENSIDADE do
+// alvo que o adotou, em vez de 100% fixo. Foi o Daniel quem apontou: um DIRECT orfao
+// se comportava como STATIC (0 ou 100), quando o natural e seguir a metrica do MOD
+// "matriz" — o ALFA e o BETA dele ja definem quanto o sinal vale.
+// Vale so de orfao para MOD COM FONTE. De orfao para orfao nao ha metrica a herdar, e
+// ali continua valendo a regra simples de DELTA para DELTA.
+// Devolve -1 quando nao ha alvo com fonte de onde herdar.
+function Valor_Alvo_Assoc(num) {
+    Work_A = Get_F1_Assoc(num) & Mod_Apto;
+    if(!Work_A) return -1;
+    Esp_I = 1;
+    while(Esp_I <= 21) {
+        if((Work_A >> (Esp_I - 1)) & 1) {
+            if(Get_Fonte_Tipo(Esp_I) != FONTE_NENHUMA) {
+                if(Zona_Ativa_Fonte(Esp_I)) return Cond_Aplicar_Fonte(Esp_I, Ler_Fonte(Esp_I));
+            }
+        }
+        Esp_I = Esp_I + 1;
+    }
+    return -1;
+}
+function Orfao_Adotado(num) {
+    if(Get_Fonte_Tipo(num) != FONTE_NENHUMA) return 0;
+    if(Tem_Gatilho_Estado(num)) return 0;
+    return Get_F1_Assoc(num) != 0;
+}
 function Adotar_Orfao(m) {
     if(Get_Fonte_Tipo(m) != FONTE_NENHUMA) return;
     if(Tem_Gatilho_Estado(m)) return;
@@ -4446,15 +4501,21 @@ function Set_Combo_Tmp(num, passo, v) {
 // Alcance ate 2,5s, com a granularidade da tabela dos passos — bem mais fino que o
 // campo DELAY, que tem quatro valores fixos. Os dois convivem: o DELAY atrasa a
 // RESPOSTA INTEIRA (vale para os tres tipos); a espera atrasa DENTRO da sequencia.
+// v7i CORRIGIDO — COLISAO DE VARIAVEL. O laco usava Cmb_Tmp como contador, e
+// Get_Combo_Tmp usa a MESMA variavel como rascunho do unpack: a cada chamada o contador
+// era sobrescrito pelo pack de tempos. O laco passava a iterar sobre lixo, somando os
+// tempos errados — o Daniel cronometrou 1s virando quase 2s.
+// Contador e acumulador agora sao dedicados (Esp_I, Esp_N) e nenhuma funcao chamada
+// aqui dentro os toca. Cmb_N tambem saiu: Combo_Prox_Passo o usa.
 function Combo_Espera(num, ate) {
-    Cmb_N = 0;
-    Cmb_Tmp = 1;
-    while(Cmb_Tmp < ate) {
-        Cmb_N = Cmb_N + Trb_Tempo_Ms(Get_Combo_Tmp(num, Cmb_Tmp));
-        Cmb_Tmp = Cmb_Tmp + 1;
+    Esp_N = 0;
+    Esp_I = 1;
+    while(Esp_I < ate) {
+        Esp_N = Esp_N + Trb_Tempo_Ms(Get_Combo_Tmp(num, Esp_I));
+        Esp_I = Esp_I + 1;
     }
-    if(Cmb_N > 2047) Cmb_N = 2047;   // o timer do TrbSt tem 11 bits
-    return Cmb_N;
+    if(Esp_N > 2047) Esp_N = 2047;   // o timer do TrbSt tem 11 bits
+    return Esp_N;
 }
 function Combo_Prox_Passo(num, de) {
     Cmb_N = de;
@@ -4474,15 +4535,11 @@ function Load_Wz_Fonte(num) {
     Wz_Fonte_Tipo    = Get_Fonte_Tipo(num);
     Wz_Fonte_Passivo = Get_Fonte_Passivo(num);
     Wz_Delay         = Get_Delay(num);
-    Wz_Blok          = Get_Blok(num);   // v6c
-    Wz_Fin           = Get_Fin(num);    // v7
 }
 function Commit_Wz_Fonte(num) {
     Set_Fonte_Tipo(num,    Wz_Fonte_Tipo);
     Set_Fonte_Passivo(num, Wz_Fonte_Passivo);
     Set_Delay(num,         Wz_Delay);
-    Set_Blok(num,          Wz_Blok);    // v6c
-    Set_Fin(num,           Wz_Fin);     // v7
 }
 function Load_Wz_Cond(num) {
     Wz_Cond_Mult   = Get_Cond_Mult(num);
@@ -4556,6 +4613,8 @@ function Mod_Row_To_Inst(row_idx) {
 }
 // --- Load/Commit do wizard (GATILHO+BTN_FN v3) ---
 function Load_Wz_Gatilho(num) {
+    Wz_Blok = Get_Blok(num);   // v7i: carregados aqui, junto com o resto do GAMA
+    Wz_Fin  = Get_Fin(num);
     Wz_Gatilho_Hphold_Btn   = Get_Gatilho_Hphold_Btn(num);
     Wz_Gatilho_Hphold_Tempo = Get_Gatilho_Hphold_Tempo(num);
     Wz_Gatilho_Hold_Modo    = Get_Hold_Modo(num);
@@ -4565,6 +4624,12 @@ function Load_Wz_Gatilho(num) {
     Wz_Gatilho_FA_Tempo     = Get_FA_Tempo(num);
 }
 function Commit_Wz_Gatilho(num) {
+    // v7i CORRIGIDO: o BLOK e o modo FINALIZA sao editados NESTA tela (GAMA), mas
+    // estavam sendo gravados em Commit_Wz_Fonte, o commit da tela ALFA — que nunca roda
+    // ao sair do GAMA. Resultado: a pessoa configurava, confirmava com X, e voltava
+    // zerado. Foram seis testes falhando (B6 a B12) pela mesma causa.
+    Set_Blok(num,                 Wz_Blok);
+    Set_Fin(num,                  Wz_Fin);
     Set_Gatilho_Hphold_Btn(num,   Wz_Gatilho_Hphold_Btn);
     Set_Gatilho_Hphold_Tempo(num, Wz_Gatilho_Hphold_Tempo);
     Set_Hold_Modo(num,            Wz_Gatilho_Hold_Modo);
@@ -4855,11 +4920,11 @@ function Update_OLED() {
         if(Work_C == 2) {
             if(Wz_SubCursor == 1) print(2, 26, 0, 1, SCR_SEL[0]);
             print(10, 26, 0, 1, GTL_TMP_LBL[0]);
-            Print_Hphold_Tempo(75, 26, Wz_Gatilho_Hphold_Tempo);
+            Print_Hphold_Tempo(68, 26, Wz_Gatilho_Hphold_Tempo);
         } else if(Work_C == 3) {
             if(Wz_SubCursor == 1) print(2, 26, 0, 1, SCR_SEL[0]);
             print(10, 26, 0, 1, FT_LBL[0]);
-            Print_After_Val(75, 26, Wz_Gatilho_FA_Tempo);
+            Print_After_Val(68, 26, Wz_Gatilho_FA_Tempo);
         }
         // Linha 2: RELIG (FINAL_AFTER e HOLD) — cadeia else-if única
         // CORRIGIDO: Print_Hphold_Tempo (chamada na Linha 1 acima) usa Work_C como rascunho
@@ -4882,14 +4947,19 @@ function Update_OLED() {
             else if(Work_C == 3) Work_E = 39;
             if(Wz_SubCursor == Work_D) print(2, Work_E, 0, 1, SCR_SEL[0]);
             print(10, Work_E, 0, 1, GTL_MODO_L[0]);
-            if((Wz_Fin >> Gatilho_Idx(Work_C)) & 1) print(75, Work_E, 0, 1, GTL_FIN[0]);
-            else                                    print(75, Work_E, 0, 1, GTL_ALT[0]);
+            // v7i: em x=75 o FINALIZA (8 chars) terminava em 131 e o "A" saia da tela.
+            // Todos os valores desta tela foram para x=68, para ficarem alinhados entre si.
+            if((Wz_Fin >> Gatilho_Idx(Work_C)) & 1) print(68, Work_E, 0, 1, GTL_FIN[0]);
+            else                                    print(68, Work_E, 0, 1, GTL_ALT[0]);
         }
         if(Work_C == 2) {
+            // v7i: rotulo e valor estavam em y=41 e o cursor em y=39 — a linha do
+            // APOS/ATE ficava deslocada das outras (13/26/39/52) e o cursor parecia
+            // apontar para o lugar errado. Tudo alinhado em 39.
             if(Wz_SubCursor == 2) print(2, 39, 0, 1, SCR_SEL[0]);
-            print(10, 41, 0, 1, HOLD_MD_L[0]);
-            if(Wz_Gatilho_Hold_Modo) print(75, 41, 0, 1, HOLD_MD_ATE[0]);
-            else                     print(75, 41, 0, 1, HOLD_MD_AP[0]);
+            print(10, 39, 0, 1, HOLD_MD_L[0]);
+            if(Wz_Gatilho_Hold_Modo) print(68, 39, 0, 1, HOLD_MD_ATE[0]);
+            else                     print(68, 39, 0, 1, HOLD_MD_AP[0]);
         }
         // v7: sem rodape — com quatro linhas nao ha espaco, e as instrucoes sao as
         // mesmas de todas as outras telas.
