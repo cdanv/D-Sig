@@ -3151,10 +3151,14 @@ main {
                     else if(Work_C == 1) { Wz_Gatilho_Final_Btn--;  if(Wz_Gatilho_Final_Btn < 0)  Wz_Gatilho_Final_Btn = 16; }
                     else if(Work_C == 2) { Wz_Gatilho_Hphold_Btn--; if(Wz_Gatilho_Hphold_Btn < 0) Wz_Gatilho_Hphold_Btn = 16; }
                     else if(Work_C == 4) { Wz_Blok--; if(Wz_Blok < 0) Wz_Blok = 16; }
-                } else if(Wz_SubCursor == Work_D && Work_C != 4) {
-                    // v7: a ULTIMA linha de cada gatilho e o ALT/FIN
-                    Wz_Fin = Wz_Fin ^ (1 << Gatilho_Idx(Work_C));
                     else                 { Wz_Gatilho_FA_Btn--;     if(Wz_Gatilho_FA_Btn < 0)     Wz_Gatilho_FA_Btn = 16; }
+                // v7h CORRIGIDO: na v7 este bloco do ALT/FIN foi inserido NO MEIO da cadeia
+                // de else-if acima, e o ramo do AFTER ficou orfao dentro dele — um "else"
+                // sem "if" que o ZenStudio rejeita. O contador de chaves nao pegou porque
+                // as chaves continuavam balanceadas; so o compilador acusaria.
+                } else if(Wz_SubCursor == Work_D && Work_C != 4) {
+                    // a ULTIMA linha de cada gatilho e o ALT/FIN
+                    Wz_Fin = Wz_Fin ^ (1 << Gatilho_Idx(Work_C));
                 } else if(Wz_SubCursor == 1 && Work_C == 2) { Wz_Gatilho_Hphold_Tempo--; if(Wz_Gatilho_Hphold_Tempo < 0) Wz_Gatilho_Hphold_Tempo = 62; }
                 else if(Wz_SubCursor == 2 && Work_C == 2)   { Wz_Gatilho_Hold_Modo = !Wz_Gatilho_Hold_Modo; }
                 else if(Wz_SubCursor == 1 && Work_C == 3)   { Wz_Gatilho_FA_Tempo--; if(Wz_Gatilho_FA_Tempo < 0) Wz_Gatilho_FA_Tempo = 7; }
@@ -3166,9 +3170,9 @@ main {
                     else if(Work_C == 1) { Wz_Gatilho_Final_Btn++;  if(Wz_Gatilho_Final_Btn > 16)  Wz_Gatilho_Final_Btn = 0; }
                     else if(Work_C == 2) { Wz_Gatilho_Hphold_Btn++; if(Wz_Gatilho_Hphold_Btn > 16) Wz_Gatilho_Hphold_Btn = 0; }
                     else if(Work_C == 4) { Wz_Blok++; if(Wz_Blok > 16) Wz_Blok = 0; }
+                    else                 { Wz_Gatilho_FA_Btn++;     if(Wz_Gatilho_FA_Btn > 16)     Wz_Gatilho_FA_Btn = 0; }
                 } else if(Wz_SubCursor == Work_D && Work_C != 4) {
                     Wz_Fin = Wz_Fin ^ (1 << Gatilho_Idx(Work_C));
-                    else                 { Wz_Gatilho_FA_Btn++;     if(Wz_Gatilho_FA_Btn > 16)     Wz_Gatilho_FA_Btn = 0; }
                 } else if(Wz_SubCursor == 1 && Work_C == 2) { Wz_Gatilho_Hphold_Tempo++; if(Wz_Gatilho_Hphold_Tempo > 62) Wz_Gatilho_Hphold_Tempo = 0; }
                 else if(Wz_SubCursor == 2 && Work_C == 2)   { Wz_Gatilho_Hold_Modo = !Wz_Gatilho_Hold_Modo; }
                 else if(Wz_SubCursor == 1 && Work_C == 3)   { Wz_Gatilho_FA_Tempo++; if(Wz_Gatilho_FA_Tempo > 7) Wz_Gatilho_FA_Tempo = 0; }
