@@ -149,7 +149,7 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 *   UP / DOWN       navega                          LEFT / RIGHT  ajusta valor
 *   L1 / R1         muda de tela                    SHARE 1s  salva na EEPROM
 *   TRIANGLE 1s     deleta o MOD                    L2 + UP/DOWN  reordena
-*   (o "SQUARE 1s reseta a pagina" que constava aqui nunca foi implementado — v7i)
+*   SQUARE 1s       na tela de DOMINIOS do MOD, desmarca D1-D4 (so ali tem efeito)
 * -----------------------------------------------------------------------------------
 * INDICADORES NA LISTA
 *   (nada) aberto, nunca configurado      M  gravado por movimentacao (reordenar/deletar)
@@ -4536,6 +4536,10 @@ function Combo_Prox_Passo(num, de) {
 // cada intervalo da sequencia passa a poder ter a sua.
 // Custo: nenhum bit. O tempo ja estava gravado; so ganhou significado.
 // Contador dedicado: Get_Combo_Tmp usa Cmb_Tmp por dentro (foi a colisao da v7i).
+// v7k CORRIGIDO: so conta vazio que tenha um passo configurado DEPOIS dele. Na v7j os
+// vazios do FIM da sequencia tambem entravam na soma — um turbo de um passo so ganhava
+// a pausa de P2+P3+P4 (tempos que nem aparecem na tela) a cada volta. O app ja tratava
+// os do fim como sem efeito; agora o script bate com ele.
 function Combo_Lat_Extra(num, de) {
     Esp_N = 0;
     Esp_I = de;
@@ -4544,7 +4548,7 @@ function Combo_Lat_Extra(num, de) {
         if(Get_Combo_Dst(num, Esp_I)) return Esp_N;
         Esp_N = Esp_N + Trb_Tempo_Ms(Get_Combo_Tmp(num, Esp_I));
     }
-    return Esp_N;
+    return 0;   // nenhum passo configurado adiante: vazios do fim nao geram pausa
 }
 function Get_Turbo_Modo(num) { return (Get_Spvar_B(num) >> 27) & 0x3; }   // v3ze
 function Set_Turbo_Modo(num, v) {
@@ -5667,6 +5671,7 @@ var TDELAY=['OFF','300ms','700ms','1.2s'];
 var TAFTER=['50ms','100ms','150ms','200ms','300ms','500ms','1.0s','2.0s'];
 var TLAT=['---','10ms','20ms','30ms','40ms','50ms','60ms','80ms','100ms','120ms',
   '150ms','200ms','250ms','350ms','500ms','750ms'];
+var TLATMS=[0,10,20,30,40,50,60,80,100,120,150,200,250,350,500,750];   // v7k: TLAT em ms, para o limite de 2047
 var THOLD=(function(){var v=[],i;
   for(i=0;i<=25;i++)v.push(((50+i*10)/1000).toFixed(2)+'s');
   for(i=26;i<=39;i++)v.push(((350+(i-26)*50)/1000).toFixed(2)+'s');
@@ -5817,7 +5822,8 @@ function resumo(j,i){
     // v6: passos vazios ANTES do primeiro configurado viram espera, somando os tempos.
     var esp=0, ms=[30,50,70,100,150,250,500,1000], k2=0;
     while(k2<4 && !m.dst[k2]){ esp+=ms[m.tmp[k2]]; k2++; }
-    if(esp)p.push('Espera <em>'+esp+'ms</em> a cada volta — soma dos passos vazios antes do primeiro configurado.');
+    if(esp)p.push('Espera <em>'+Math.min(esp,2047)+'ms</em> a cada volta — soma dos passos vazios antes do primeiro configurado'+
+      (esp>2047?' (seriam '+esp+'ms; o Cronus corta em 2047)':'')+'.');
     p.push('DELTA TURBO: '+seq.join(' → ')+
       (m.lat?', com '+TLAT[m.lat]+' entre cada.':', <em>emendados</em> (sem latência).')+
       (m.ciclos?' Repete '+m.ciclos+'× e encerra.':' Repete enquanto acionado.'));
@@ -5909,6 +5915,18 @@ function alertas(j,i){
       O.push('MOD_'+String(k+1).padStart(2,'0')+' usa GAMA 2CLK no mesmo botão: o primeiro clique já dispara este MOD.')});
   if(m.tipo===1&&m.dst.some(function(d){return d>=12&&d<=15}))
     O.push('DELTA STATIC em eixo trava no sentido para onde o ALFA foi empurrado.');
+  // v7k: o timer do combo no script tem 11 bits — espera e pausa acima de 2047ms sao
+  // cortadas em 2047. Antes o app mostrava o valor cheio (3000ms) e o Cronus fazia 2047.
+  if(m.tipo===2&&m.dst.some(function(d){return d})){
+    var tms=[30,50,70,100,150,250,500,1000], e0=0, q0=0, pz=0, vs=false, cortes=[];
+    while(q0<4&&!m.dst[q0]){e0+=tms[m.tmp[q0]];q0++}
+    if(e0>2047)cortes.push('a espera ('+e0+'ms)');
+    for(;q0<4;q0++){
+      if(m.dst[q0]){ if(vs&&pz+TLATMS[m.lat]>2047)cortes.push('uma pausa ('+(pz+TLATMS[m.lat])+'ms, com a latência)'); pz=0; vs=true; }
+      else pz+=tms[m.tmp[q0]];
+    }
+    if(cortes.length)O.push('No TURBO, '+cortes.join(' e ')+' passa de 2047ms — o Cronus corta em 2047ms (limite do timer).');
+  }
   return{A:A,O:O}}
 
 // ---------- gerador de código ----------
@@ -6380,12 +6398,12 @@ function telaInfo(A){
      '<b>L1 + segurar o L3</b> → D3<br><b>R1 + segurar o R3</b> → D4']]);
 
   bloco('Dentro do MOD', [
-    ['X','Confirma em RAM. Aparece o indicador R.'],
     ['X','Confirma a alteração em RAM. O indicador vira R — ainda não está gravado.'],
     ['SHARE por 1s','Salva na EEPROM. O indicador vira E.'],
     ['L1 e R1','Muda de tela.'],
     ['UP / DOWN e LEFT / RIGHT','Navega e ajusta valores.'],
     ['TRIANGLE por 1s','Deleta o MOD, com confirmação.'],
+    ['SQUARE por 1s','Só na tela de DOMÍNIOS do MOD: desmarca D1 a D4 de uma vez.'],
     ['L2 + UP / DOWN','Na lista, reordena o MOD. A ordem decide o desempate do bloqueio mútuo.']]);
 
   bloco('Indicadores da lista', [
@@ -6411,7 +6429,7 @@ function telaInfo(A){
     ['Relações','Valem de DELTA para DELTA: o que conta é a RESPOSTA estar de pé, nunca o ALFA nem o GAMA.'],
     ['BLOQ x EXCL','O BLOQ suspende e retoma de onde parou. O EXCL encerra, e a volta é um começo novo.'],
     ['Espera no TURBO','Passos vazios antes do primeiro configurado somam seus tempos e viram '+
-     'uma espera antes da sequência começar.'],
+     'uma espera — repetida a CADA volta, não só na primeira.'],
     ['Latência em ---','Sem latência, os passos emendam um no outro, sem silêncio entre eles.'],
     ['GAMA ALTERNA x FINALIZA','Com ALFA, o gatilho só desliga. Sem ALFA, ele alterna — e com dois '+
      'gatilhos os dois abrem e fecham. Marcando um como FINALIZA, ele passa a só encerrar.'],
@@ -6425,7 +6443,8 @@ function telaInfo(A){
      'obedece ao próprio estado — um GAMA em FINALIZA consegue derrubá-lo, e ele só volta na próxima subida do alvo.'],
     ['Pausa dentro do combo','Um passo VAZIO no meio da sequência gera uma pausa com o tempo dele, '+
      'somada à latência. Com a latência em ---, essa vira a única pausa naquele ponto. '+
-     'Passos vazios ANTES do primeiro configurado somam e viram a espera de entrada.'],
+     'Passos vazios ANTES do primeiro configurado somam e viram a espera de entrada. '+
+     'Vazios DEPOIS do último configurado não têm efeito.'],
     ['Ordem dos MODs','A posição na lista decide o desempate do bloqueio mútuo e a propagação em '+
      'cadeia — o pipeline avalia do MOD_01 ao MOD_21. Reordenar muda esse desempate.']]);
 
