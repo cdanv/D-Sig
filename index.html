@@ -49,7 +49,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .modrow .t b{display:block;font-size:15px;font-weight:500}
 s{text-decoration:none}
 .modrow .t s{display:block;font-size:12px;color:var(--dim);text-decoration:none;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  line-height:1.45;overflow-wrap:break-word}
+.modrow .t s i{font-style:normal;color:var(--faint);font-size:10px;letter-spacing:.04em}
 .tag{font-size:10px;padding:2px 6px;border-radius:5px;background:var(--panel2);
   color:var(--dim);flex:none;border:1px solid var(--line)}
 .tag.al{background:#3a1d1d;color:#ff8f8f;border-color:#5a2a2a}
@@ -149,7 +150,7 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 *   UP / DOWN       navega                          LEFT / RIGHT  ajusta valor
 *   L1 / R1         muda de tela                    SHARE 1s  salva na EEPROM
 *   TRIANGLE 1s     deleta o MOD                    L2 + UP/DOWN  reordena
-*   SQUARE 1s       na tela de DOMINIOS do MOD, desmarca D1-D4 (so ali tem efeito)
+*   SQUARE 1s       na tela de DOMINIOS do MOD, ZERA O MOD INTEIRO (so ali tem efeito)
 * -----------------------------------------------------------------------------------
 * INDICADORES NA LISTA
 *   (nada) aberto, nunca configurado      M  gravado por movimentacao (reordenar/deletar)
@@ -669,6 +670,25 @@ int Work_N               = 0;   // índice de loop genérico
 int Cond_Tmp             = 0;   // rascunho do unpack das condicionais (Secao 9B)
 int Btn_Tmp              = 0;   // v3zb: rascunho do unpack do trio de botoes
 int Cmb_P=0;
+// v7l DESEMPENHO. O Cronus nao tem arrays: cada leitura de SPVAR por numero de MOD era uma
+// cadeia de ate 21 comparacoes, e o pipeline fazia ~700 dessas leituras por volta com 21 MODs.
+// O MOD que esta rodando agora fica num cache (Spv_*), e as cadeias viraram arvores (~5
+// comparacoes). -1 = cache vazio (nenhum MOD tem esse numero).
+// v7l: MASCARAS ESTATICAS. O que so muda quando a CONFIG muda (dominio, destino, relacoes,
+// gatilhos) era recalculado MOD a MOD em todo quadro, 5 passadas x 21 MODs. Agora e calculado
+// uma vez quando algo muda (menu aberto, troca de dominio, boot) e cada passada pula direto
+// os MODs que nao tem o que fazer nela. So o que depende do INSTANTE continua por quadro.
+int Cfg_Sujo = TRUE;   // TRUE = recalcular as mascaras antes do proximo pipeline
+int Msk_Perf = 0;      // MOD marcado no dominio atual
+int Msk_Run  = 0;      // usado E no dominio atual (o que Run_Instance processa)
+int Msk_Orfao = 0;     // sem ALFA, sem GAMA que ligue, com ASSOC
+int Msk_Apto_Est = 0;   // Msk_Perf com destino — e o Mod_Apto, que antes saia por quadro
+int Msk_Assoc = 0; int Msk_Bloq = 0; int Msk_Excl = 0;
+int Msk_GatEst = 0;
+int Msk_Livre = 0;     // com ALFA e SEM GAMA que ligue: esta sempre ativo    // tem GAMA que liga (Tem_Gatilho_Estado)
+int Rc_A = 0; int Rc_B = 0;
+int Va_Msk = 0; int Va_Prox = 0; int Va_Visto = 0; int Va_Nv = 0;   // v7l: cadeia de orfaos
+int Spv_N = -1; int Spv_A = 0; int Spv_B = 0; int Spv_C = 0;
 int Esp_I=0; int Esp_N=0;   // v7i: contador e acumulador da espera do combo — dedicados
 // v3zu: temporarios da REORDENACAO. Dedicados porque Swap_Pos chama getters/setters que
 // usam o rodizio Work_ por dentro (Set_Combo_*, Set_Cond_*), e o valor guardado tem de
@@ -1145,22 +1165,43 @@ function Set_Btn_Fisico(idx, val) {
 // O EIXO_Y está na ZONA ATIVA? (sim/não) — para o ESTATC. ABS inclui zero; POS/NEG estritos.
 // Lê o estado físico (pressionado?) de um botão pelo índice de bit (0=L1..15=SHARE)
 function Ler_Btn_Fisico(idx) {
-    if(idx == 0)  return get_ival(PS5_L1);
-    if(idx == 1)  return get_ival(PS5_L2);
-    if(idx == 2)  return get_ival(PS5_L3);
-    if(idx == 3)  return get_ival(PS5_R1);
-    if(idx == 4)  return get_ival(PS5_R2);
-    if(idx == 5)  return get_ival(PS5_R3);
-    if(idx == 6)  return get_ival(PS5_CROSS);
-    if(idx == 7)  return get_ival(PS5_CIRCLE);
-    if(idx == 8)  return get_ival(PS5_SQUARE);
-    if(idx == 9)  return get_ival(PS5_TRIANGLE);
-    if(idx == 10) return get_ival(PS5_UP);
-    if(idx == 11) return get_ival(PS5_DOWN);
-    if(idx == 12) return get_ival(PS5_LEFT);
-    if(idx == 13) return get_ival(PS5_RIGHT);
-    if(idx == 14) return get_ival(PS5_TOUCH);
-    if(idx == 15) return get_ival(PS5_SHARE);
+    if(idx <= 7) {
+        if(idx <= 3) {
+            if(idx <= 1) {
+                if(idx == 0) return get_ival(PS5_L1);
+                if(idx == 1) return get_ival(PS5_L2);
+            } else {
+                if(idx == 2) return get_ival(PS5_L3);
+                if(idx == 3) return get_ival(PS5_R1);
+            }
+        } else {
+            if(idx <= 5) {
+                if(idx == 4) return get_ival(PS5_R2);
+                if(idx == 5) return get_ival(PS5_R3);
+            } else {
+                if(idx == 6) return get_ival(PS5_CROSS);
+                if(idx == 7) return get_ival(PS5_CIRCLE);
+            }
+        }
+    } else {
+        if(idx <= 11) {
+            if(idx <= 9) {
+                if(idx == 8) return get_ival(PS5_SQUARE);
+                if(idx == 9) return get_ival(PS5_TRIANGLE);
+            } else {
+                if(idx == 10) return get_ival(PS5_UP);
+                if(idx == 11) return get_ival(PS5_DOWN);
+            }
+        } else {
+            if(idx <= 13) {
+                if(idx == 12) return get_ival(PS5_LEFT);
+                if(idx == 13) return get_ival(PS5_RIGHT);
+            } else {
+                if(idx == 14) return get_ival(PS5_TOUCH);
+                if(idx == 15) return get_ival(PS5_SHARE);
+            }
+        }
+    }
     return 0;
 }
 // ===== V3-c: FONTE ÚNICA — leitura, zona ativa e supressão unificadas =====
@@ -1246,6 +1287,7 @@ function Religa_Fonte(num) {
 }
 // ===== V3-e: GATILHO+BTN_FN unificados (dados) =====
 function Get_Delay(num) {
+    if(num == Spv_N) { return (Spv_B >> SHIFT_DELAY) & 0x3; }   // v7l: MOD em execucao
     return (Get_Spvar_B(num) >> SHIFT_DELAY) & 0x3;
 }
 function Set_Delay(num, v) {
@@ -1255,6 +1297,7 @@ function Set_Delay(num, v) {
 }
 // v5: o tempo do AFTER agora vive no SPVAR_B — persistente. O FA_Cfg (RAM) some.
 function Get_FA_Tempo(num) {
+    if(num == Spv_N) { return (Spv_B >> SHIFT_AFTER_TMP) & 0x7; }   // v7l: MOD em execucao
     return (Get_Spvar_B(num) >> SHIFT_AFTER_TMP) & 0x7;
 }
 function Set_FA_Tempo(num, v) {
@@ -1284,6 +1327,7 @@ function After_Ms(idx) {
     return 2000;
 }
 function Get_Gatilho_Hphold_Btn(num) {
+    if(num == Spv_N) { return (Spv_C >> SHIFT_GATILHO_HPHOLD_BTN) & 0x1F; }   // v7l: MOD em execucao
     return (Get_Spvar_C(num) >> SHIFT_GATILHO_HPHOLD_BTN) & 0x1F;
 }
 function Set_Gatilho_Hphold_Btn(num, v) {
@@ -1292,6 +1336,7 @@ function Set_Gatilho_Hphold_Btn(num, v) {
     Set_Spvar_C(num, Work_A);
 }
 function Get_Gatilho_Hphold_Tempo(num) {
+    if(num == Spv_N) { return (Spv_B >> SHIFT_GATILHO_HPHOLD_TEMPO) & 0x3F; }   // v7l: MOD em execucao
     return (Get_Spvar_B(num) >> SHIFT_GATILHO_HPHOLD_TEMPO) & 0x3F;   // v3zc: 6 bits
 }
 function Set_Gatilho_Hphold_Tempo(num, v) {
@@ -1302,6 +1347,7 @@ function Set_Gatilho_Hphold_Tempo(num, v) {
 // v3zb: os tres botoes do trio. Btn_Tmp e dedicada — nao pode ser Work_, porque estes
 // getters sao chamados de dentro de expressoes que ja usam o rodizio Work_.
 function Get_Gatilho_Duplo_Btn(num) {
+    if(num == Spv_N) { Btn_Tmp = (Spv_C >> SHIFT_GATILHO_TRIO_BTN) & 0x1FFF; return Btn_Tmp / 289; }   // v7l: MOD em execucao
     Btn_Tmp = (Get_Spvar_C(num) >> SHIFT_GATILHO_TRIO_BTN) & 0x1FFF;
     return Btn_Tmp / 289;
 }
@@ -1312,6 +1358,7 @@ function Set_Gatilho_Duplo_Btn(num, v) {
     Set_Spvar_C(num, Work_A | ((Btn_Tmp & 0x1FFF) << SHIFT_GATILHO_TRIO_BTN));
 }
 function Get_Gatilho_Final_Btn(num) {
+    if(num == Spv_N) { Btn_Tmp = (Spv_C >> SHIFT_GATILHO_TRIO_BTN) & 0x1FFF; return (Btn_Tmp / 17) - ((Btn_Tmp / 289) * 17); }   // v7l: MOD em execucao
     Btn_Tmp = (Get_Spvar_C(num) >> SHIFT_GATILHO_TRIO_BTN) & 0x1FFF;
     return (Btn_Tmp / 17) - ((Btn_Tmp / 289) * 17);
 }
@@ -1322,6 +1369,7 @@ function Set_Gatilho_Final_Btn(num, v) {
     Set_Spvar_C(num, Work_A | ((Btn_Tmp & 0x1FFF) << SHIFT_GATILHO_TRIO_BTN));
 }
 function Get_Gatilho_FinalAfter_Btn(num) {
+    if(num == Spv_N) { Btn_Tmp = (Spv_C >> SHIFT_GATILHO_TRIO_BTN) & 0x1FFF; return Btn_Tmp - ((Btn_Tmp / 17) * 17); }   // v7l: MOD em execucao
     Btn_Tmp = (Get_Spvar_C(num) >> SHIFT_GATILHO_TRIO_BTN) & 0x1FFF;
     return Btn_Tmp - ((Btn_Tmp / 17) * 17);
 }
@@ -1332,51 +1380,93 @@ function Set_Gatilho_FinalAfter_Btn(num, v) {
     Set_Spvar_C(num, Work_A | ((Btn_Tmp & 0x1FFF) << SHIFT_GATILHO_TRIO_BTN));
 }
 function Get_GT_Relig(num) {
-    if(num== 1) return GT_Relig_01;
-    if(num== 2) return GT_Relig_02;
-    if(num== 3) return GT_Relig_03;
-    if(num== 4) return GT_Relig_04;
-    if(num== 5) return GT_Relig_05;
-    if(num== 6) return GT_Relig_06;
-    if(num== 7) return GT_Relig_07;
-    if(num== 8) return GT_Relig_08;
-    if(num== 9) return GT_Relig_09;
-    if(num==10) return GT_Relig_10;
-    if(num==11) return GT_Relig_11;
-    if(num==12) return GT_Relig_12;
-    if(num==13) return GT_Relig_13;
-    if(num==14) return GT_Relig_14;
-    if(num==15) return GT_Relig_15;
-    if(num==16) return GT_Relig_16;
-    if(num==17) return GT_Relig_17;
-    if(num==18) return GT_Relig_18;
-    if(num==19) return GT_Relig_19;
-    if(num==20) return GT_Relig_20;
-    if(num==21) return GT_Relig_21;
+    if(num <= 11) {
+        if(num <= 6) {
+            if(num <= 3) {
+                if(num == 1) return GT_Relig_01;
+                if(num == 2) return GT_Relig_02;
+                if(num == 3) return GT_Relig_03;
+            } else {
+                if(num == 4) return GT_Relig_04;
+                if(num == 5) return GT_Relig_05;
+                if(num == 6) return GT_Relig_06;
+            }
+        } else {
+            if(num <= 9) {
+                if(num == 7) return GT_Relig_07;
+                if(num == 8) return GT_Relig_08;
+                if(num == 9) return GT_Relig_09;
+            } else {
+                if(num == 10) return GT_Relig_10;
+                if(num == 11) return GT_Relig_11;
+            }
+        }
+    } else {
+        if(num <= 16) {
+            if(num <= 14) {
+                if(num == 12) return GT_Relig_12;
+                if(num == 13) return GT_Relig_13;
+                if(num == 14) return GT_Relig_14;
+            } else {
+                if(num == 15) return GT_Relig_15;
+                if(num == 16) return GT_Relig_16;
+            }
+        } else {
+            if(num <= 19) {
+                if(num == 17) return GT_Relig_17;
+                if(num == 18) return GT_Relig_18;
+                if(num == 19) return GT_Relig_19;
+            } else {
+                if(num == 20) return GT_Relig_20;
+                if(num == 21) return GT_Relig_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_GT_Relig(num, v) {
-    if(num== 1) GT_Relig_01=v;
-    if(num== 2) GT_Relig_02=v;
-    if(num== 3) GT_Relig_03=v;
-    if(num== 4) GT_Relig_04=v;
-    if(num== 5) GT_Relig_05=v;
-    if(num== 6) GT_Relig_06=v;
-    if(num== 7) GT_Relig_07=v;
-    if(num== 8) GT_Relig_08=v;
-    if(num== 9) GT_Relig_09=v;
-    if(num==10) GT_Relig_10=v;
-    if(num==11) GT_Relig_11=v;
-    if(num==12) GT_Relig_12=v;
-    if(num==13) GT_Relig_13=v;
-    if(num==14) GT_Relig_14=v;
-    if(num==15) GT_Relig_15=v;
-    if(num==16) GT_Relig_16=v;
-    if(num==17) GT_Relig_17=v;
-    if(num==18) GT_Relig_18=v;
-    if(num==19) GT_Relig_19=v;
-    if(num==20) GT_Relig_20=v;
-    if(num==21) GT_Relig_21=v;
+    if(num <= 11) {
+        if(num <= 6) {
+            if(num <= 3) {
+                if(num == 1) GT_Relig_01=v;
+                if(num == 2) GT_Relig_02=v;
+                if(num == 3) GT_Relig_03=v;
+            } else {
+                if(num == 4) GT_Relig_04=v;
+                if(num == 5) GT_Relig_05=v;
+                if(num == 6) GT_Relig_06=v;
+            }
+        } else {
+            if(num <= 9) {
+                if(num == 7) GT_Relig_07=v;
+                if(num == 8) GT_Relig_08=v;
+                if(num == 9) GT_Relig_09=v;
+            } else {
+                if(num == 10) GT_Relig_10=v;
+                if(num == 11) GT_Relig_11=v;
+            }
+        }
+    } else {
+        if(num <= 16) {
+            if(num <= 14) {
+                if(num == 12) GT_Relig_12=v;
+                if(num == 13) GT_Relig_13=v;
+                if(num == 14) GT_Relig_14=v;
+            } else {
+                if(num == 15) GT_Relig_15=v;
+                if(num == 16) GT_Relig_16=v;
+            }
+        } else {
+            if(num <= 19) {
+                if(num == 17) GT_Relig_17=v;
+                if(num == 18) GT_Relig_18=v;
+                if(num == 19) GT_Relig_19=v;
+            } else {
+                if(num == 20) GT_Relig_20=v;
+                if(num == 21) GT_Relig_21=v;
+            }
+        }
+    }
 }
 // [HISTORICO] v3: o RELIG do HOLD foi persistente no SPVAR_64 ate a v3zb, quando virou
 // regra derivada. A SPVAR_64 hoje guarda a migracao e o selo da config do app.
@@ -1440,47 +1530,134 @@ function Ptime_Btn(idx) {
 }
 // Detecta o "pressionar" (transição) de um botão pelo índice de bit
 function Press_Btn_Fisico(idx) {
-    if(idx == 0)  return event_press(PS5_L1);
-    if(idx == 1)  return event_press(PS5_L2);
-    if(idx == 2)  return event_press(PS5_L3);
-    if(idx == 3)  return event_press(PS5_R1);
-    if(idx == 4)  return event_press(PS5_R2);
-    if(idx == 5)  return event_press(PS5_R3);
-    if(idx == 6)  return event_press(PS5_CROSS);
-    if(idx == 7)  return event_press(PS5_CIRCLE);
-    if(idx == 8)  return event_press(PS5_SQUARE);
-    if(idx == 9)  return event_press(PS5_TRIANGLE);
-    if(idx == 10) return event_press(PS5_UP);
-    if(idx == 11) return event_press(PS5_DOWN);
-    if(idx == 12) return event_press(PS5_LEFT);
-    if(idx == 13) return event_press(PS5_RIGHT);
-    if(idx == 14) return event_press(PS5_TOUCH);
-    if(idx == 15) return event_press(PS5_SHARE);
+    if(idx <= 7) {
+        if(idx <= 3) {
+            if(idx <= 1) {
+                if(idx == 0) return event_press(PS5_L1);
+                if(idx == 1) return event_press(PS5_L2);
+            } else {
+                if(idx == 2) return event_press(PS5_L3);
+                if(idx == 3) return event_press(PS5_R1);
+            }
+        } else {
+            if(idx <= 5) {
+                if(idx == 4) return event_press(PS5_R2);
+                if(idx == 5) return event_press(PS5_R3);
+            } else {
+                if(idx == 6) return event_press(PS5_CROSS);
+                if(idx == 7) return event_press(PS5_CIRCLE);
+            }
+        }
+    } else {
+        if(idx <= 11) {
+            if(idx <= 9) {
+                if(idx == 8) return event_press(PS5_SQUARE);
+                if(idx == 9) return event_press(PS5_TRIANGLE);
+            } else {
+                if(idx == 10) return event_press(PS5_UP);
+                if(idx == 11) return event_press(PS5_DOWN);
+            }
+        } else {
+            if(idx <= 13) {
+                if(idx == 12) return event_press(PS5_LEFT);
+                if(idx == 13) return event_press(PS5_RIGHT);
+            } else {
+                if(idx == 14) return event_press(PS5_TOUCH);
+                if(idx == 15) return event_press(PS5_SHARE);
+            }
+        }
+    }
     return 0;
 }
 // Get/Set do estado de duplo-clique por instância (1-16)
 function Get_Dc(num) {
-    if(num== 1) return Dc_01;   if(num== 2) return Dc_02;   if(num== 3) return Dc_03;   if(num== 4) return Dc_04;
-    if(num== 5) return Dc_05;   if(num== 6) return Dc_06;   if(num== 7) return Dc_07;   if(num== 8) return Dc_08;
-    if(num== 9) return Dc_09;   if(num==10) return Dc_10;   if(num==11) return Dc_11;   if(num==12) return Dc_12;
-    if(num==13) return Dc_13;   if(num==14) return Dc_14;   if(num==15) return Dc_15;   if(num==16) return Dc_16;
-    if(num==17) return Dc_17;
-    if(num==18) return Dc_18;
-    if(num==19) return Dc_19;
-    if(num==20) return Dc_20;
-    if(num==21) return Dc_21;
+    if(num <= 11) {
+        if(num <= 6) {
+            if(num <= 3) {
+                if(num == 1) return Dc_01;
+                if(num == 2) return Dc_02;
+                if(num == 3) return Dc_03;
+            } else {
+                if(num == 4) return Dc_04;
+                if(num == 5) return Dc_05;
+                if(num == 6) return Dc_06;
+            }
+        } else {
+            if(num <= 9) {
+                if(num == 7) return Dc_07;
+                if(num == 8) return Dc_08;
+                if(num == 9) return Dc_09;
+            } else {
+                if(num == 10) return Dc_10;
+                if(num == 11) return Dc_11;
+            }
+        }
+    } else {
+        if(num <= 16) {
+            if(num <= 14) {
+                if(num == 12) return Dc_12;
+                if(num == 13) return Dc_13;
+                if(num == 14) return Dc_14;
+            } else {
+                if(num == 15) return Dc_15;
+                if(num == 16) return Dc_16;
+            }
+        } else {
+            if(num <= 19) {
+                if(num == 17) return Dc_17;
+                if(num == 18) return Dc_18;
+                if(num == 19) return Dc_19;
+            } else {
+                if(num == 20) return Dc_20;
+                if(num == 21) return Dc_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_Dc(num, v) {
-    if(num== 1) Dc_01=v;   if(num== 2) Dc_02=v;   if(num== 3) Dc_03=v;   if(num== 4) Dc_04=v;
-    if(num== 5) Dc_05=v;   if(num== 6) Dc_06=v;   if(num== 7) Dc_07=v;   if(num== 8) Dc_08=v;
-    if(num== 9) Dc_09=v;   if(num==10) Dc_10=v;   if(num==11) Dc_11=v;   if(num==12) Dc_12=v;
-    if(num==13) Dc_13=v;   if(num==14) Dc_14=v;   if(num==15) Dc_15=v;   if(num==16) Dc_16=v;
-    if(num==17) Dc_17=v;
-    if(num==18) Dc_18=v;
-    if(num==19) Dc_19=v;
-    if(num==20) Dc_20=v;
-    if(num==21) Dc_21=v;
+    if(num <= 11) {
+        if(num <= 6) {
+            if(num <= 3) {
+                if(num == 1) Dc_01=v;
+                if(num == 2) Dc_02=v;
+                if(num == 3) Dc_03=v;
+            } else {
+                if(num == 4) Dc_04=v;
+                if(num == 5) Dc_05=v;
+                if(num == 6) Dc_06=v;
+            }
+        } else {
+            if(num <= 9) {
+                if(num == 7) Dc_07=v;
+                if(num == 8) Dc_08=v;
+                if(num == 9) Dc_09=v;
+            } else {
+                if(num == 10) Dc_10=v;
+                if(num == 11) Dc_11=v;
+            }
+        }
+    } else {
+        if(num <= 16) {
+            if(num <= 14) {
+                if(num == 12) Dc_12=v;
+                if(num == 13) Dc_13=v;
+                if(num == 14) Dc_14=v;
+            } else {
+                if(num == 15) Dc_15=v;
+                if(num == 16) Dc_16=v;
+            }
+        } else {
+            if(num <= 19) {
+                if(num == 17) Dc_17=v;
+                if(num == 18) Dc_18=v;
+                if(num == 19) Dc_19=v;
+            } else {
+                if(num == 20) Dc_20=v;
+                if(num == 21) Dc_21=v;
+            }
+        }
+    }
 }
 // Detecta o gatilho DUPLO_CLIK: 2 cliques no MESMO botão em < 300ms alternam a instância.
 // Estado empacotado: bits 0-4 = (botão+1) do 1º clique; bits 5+ = janela (ms) restante.
@@ -1924,13 +2101,48 @@ function Executar_Turbo_Fonte(num) {
 // pressionado). Base do gate de entrada de perfil — ver Ent_Trava no Run_Instance_v3.
 // Sem fonte ("---") só os gatilhos contam, porque não há zona a consultar.
 function Get_Fin(n) {
-    if(n== 1) return Fin_01;   if(n== 2) return Fin_02;   if(n== 3) return Fin_03;
-    if(n== 4) return Fin_04;   if(n== 5) return Fin_05;   if(n== 6) return Fin_06;
-    if(n== 7) return Fin_07;   if(n== 8) return Fin_08;   if(n== 9) return Fin_09;
-    if(n==10) return Fin_10;   if(n==11) return Fin_11;   if(n==12) return Fin_12;
-    if(n==13) return Fin_13;   if(n==14) return Fin_14;   if(n==15) return Fin_15;
-    if(n==16) return Fin_16;   if(n==17) return Fin_17;   if(n==18) return Fin_18;
-    if(n==19) return Fin_19;   if(n==20) return Fin_20;   if(n==21) return Fin_21;
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) return Fin_01;
+                if(n == 2) return Fin_02;
+                if(n == 3) return Fin_03;
+            } else {
+                if(n == 4) return Fin_04;
+                if(n == 5) return Fin_05;
+                if(n == 6) return Fin_06;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) return Fin_07;
+                if(n == 8) return Fin_08;
+                if(n == 9) return Fin_09;
+            } else {
+                if(n == 10) return Fin_10;
+                if(n == 11) return Fin_11;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) return Fin_12;
+                if(n == 13) return Fin_13;
+                if(n == 14) return Fin_14;
+            } else {
+                if(n == 15) return Fin_15;
+                if(n == 16) return Fin_16;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) return Fin_17;
+                if(n == 18) return Fin_18;
+                if(n == 19) return Fin_19;
+            } else {
+                if(n == 20) return Fin_20;
+                if(n == 21) return Fin_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_Fin(n, v) {
@@ -1943,13 +2155,48 @@ function Set_Fin(n, v) {
     if(n==19) Fin_19=v;   if(n==20) Fin_20=v;   if(n==21) Fin_21=v;
 }
 function Get_Blok(n) {
-    if(n== 1) return Blk_01;   if(n== 2) return Blk_02;   if(n== 3) return Blk_03;
-    if(n== 4) return Blk_04;   if(n== 5) return Blk_05;   if(n== 6) return Blk_06;
-    if(n== 7) return Blk_07;   if(n== 8) return Blk_08;   if(n== 9) return Blk_09;
-    if(n==10) return Blk_10;   if(n==11) return Blk_11;   if(n==12) return Blk_12;
-    if(n==13) return Blk_13;   if(n==14) return Blk_14;   if(n==15) return Blk_15;
-    if(n==16) return Blk_16;   if(n==17) return Blk_17;   if(n==18) return Blk_18;
-    if(n==19) return Blk_19;   if(n==20) return Blk_20;   if(n==21) return Blk_21;
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) return Blk_01;
+                if(n == 2) return Blk_02;
+                if(n == 3) return Blk_03;
+            } else {
+                if(n == 4) return Blk_04;
+                if(n == 5) return Blk_05;
+                if(n == 6) return Blk_06;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) return Blk_07;
+                if(n == 8) return Blk_08;
+                if(n == 9) return Blk_09;
+            } else {
+                if(n == 10) return Blk_10;
+                if(n == 11) return Blk_11;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) return Blk_12;
+                if(n == 13) return Blk_13;
+                if(n == 14) return Blk_14;
+            } else {
+                if(n == 15) return Blk_15;
+                if(n == 16) return Blk_16;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) return Blk_17;
+                if(n == 18) return Blk_18;
+                if(n == 19) return Blk_19;
+            } else {
+                if(n == 20) return Blk_20;
+                if(n == 21) return Blk_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_Blok(n, v) {
@@ -1969,23 +2216,93 @@ function BTN_FN_Bloqueia_v3(num) {
     return Ler_Btn_Fisico(Work_N - 1);
 }
 function Get_Dly(n) {
-    if(n== 1) return Dly_01;   if(n== 2) return Dly_02;   if(n== 3) return Dly_03;
-    if(n== 4) return Dly_04;   if(n== 5) return Dly_05;   if(n== 6) return Dly_06;
-    if(n== 7) return Dly_07;   if(n== 8) return Dly_08;   if(n== 9) return Dly_09;
-    if(n==10) return Dly_10;   if(n==11) return Dly_11;   if(n==12) return Dly_12;
-    if(n==13) return Dly_13;   if(n==14) return Dly_14;   if(n==15) return Dly_15;
-    if(n==16) return Dly_16;   if(n==17) return Dly_17;   if(n==18) return Dly_18;
-    if(n==19) return Dly_19;   if(n==20) return Dly_20;   if(n==21) return Dly_21;
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) return Dly_01;
+                if(n == 2) return Dly_02;
+                if(n == 3) return Dly_03;
+            } else {
+                if(n == 4) return Dly_04;
+                if(n == 5) return Dly_05;
+                if(n == 6) return Dly_06;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) return Dly_07;
+                if(n == 8) return Dly_08;
+                if(n == 9) return Dly_09;
+            } else {
+                if(n == 10) return Dly_10;
+                if(n == 11) return Dly_11;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) return Dly_12;
+                if(n == 13) return Dly_13;
+                if(n == 14) return Dly_14;
+            } else {
+                if(n == 15) return Dly_15;
+                if(n == 16) return Dly_16;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) return Dly_17;
+                if(n == 18) return Dly_18;
+                if(n == 19) return Dly_19;
+            } else {
+                if(n == 20) return Dly_20;
+                if(n == 21) return Dly_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_Dly(n, v) {
-    if(n== 1) Dly_01=v;   if(n== 2) Dly_02=v;   if(n== 3) Dly_03=v;
-    if(n== 4) Dly_04=v;   if(n== 5) Dly_05=v;   if(n== 6) Dly_06=v;
-    if(n== 7) Dly_07=v;   if(n== 8) Dly_08=v;   if(n== 9) Dly_09=v;
-    if(n==10) Dly_10=v;   if(n==11) Dly_11=v;   if(n==12) Dly_12=v;
-    if(n==13) Dly_13=v;   if(n==14) Dly_14=v;   if(n==15) Dly_15=v;
-    if(n==16) Dly_16=v;   if(n==17) Dly_17=v;   if(n==18) Dly_18=v;
-    if(n==19) Dly_19=v;   if(n==20) Dly_20=v;   if(n==21) Dly_21=v;
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) Dly_01=v;
+                if(n == 2) Dly_02=v;
+                if(n == 3) Dly_03=v;
+            } else {
+                if(n == 4) Dly_04=v;
+                if(n == 5) Dly_05=v;
+                if(n == 6) Dly_06=v;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) Dly_07=v;
+                if(n == 8) Dly_08=v;
+                if(n == 9) Dly_09=v;
+            } else {
+                if(n == 10) Dly_10=v;
+                if(n == 11) Dly_11=v;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) Dly_12=v;
+                if(n == 13) Dly_13=v;
+                if(n == 14) Dly_14=v;
+            } else {
+                if(n == 15) Dly_15=v;
+                if(n == 16) Dly_16=v;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) Dly_17=v;
+                if(n == 18) Dly_18=v;
+                if(n == 19) Dly_19=v;
+            } else {
+                if(n == 20) Dly_20=v;
+                if(n == 21) Dly_21=v;
+            }
+        }
+    }
 }
 // v5: o DELAY vale para o INSTANTE EM QUE A RESPOSTA IA COMECAR — nao para o ALFA nem
 // para o GAMA em separado. Foi o MOD_03 do FIFA que fechou essa decisao: ele nao tem
@@ -2063,7 +2380,10 @@ function Trb_Aplicar_Cond(num, v) {
 // ===== V3-f/g/h: Run_Instance unificado — substitui a antiga (X/Y/F2 triplicados) por
 // uma fonte só. Ainda NÃO conectada ao Run_Pipeline — troca acontece depois de validar. =====
 function Run_Instance_v3(num) {
-    Work_A = Get_Spvar_A(num);
+    Spv_N = -1;                                        // v7l: carrega o cache deste MOD
+    Spv_A = Get_Spvar_A(num); Spv_B = Get_Spvar_B(num); Spv_C = Get_Spvar_C(num);
+    Spv_N = num;
+    Work_A = Spv_A;
     if(!(Work_A & 1)) return;                         // SLOT_USED = 0 → não existe
     // CORRIGIDO: CurrentMode==0 ("nenhum perfil ativo") checava o bit 0 (SLOT_USED, sempre 1)
     // por acidente, ligando toda instância independente de S1-S4. Agora nenhum perfil ativo
@@ -2209,6 +2529,8 @@ function Run_Instance_v3(num) {
 // que era exatamente a intencao da configuracao.
 // Os indices batem com Gatilho_Alterna_G: 0=2CLK 1=TOGGLE 2=HOLD 3=AFTER.
 function Tem_Gatilho_Estado(num) {
+    // v7l: com as mascaras em dia, a resposta ja esta pronta. Cfg_Sujo cobre o menu aberto.
+    if(!Cfg_Sujo) return (Msk_GatEst >> (num - 1)) & 1;
     if(Get_Gatilho_Duplo_Btn(num)      && !((Get_Fin(num) >> 0) & 1)) return 1;
     if(Get_Gatilho_Final_Btn(num)      && !((Get_Fin(num) >> 1) & 1)) return 1;
     if(Get_Gatilho_Hphold_Btn(num)     && !((Get_Fin(num) >> 2) & 1)) return 1;
@@ -2216,6 +2538,11 @@ function Tem_Gatilho_Estado(num) {
     return 0;
 }
 function Inst_Esta_Ativa(num) {
+    // v7l: mesma regra, lida das mascaras (com ALFA e sem GAMA de estado = sempre ativo)
+    if(!Cfg_Sujo) {
+        if((Msk_Livre >> (num - 1)) & 1) return 1;
+        return (Inst_Ativa >> (num - 1)) & 1;
+    }
     // v3t CORRIGIDO: com fonte "---" o atalho "sempre ativo" não pode valer. Sem fonte E
     // sem gatilho de estado (ex.: só BLOK configurado), nada gatava a instância e o destino
     // subia sozinho, ignorando o INIC. Agora, sem fonte, o estado vem SEMPRE de Inst_Ativa
@@ -2245,27 +2572,93 @@ function Inst_Esta_Ativa(num) {
 }
 // Get/Set do estado FINAL_AFTER por instância (1-16): janela (ms) restante; 0 = não contando
 function Get_Fa(num) {
-    if(num== 1) return Fa_01;   if(num== 2) return Fa_02;   if(num== 3) return Fa_03;   if(num== 4) return Fa_04;
-    if(num== 5) return Fa_05;   if(num== 6) return Fa_06;   if(num== 7) return Fa_07;   if(num== 8) return Fa_08;
-    if(num== 9) return Fa_09;   if(num==10) return Fa_10;   if(num==11) return Fa_11;   if(num==12) return Fa_12;
-    if(num==13) return Fa_13;   if(num==14) return Fa_14;   if(num==15) return Fa_15;   if(num==16) return Fa_16;
-    if(num==17) return Fa_17;
-    if(num==18) return Fa_18;
-    if(num==19) return Fa_19;
-    if(num==20) return Fa_20;
-    if(num==21) return Fa_21;
+    if(num <= 11) {
+        if(num <= 6) {
+            if(num <= 3) {
+                if(num == 1) return Fa_01;
+                if(num == 2) return Fa_02;
+                if(num == 3) return Fa_03;
+            } else {
+                if(num == 4) return Fa_04;
+                if(num == 5) return Fa_05;
+                if(num == 6) return Fa_06;
+            }
+        } else {
+            if(num <= 9) {
+                if(num == 7) return Fa_07;
+                if(num == 8) return Fa_08;
+                if(num == 9) return Fa_09;
+            } else {
+                if(num == 10) return Fa_10;
+                if(num == 11) return Fa_11;
+            }
+        }
+    } else {
+        if(num <= 16) {
+            if(num <= 14) {
+                if(num == 12) return Fa_12;
+                if(num == 13) return Fa_13;
+                if(num == 14) return Fa_14;
+            } else {
+                if(num == 15) return Fa_15;
+                if(num == 16) return Fa_16;
+            }
+        } else {
+            if(num <= 19) {
+                if(num == 17) return Fa_17;
+                if(num == 18) return Fa_18;
+                if(num == 19) return Fa_19;
+            } else {
+                if(num == 20) return Fa_20;
+                if(num == 21) return Fa_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_Fa(num, v) {
-    if(num== 1) Fa_01=v;   if(num== 2) Fa_02=v;   if(num== 3) Fa_03=v;   if(num== 4) Fa_04=v;
-    if(num== 5) Fa_05=v;   if(num== 6) Fa_06=v;   if(num== 7) Fa_07=v;   if(num== 8) Fa_08=v;
-    if(num== 9) Fa_09=v;   if(num==10) Fa_10=v;   if(num==11) Fa_11=v;   if(num==12) Fa_12=v;
-    if(num==13) Fa_13=v;   if(num==14) Fa_14=v;   if(num==15) Fa_15=v;   if(num==16) Fa_16=v;
-    if(num==17) Fa_17=v;
-    if(num==18) Fa_18=v;
-    if(num==19) Fa_19=v;
-    if(num==20) Fa_20=v;
-    if(num==21) Fa_21=v;
+    if(num <= 11) {
+        if(num <= 6) {
+            if(num <= 3) {
+                if(num == 1) Fa_01=v;
+                if(num == 2) Fa_02=v;
+                if(num == 3) Fa_03=v;
+            } else {
+                if(num == 4) Fa_04=v;
+                if(num == 5) Fa_05=v;
+                if(num == 6) Fa_06=v;
+            }
+        } else {
+            if(num <= 9) {
+                if(num == 7) Fa_07=v;
+                if(num == 8) Fa_08=v;
+                if(num == 9) Fa_09=v;
+            } else {
+                if(num == 10) Fa_10=v;
+                if(num == 11) Fa_11=v;
+            }
+        }
+    } else {
+        if(num <= 16) {
+            if(num <= 14) {
+                if(num == 12) Fa_12=v;
+                if(num == 13) Fa_13=v;
+                if(num == 14) Fa_14=v;
+            } else {
+                if(num == 15) Fa_15=v;
+                if(num == 16) Fa_16=v;
+            }
+        } else {
+            if(num <= 19) {
+                if(num == 17) Fa_17=v;
+                if(num == 18) Fa_18=v;
+                if(num == 19) Fa_19=v;
+            } else {
+                if(num == 20) Fa_20=v;
+                if(num == 21) Fa_21=v;
+            }
+        }
+    }
 }
 // FINALIZA (FBTN2): pressionar desliga; com RELIG=SIM, alterna (toggle). Anti-loop via Fz_Travado.
 // FINAL_AFTER (FBTN3): ao SOLTAR o botão, conta FTMP; ao fim, desliga. Reapertar cancela.
@@ -2383,51 +2776,93 @@ function Estatc_Escrever_Dst_Val(mask, v, sinal) {
 }
 // ===== EXECUÇÃO DO TURBO (3I-c: botões) =====
 function Get_TrbSt_X(n) {
-    if(n== 1) return SR_TrbSt_X_01;
-    if(n== 2) return SR_TrbSt_X_02;
-    if(n== 3) return SR_TrbSt_X_03;
-    if(n== 4) return SR_TrbSt_X_04;
-    if(n== 5) return SR_TrbSt_X_05;
-    if(n== 6) return SR_TrbSt_X_06;
-    if(n== 7) return SR_TrbSt_X_07;
-    if(n== 8) return SR_TrbSt_X_08;
-    if(n== 9) return SR_TrbSt_X_09;
-    if(n==10) return SR_TrbSt_X_10;
-    if(n==11) return SR_TrbSt_X_11;
-    if(n==12) return SR_TrbSt_X_12;
-    if(n==13) return SR_TrbSt_X_13;
-    if(n==14) return SR_TrbSt_X_14;
-    if(n==15) return SR_TrbSt_X_15;
-    if(n==16) return SR_TrbSt_X_16;
-    if(n==17) return SR_TrbSt_X_17;
-    if(n==18) return SR_TrbSt_X_18;
-    if(n==19) return SR_TrbSt_X_19;
-    if(n==20) return SR_TrbSt_X_20;
-    if(n==21) return SR_TrbSt_X_21;
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) return SR_TrbSt_X_01;
+                if(n == 2) return SR_TrbSt_X_02;
+                if(n == 3) return SR_TrbSt_X_03;
+            } else {
+                if(n == 4) return SR_TrbSt_X_04;
+                if(n == 5) return SR_TrbSt_X_05;
+                if(n == 6) return SR_TrbSt_X_06;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) return SR_TrbSt_X_07;
+                if(n == 8) return SR_TrbSt_X_08;
+                if(n == 9) return SR_TrbSt_X_09;
+            } else {
+                if(n == 10) return SR_TrbSt_X_10;
+                if(n == 11) return SR_TrbSt_X_11;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) return SR_TrbSt_X_12;
+                if(n == 13) return SR_TrbSt_X_13;
+                if(n == 14) return SR_TrbSt_X_14;
+            } else {
+                if(n == 15) return SR_TrbSt_X_15;
+                if(n == 16) return SR_TrbSt_X_16;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) return SR_TrbSt_X_17;
+                if(n == 18) return SR_TrbSt_X_18;
+                if(n == 19) return SR_TrbSt_X_19;
+            } else {
+                if(n == 20) return SR_TrbSt_X_20;
+                if(n == 21) return SR_TrbSt_X_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_TrbSt_X(n, v) {
-    if(n== 1) SR_TrbSt_X_01=v;
-    if(n== 2) SR_TrbSt_X_02=v;
-    if(n== 3) SR_TrbSt_X_03=v;
-    if(n== 4) SR_TrbSt_X_04=v;
-    if(n== 5) SR_TrbSt_X_05=v;
-    if(n== 6) SR_TrbSt_X_06=v;
-    if(n== 7) SR_TrbSt_X_07=v;
-    if(n== 8) SR_TrbSt_X_08=v;
-    if(n== 9) SR_TrbSt_X_09=v;
-    if(n==10) SR_TrbSt_X_10=v;
-    if(n==11) SR_TrbSt_X_11=v;
-    if(n==12) SR_TrbSt_X_12=v;
-    if(n==13) SR_TrbSt_X_13=v;
-    if(n==14) SR_TrbSt_X_14=v;
-    if(n==15) SR_TrbSt_X_15=v;
-    if(n==16) SR_TrbSt_X_16=v;
-    if(n==17) SR_TrbSt_X_17=v;
-    if(n==18) SR_TrbSt_X_18=v;
-    if(n==19) SR_TrbSt_X_19=v;
-    if(n==20) SR_TrbSt_X_20=v;
-    if(n==21) SR_TrbSt_X_21=v;
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) SR_TrbSt_X_01=v;
+                if(n == 2) SR_TrbSt_X_02=v;
+                if(n == 3) SR_TrbSt_X_03=v;
+            } else {
+                if(n == 4) SR_TrbSt_X_04=v;
+                if(n == 5) SR_TrbSt_X_05=v;
+                if(n == 6) SR_TrbSt_X_06=v;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) SR_TrbSt_X_07=v;
+                if(n == 8) SR_TrbSt_X_08=v;
+                if(n == 9) SR_TrbSt_X_09=v;
+            } else {
+                if(n == 10) SR_TrbSt_X_10=v;
+                if(n == 11) SR_TrbSt_X_11=v;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) SR_TrbSt_X_12=v;
+                if(n == 13) SR_TrbSt_X_13=v;
+                if(n == 14) SR_TrbSt_X_14=v;
+            } else {
+                if(n == 15) SR_TrbSt_X_15=v;
+                if(n == 16) SR_TrbSt_X_16=v;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) SR_TrbSt_X_17=v;
+                if(n == 18) SR_TrbSt_X_18=v;
+                if(n == 19) SR_TrbSt_X_19=v;
+            } else {
+                if(n == 20) SR_TrbSt_X_20=v;
+                if(n == 21) SR_TrbSt_X_21=v;
+            }
+        }
+    }
 }
 // Tempo do TURBO em ms (idx 0-9)
 // v3zc: 8 valores (3 bits) em vez de 16. A faixa RAPIDA (50-150ms) fica quase
@@ -2516,22 +2951,9 @@ function Trb_Valor_Eixo(mod, pack, raw) {
 // Calculado 1x por quadro, ANTES do loop de instâncias, com o estado como estava ao final do
 // quadro anterior (evita depender da ordem de processamento dentro do mesmo quadro).
 function Mask_Tem_Bit_Comum(a, b) {
-    if((a & 1)     && (b & 1))     return 1;
-    if((a & 2)     && (b & 2))     return 1;
-    if((a & 4)     && (b & 4))     return 1;
-    if((a & 8)     && (b & 8))     return 1;
-    if((a & 16)    && (b & 16))    return 1;
-    if((a & 32)    && (b & 32))    return 1;
-    if((a & 64)    && (b & 64))    return 1;
-    if((a & 128)   && (b & 128))   return 1;
-    if((a & 256)   && (b & 256))   return 1;
-    if((a & 512)   && (b & 512))   return 1;
-    if((a & 1024)  && (b & 1024))  return 1;
-    if((a & 2048)  && (b & 2048))  return 1;
-    if((a & 4096)  && (b & 4096))  return 1;
-    if((a & 8192)  && (b & 8192))  return 1;
-    if((a & 16384) && (b & 16384)) return 1;
-    if((a & 32768) && (b & 32768)) return 1;
+    // v7l: as mascaras tem 21 bits (0-20), nunca chegam ao bit de sinal — o E bit a bit
+    // responde de uma vez o que 21 testes respondiam um a um. O historico abaixo continua
+    // valendo: a versao antiga chegou a parar no bit 15.
     // v3x — BUG RAIZ DOS MODs: esta função parava no bit 15, resquício de quando o sistema
     // tinha 16 instâncias. Com 21, as instâncias 17-21 (bits 16-20) eram INVISÍVEIS pra
     // toda a lógica de MOD. Como o Daniel testou justamente com MOD_20 (bit 19) e MOD_21
@@ -2542,11 +2964,7 @@ function Mask_Tem_Bit_Comum(a, b) {
     //            de pé" -> bloqueava SEMPRE. Era o único que dava sinal de vida, e por isso
     //            mesmo foi o que denunciou a causa: a assimetria só faz sentido com o
     //            Bloq_Snap_Resp permanentemente vazio aos olhos desta função.
-    if((a & 65536)   && (b & 65536))   return 1;   // instância 17
-    if((a & 131072)  && (b & 131072))  return 1;   // instância 18
-    if((a & 262144)  && (b & 262144))  return 1;   // instância 19
-    if((a & 524288)  && (b & 524288))  return 1;   // instância 20
-    if((a & 1048576) && (b & 1048576)) return 1;   // instância 21
+    if(a & b) return 1;
     return 0;
 }
 // A fonte da instância i está na zona ativa agora, em pelo menos um eixo (independente de
@@ -2636,6 +3054,14 @@ function Bloq_Resp_Ativa_v3(i) {
     if((Ent_Trava >> (i - 1)) & 1) return 0;
     if(BTN_FN_Bloqueia_v3(i)) return 0;   // v6c: suspenso nao esta de pe
     if(!Tem_Destino(i)) return 0;   // v3ze: sem destino nao participa de relacao nenhuma
+    // v7l: enquanto o DELAY corre, a resposta AINDA NAO SUBIU — e relacao e de RESPOSTA para
+    // RESPOSTA. Antes o MOD contava como de pe no instante em que ligava, e numa cadeia de
+    // orfaos o segundo subia junto com o primeiro, ignorando o DELAY dele (achado do Daniel
+    // no F10). Agora cada elo espera o anterior subir de fato: os DELAYs da cadeia SOMAM.
+    if(Get_Delay(i)) {
+        if(!((Dly_Arm >> (i - 1)) & 1)) return 0;
+        if(Get_Dly(i) > 0) return 0;
+    }
     Work_B = Get_F1_Tipo(i);
     if(Work_B == DST_TIPO_TURBO) {
         Work_E = Get_TrbSt_X(i);
@@ -2731,17 +3157,33 @@ function Computar_Assoc_Instancia_v3(m) {
 // Para BLOQ/EXCL a inaptidão já era inofensiva (nunca dispara); é só o ASSOC, que pergunta
 // pela AUSÊNCIA, que precisa ignorar alvos inaptos em vez de tratá-los como "parados".
 function Snap_Um_v3(i) {
-    if(Inst_Perfil_Ativo(i) && Tem_Destino(i)) Mod_Apto = Mod_Apto | (1 << (i - 1));
     if(Bloq_Resp_Ativa_v3(i)) Bloq_Snap_Resp = Bloq_Snap_Resp | (1 << (i - 1));
 }
 function Computar_Snapshot_v3() {
     Bloq_Snap_Resp = 0;
-    Mod_Apto = 0;
-    Snap_Um_v3(1);  Snap_Um_v3(2);  Snap_Um_v3(3);  Snap_Um_v3(4);  Snap_Um_v3(5);
-    Snap_Um_v3(6);  Snap_Um_v3(7);  Snap_Um_v3(8);  Snap_Um_v3(9);  Snap_Um_v3(10);
-    Snap_Um_v3(11); Snap_Um_v3(12); Snap_Um_v3(13); Snap_Um_v3(14); Snap_Um_v3(15);
-    Snap_Um_v3(16); Snap_Um_v3(17); Snap_Um_v3(18); Snap_Um_v3(19); Snap_Um_v3(20);
-    Snap_Um_v3(21);
+    Mod_Apto = Msk_Apto_Est;   // v7l: estatico (dominio + destino)
+    // Bloq_Resp_Ativa_v3 devolve 0 fora do dominio; so os do dominio sao consultados
+    if(Msk_Perf & 1) Snap_Um_v3(1);
+    if(Msk_Perf & 2) Snap_Um_v3(2);
+    if(Msk_Perf & 4) Snap_Um_v3(3);
+    if(Msk_Perf & 8) Snap_Um_v3(4);
+    if(Msk_Perf & 16) Snap_Um_v3(5);
+    if(Msk_Perf & 32) Snap_Um_v3(6);
+    if(Msk_Perf & 64) Snap_Um_v3(7);
+    if(Msk_Perf & 128) Snap_Um_v3(8);
+    if(Msk_Perf & 256) Snap_Um_v3(9);
+    if(Msk_Perf & 512) Snap_Um_v3(10);
+    if(Msk_Perf & 1024) Snap_Um_v3(11);
+    if(Msk_Perf & 2048) Snap_Um_v3(12);
+    if(Msk_Perf & 4096) Snap_Um_v3(13);
+    if(Msk_Perf & 8192) Snap_Um_v3(14);
+    if(Msk_Perf & 16384) Snap_Um_v3(15);
+    if(Msk_Perf & 32768) Snap_Um_v3(16);
+    if(Msk_Perf & 65536) Snap_Um_v3(17);
+    if(Msk_Perf & 131072) Snap_Um_v3(18);
+    if(Msk_Perf & 262144) Snap_Um_v3(19);
+    if(Msk_Perf & 524288) Snap_Um_v3(20);
+    if(Msk_Perf & 1048576) Snap_Um_v3(21);
 }
 // v3zm CADEIA DE BLOQUEIO (achado do Daniel em B6.9). As instancias sao avaliadas de 1 a
 // 21, e numa cadeia "03 bloqueia 02, 02 bloqueia 01" isso dava o resultado errado:
@@ -2754,12 +3196,27 @@ function Computar_Snapshot_v3() {
 // Idempotente: uma instancia ja marcada em Bloq_Mask nao muda de estado ao ser reavaliada,
 // entao passadas extras num cenario simples nao alteram nada.
 function Computar_Bloq_Passada() {
-    Computar_Bloq_Instancia_v3(1); Computar_Bloq_Instancia_v3(2); Computar_Bloq_Instancia_v3(3); Computar_Bloq_Instancia_v3(4);
-    Computar_Bloq_Instancia_v3(5); Computar_Bloq_Instancia_v3(6); Computar_Bloq_Instancia_v3(7); Computar_Bloq_Instancia_v3(8);
-    Computar_Bloq_Instancia_v3(9); Computar_Bloq_Instancia_v3(10); Computar_Bloq_Instancia_v3(11); Computar_Bloq_Instancia_v3(12);
-    Computar_Bloq_Instancia_v3(13); Computar_Bloq_Instancia_v3(14); Computar_Bloq_Instancia_v3(15); Computar_Bloq_Instancia_v3(16);
-    Computar_Bloq_Instancia_v3(17); Computar_Bloq_Instancia_v3(18); Computar_Bloq_Instancia_v3(19); Computar_Bloq_Instancia_v3(20);
-    Computar_Bloq_Instancia_v3(21);
+    if(Msk_Bloq & 1) Computar_Bloq_Instancia_v3(1);
+    if(Msk_Bloq & 2) Computar_Bloq_Instancia_v3(2);
+    if(Msk_Bloq & 4) Computar_Bloq_Instancia_v3(3);
+    if(Msk_Bloq & 8) Computar_Bloq_Instancia_v3(4);
+    if(Msk_Bloq & 16) Computar_Bloq_Instancia_v3(5);
+    if(Msk_Bloq & 32) Computar_Bloq_Instancia_v3(6);
+    if(Msk_Bloq & 64) Computar_Bloq_Instancia_v3(7);
+    if(Msk_Bloq & 128) Computar_Bloq_Instancia_v3(8);
+    if(Msk_Bloq & 256) Computar_Bloq_Instancia_v3(9);
+    if(Msk_Bloq & 512) Computar_Bloq_Instancia_v3(10);
+    if(Msk_Bloq & 1024) Computar_Bloq_Instancia_v3(11);
+    if(Msk_Bloq & 2048) Computar_Bloq_Instancia_v3(12);
+    if(Msk_Bloq & 4096) Computar_Bloq_Instancia_v3(13);
+    if(Msk_Bloq & 8192) Computar_Bloq_Instancia_v3(14);
+    if(Msk_Bloq & 16384) Computar_Bloq_Instancia_v3(15);
+    if(Msk_Bloq & 32768) Computar_Bloq_Instancia_v3(16);
+    if(Msk_Bloq & 65536) Computar_Bloq_Instancia_v3(17);
+    if(Msk_Bloq & 131072) Computar_Bloq_Instancia_v3(18);
+    if(Msk_Bloq & 262144) Computar_Bloq_Instancia_v3(19);
+    if(Msk_Bloq & 524288) Computar_Bloq_Instancia_v3(20);
+    if(Msk_Bloq & 1048576) Computar_Bloq_Instancia_v3(21);
 }
 function Computar_Mods_Bloq_v3() {
     // v3zm: TRES passadas, restaurando o snapshot entre elas. Zerar so a mascara nao
@@ -2773,7 +3230,10 @@ function Computar_Mods_Bloq_v3() {
     // uma comparacao de mascaras por instancia, sem tocar em fonte nem em destino.
     Snap_Orig = Bloq_Snap_Resp;
     Bloq_Mask = 0;
+    if(!Msk_Bloq) return;     // v7l: nenhum MOD com BLOQ
     Computar_Bloq_Passada();
+    // v7l: ninguem bloqueado na primeira passada = as outras duas dariam o mesmo resultado
+    if(!Bloq_Mask) return;
     Bloq_Snap_Resp = Snap_Orig & (~Bloq_Mask);
     Bloq_Mask = 0;
     Computar_Bloq_Passada();
@@ -2783,12 +3243,27 @@ function Computar_Mods_Bloq_v3() {
     Bloq_Snap_Resp = Snap_Orig & (~Bloq_Mask);
 }
 function Computar_Mods_Excl_v3() {
-    Computar_Excl_Instancia_v3(1); Computar_Excl_Instancia_v3(2); Computar_Excl_Instancia_v3(3); Computar_Excl_Instancia_v3(4);
-    Computar_Excl_Instancia_v3(5); Computar_Excl_Instancia_v3(6); Computar_Excl_Instancia_v3(7); Computar_Excl_Instancia_v3(8);
-    Computar_Excl_Instancia_v3(9); Computar_Excl_Instancia_v3(10); Computar_Excl_Instancia_v3(11); Computar_Excl_Instancia_v3(12);
-    Computar_Excl_Instancia_v3(13); Computar_Excl_Instancia_v3(14); Computar_Excl_Instancia_v3(15); Computar_Excl_Instancia_v3(16);
-    Computar_Excl_Instancia_v3(17); Computar_Excl_Instancia_v3(18); Computar_Excl_Instancia_v3(19); Computar_Excl_Instancia_v3(20);
-    Computar_Excl_Instancia_v3(21);
+    if(Msk_Excl & 1) Computar_Excl_Instancia_v3(1);
+    if(Msk_Excl & 2) Computar_Excl_Instancia_v3(2);
+    if(Msk_Excl & 4) Computar_Excl_Instancia_v3(3);
+    if(Msk_Excl & 8) Computar_Excl_Instancia_v3(4);
+    if(Msk_Excl & 16) Computar_Excl_Instancia_v3(5);
+    if(Msk_Excl & 32) Computar_Excl_Instancia_v3(6);
+    if(Msk_Excl & 64) Computar_Excl_Instancia_v3(7);
+    if(Msk_Excl & 128) Computar_Excl_Instancia_v3(8);
+    if(Msk_Excl & 256) Computar_Excl_Instancia_v3(9);
+    if(Msk_Excl & 512) Computar_Excl_Instancia_v3(10);
+    if(Msk_Excl & 1024) Computar_Excl_Instancia_v3(11);
+    if(Msk_Excl & 2048) Computar_Excl_Instancia_v3(12);
+    if(Msk_Excl & 4096) Computar_Excl_Instancia_v3(13);
+    if(Msk_Excl & 8192) Computar_Excl_Instancia_v3(14);
+    if(Msk_Excl & 16384) Computar_Excl_Instancia_v3(15);
+    if(Msk_Excl & 32768) Computar_Excl_Instancia_v3(16);
+    if(Msk_Excl & 65536) Computar_Excl_Instancia_v3(17);
+    if(Msk_Excl & 131072) Computar_Excl_Instancia_v3(18);
+    if(Msk_Excl & 262144) Computar_Excl_Instancia_v3(19);
+    if(Msk_Excl & 524288) Computar_Excl_Instancia_v3(20);
+    if(Msk_Excl & 1048576) Computar_Excl_Instancia_v3(21);
     Excl_RespAnt = Bloq_Snap_Resp;
 }
 // v7b: liga os MODs ORFAOS na BORDA do ASSOC. Orfao = sem ALFA e sem GAMA que ligue,
@@ -2802,20 +3277,31 @@ function Computar_Mods_Excl_v3() {
 // alvo que o adotou, em vez de 100% fixo. Foi o Daniel quem apontou: um DIRECT orfao
 // se comportava como STATIC (0 ou 100), quando o natural e seguir a metrica do MOD
 // "matriz" — o ALFA e o BETA dele ja definem quanto o sinal vale.
-// Vale so de orfao para MOD COM FONTE. De orfao para orfao nao ha metrica a herdar, e
-// ali continua valendo a regra simples de DELTA para DELTA.
+// v7l: numa cadeia de orfaos a metrica vem do primeiro MOD com fonte, subindo a cadeia.
 // Devolve -1 quando nao ha alvo com fonte de onde herdar.
 function Valor_Alvo_Assoc(num) {
-    Work_A = Get_F1_Assoc(num) & Mod_Apto;
-    if(!Work_A) return -1;
-    Esp_I = 1;
-    while(Esp_I <= 21) {
-        if((Work_A >> (Esp_I - 1)) & 1) {
-            if(Get_Fonte_Tipo(Esp_I) != FONTE_NENHUMA) {
-                if(Zona_Ativa_Fonte(Esp_I)) return Cond_Aplicar_Fonte(Esp_I, Ler_Fonte(Esp_I));
+    // v7l: sobe a CADEIA. Se o alvo tambem e orfao, olha o alvo dele, ate 4 niveis, e usa
+    // o primeiro MOD com ALFA que encontrar. Antes so o alvo direto contava, e um orfao de
+    // orfao respondia a 100% (pedido do Daniel no F10). Va_Visto impede andar em circulo.
+    Va_Msk = Get_F1_Assoc(num) & Mod_Apto;
+    Va_Visto = 1 << (num - 1);
+    Va_Nv = 0;
+    while(Va_Msk && Va_Nv < 4) {
+        Va_Visto = Va_Visto | Va_Msk;
+        Va_Prox = 0;
+        Esp_I = 1;
+        while(Esp_I <= 21) {
+            if((Va_Msk >> (Esp_I - 1)) & 1) {
+                if(Get_Fonte_Tipo(Esp_I) != FONTE_NENHUMA) {
+                    if(Zona_Ativa_Fonte(Esp_I)) return Cond_Aplicar_Fonte(Esp_I, Ler_Fonte(Esp_I));
+                } else {
+                    Va_Prox = Va_Prox | (Get_F1_Assoc(Esp_I) & Mod_Apto);
+                }
             }
+            Esp_I = Esp_I + 1;
         }
-        Esp_I = Esp_I + 1;
+        Va_Msk = Va_Prox & (~Va_Visto);
+        Va_Nv = Va_Nv + 1;
     }
     return -1;
 }
@@ -2838,26 +3324,102 @@ function Adotar_Orfao(m) {
     }
 }
 function Adotar_Orfaos() {
-    Adotar_Orfao(1);  Adotar_Orfao(2);  Adotar_Orfao(3);  Adotar_Orfao(4);
-    Adotar_Orfao(5);  Adotar_Orfao(6);  Adotar_Orfao(7);  Adotar_Orfao(8);
-    Adotar_Orfao(9);  Adotar_Orfao(10); Adotar_Orfao(11); Adotar_Orfao(12);
-    Adotar_Orfao(13); Adotar_Orfao(14); Adotar_Orfao(15); Adotar_Orfao(16);
-    Adotar_Orfao(17); Adotar_Orfao(18); Adotar_Orfao(19); Adotar_Orfao(20);
-    Adotar_Orfao(21);
+    if(Msk_Orfao & 1) Adotar_Orfao(1);
+    if(Msk_Orfao & 2) Adotar_Orfao(2);
+    if(Msk_Orfao & 4) Adotar_Orfao(3);
+    if(Msk_Orfao & 8) Adotar_Orfao(4);
+    if(Msk_Orfao & 16) Adotar_Orfao(5);
+    if(Msk_Orfao & 32) Adotar_Orfao(6);
+    if(Msk_Orfao & 64) Adotar_Orfao(7);
+    if(Msk_Orfao & 128) Adotar_Orfao(8);
+    if(Msk_Orfao & 256) Adotar_Orfao(9);
+    if(Msk_Orfao & 512) Adotar_Orfao(10);
+    if(Msk_Orfao & 1024) Adotar_Orfao(11);
+    if(Msk_Orfao & 2048) Adotar_Orfao(12);
+    if(Msk_Orfao & 4096) Adotar_Orfao(13);
+    if(Msk_Orfao & 8192) Adotar_Orfao(14);
+    if(Msk_Orfao & 16384) Adotar_Orfao(15);
+    if(Msk_Orfao & 32768) Adotar_Orfao(16);
+    if(Msk_Orfao & 65536) Adotar_Orfao(17);
+    if(Msk_Orfao & 131072) Adotar_Orfao(18);
+    if(Msk_Orfao & 262144) Adotar_Orfao(19);
+    if(Msk_Orfao & 524288) Adotar_Orfao(20);
+    if(Msk_Orfao & 1048576) Adotar_Orfao(21);
 }
 function Computar_Mods_Assoc_v3() {
     Assoc_Mask = 0;
-    Computar_Assoc_Instancia_v3(1); Computar_Assoc_Instancia_v3(2); Computar_Assoc_Instancia_v3(3); Computar_Assoc_Instancia_v3(4);
-    Computar_Assoc_Instancia_v3(5); Computar_Assoc_Instancia_v3(6); Computar_Assoc_Instancia_v3(7); Computar_Assoc_Instancia_v3(8);
-    Computar_Assoc_Instancia_v3(9); Computar_Assoc_Instancia_v3(10); Computar_Assoc_Instancia_v3(11); Computar_Assoc_Instancia_v3(12);
-    Computar_Assoc_Instancia_v3(13); Computar_Assoc_Instancia_v3(14); Computar_Assoc_Instancia_v3(15); Computar_Assoc_Instancia_v3(16);
-    Computar_Assoc_Instancia_v3(17); Computar_Assoc_Instancia_v3(18); Computar_Assoc_Instancia_v3(19); Computar_Assoc_Instancia_v3(20);
-    Computar_Assoc_Instancia_v3(21);
+    if(Msk_Assoc & 1) Computar_Assoc_Instancia_v3(1);
+    if(Msk_Assoc & 2) Computar_Assoc_Instancia_v3(2);
+    if(Msk_Assoc & 4) Computar_Assoc_Instancia_v3(3);
+    if(Msk_Assoc & 8) Computar_Assoc_Instancia_v3(4);
+    if(Msk_Assoc & 16) Computar_Assoc_Instancia_v3(5);
+    if(Msk_Assoc & 32) Computar_Assoc_Instancia_v3(6);
+    if(Msk_Assoc & 64) Computar_Assoc_Instancia_v3(7);
+    if(Msk_Assoc & 128) Computar_Assoc_Instancia_v3(8);
+    if(Msk_Assoc & 256) Computar_Assoc_Instancia_v3(9);
+    if(Msk_Assoc & 512) Computar_Assoc_Instancia_v3(10);
+    if(Msk_Assoc & 1024) Computar_Assoc_Instancia_v3(11);
+    if(Msk_Assoc & 2048) Computar_Assoc_Instancia_v3(12);
+    if(Msk_Assoc & 4096) Computar_Assoc_Instancia_v3(13);
+    if(Msk_Assoc & 8192) Computar_Assoc_Instancia_v3(14);
+    if(Msk_Assoc & 16384) Computar_Assoc_Instancia_v3(15);
+    if(Msk_Assoc & 32768) Computar_Assoc_Instancia_v3(16);
+    if(Msk_Assoc & 65536) Computar_Assoc_Instancia_v3(17);
+    if(Msk_Assoc & 131072) Computar_Assoc_Instancia_v3(18);
+    if(Msk_Assoc & 262144) Computar_Assoc_Instancia_v3(19);
+    if(Msk_Assoc & 524288) Computar_Assoc_Instancia_v3(20);
+    if(Msk_Assoc & 1048576) Computar_Assoc_Instancia_v3(21);
 }
 
 
 // Varre as 16 instâncias (chamadas explícitas — sem while, evita timeout de ciclo)
+function Recalc_Um(i) {
+    // contadores dedicados: Tem_Destino e os getters usam os Work_* por dentro
+    Rc_A = Get_Spvar_A(i);
+    Rc_B = 1 << (i - 1);
+    if(CurrentMode > 0 && ((Rc_A >> CurrentMode) & 1)) {
+        Msk_Perf = Msk_Perf | Rc_B;
+        if(Rc_A & 1) Msk_Run = Msk_Run | Rc_B;
+        if(Tem_Destino(i)) Msk_Apto_Est = Msk_Apto_Est | Rc_B;
+    }
+    if(Get_F1_Assoc(i)) {
+        Msk_Assoc = Msk_Assoc | Rc_B;
+        if(Get_Fonte_Tipo(i) == FONTE_NENHUMA && !Tem_Gatilho_Estado(i)) Msk_Orfao = Msk_Orfao | Rc_B;
+    }
+    if(Tem_Gatilho_Estado(i)) Msk_GatEst = Msk_GatEst | Rc_B;
+    else if(Get_Fonte_Tipo(i) != FONTE_NENHUMA) Msk_Livre = Msk_Livre | Rc_B;
+    if(Get_F1_Bloq(i)) Msk_Bloq = Msk_Bloq | Rc_B;
+    if(Get_F1_Excl(i)) Msk_Excl = Msk_Excl | Rc_B;
+}
+function Recalc_Mascaras() {
+    Msk_Perf = 0; Msk_Run = 0; Msk_Apto_Est = 0; Msk_Orfao = 0;
+    Msk_Assoc = 0; Msk_Bloq = 0; Msk_Excl = 0; Msk_GatEst = 0; Msk_Livre = 0;
+    Recalc_Um(1);
+    Recalc_Um(2);
+    Recalc_Um(3);
+    Recalc_Um(4);
+    Recalc_Um(5);
+    Recalc_Um(6);
+    Recalc_Um(7);
+    Recalc_Um(8);
+    Recalc_Um(9);
+    Recalc_Um(10);
+    Recalc_Um(11);
+    Recalc_Um(12);
+    Recalc_Um(13);
+    Recalc_Um(14);
+    Recalc_Um(15);
+    Recalc_Um(16);
+    Recalc_Um(17);
+    Recalc_Um(18);
+    Recalc_Um(19);
+    Recalc_Um(20);
+    Recalc_Um(21);
+    Cfg_Sujo = FALSE;
+}
 function Run_Pipeline() {
+    Spv_N = -1;               // v7l: cache so vale dentro do pipeline
+    if(Cfg_Sujo) Recalc_Mascaras();
     Zerar_Acc();
     // v3y REORDENADO: snapshot primeiro; ASSOC antes do BLOQ. O ASSOC agora remove do
     // snapshot quem ele barra, e o BLOQ precisa ver esse snapshot ja limpo — senao uma
@@ -2868,15 +3430,33 @@ function Run_Pipeline() {
     Computar_Mods_Assoc_v3();
     Computar_Mods_Bloq_v3();
     Computar_Mods_Excl_v3();
-    Run_Instance_v3(1);  Run_Instance_v3(2);  Run_Instance_v3(3);  Run_Instance_v3(4);
-    Run_Instance_v3(5);  Run_Instance_v3(6);  Run_Instance_v3(7);  Run_Instance_v3(8);
-    Run_Instance_v3(9);  Run_Instance_v3(10); Run_Instance_v3(11); Run_Instance_v3(12);
-    Run_Instance_v3(13); Run_Instance_v3(14); Run_Instance_v3(15); Run_Instance_v3(16);
-    Run_Instance_v3(17); Run_Instance_v3(18); Run_Instance_v3(19); Run_Instance_v3(20);
-    Run_Instance_v3(21);
+    if(Msk_Run & 1) Run_Instance_v3(1);
+    if(Msk_Run & 2) Run_Instance_v3(2);
+    if(Msk_Run & 4) Run_Instance_v3(3);
+    if(Msk_Run & 8) Run_Instance_v3(4);
+    if(Msk_Run & 16) Run_Instance_v3(5);
+    if(Msk_Run & 32) Run_Instance_v3(6);
+    if(Msk_Run & 64) Run_Instance_v3(7);
+    if(Msk_Run & 128) Run_Instance_v3(8);
+    if(Msk_Run & 256) Run_Instance_v3(9);
+    if(Msk_Run & 512) Run_Instance_v3(10);
+    if(Msk_Run & 1024) Run_Instance_v3(11);
+    if(Msk_Run & 2048) Run_Instance_v3(12);
+    if(Msk_Run & 4096) Run_Instance_v3(13);
+    if(Msk_Run & 8192) Run_Instance_v3(14);
+    if(Msk_Run & 16384) Run_Instance_v3(15);
+    if(Msk_Run & 32768) Run_Instance_v3(16);
+    if(Msk_Run & 65536) Run_Instance_v3(17);
+    if(Msk_Run & 131072) Run_Instance_v3(18);
+    if(Msk_Run & 262144) Run_Instance_v3(19);
+    if(Msk_Run & 524288) Run_Instance_v3(20);
+    if(Msk_Run & 1048576) Run_Instance_v3(21);
+    Spv_N = -1;               // v7l: o menu edita SPVARs direto; nada de cache fora daqui
     Aplicar_Acc();
 }
 main {
+    // v7l: com qualquer menu aberto a config pode mudar — as mascaras sao refeitas na saida
+    if(MenuDin > 0 || MenuLevel > 0) Cfg_Sujo = TRUE;
     //==========================================================
     // BLOCO 1 — ATIVAÇÃO DE MODOS S1–S4
     //==========================================================
@@ -3669,9 +4249,26 @@ function Reset_Cursors() {
     Cur_7=0; Cur_8=0; Cur_9=0; Cur_10=0; Cur_36=0;
     Top_8=0; Top_10=0; Cur_16=0; Cur_17=0; Top_17=0;
 }
+// v7l: na tela de DOMINIOS o SQUARE 1s zera o MOD INTEIRO — dominios, ALFA/BETA, GAMA,
+// DELTA, DELAY e ZETA (inclusive BLOK e FINALIZA) — e nao so os dominios, como antes.
+// Pedido do Daniel no H15. O MOD continua existindo, na mesma posicao, e quem aponta para
+// ele no ZETA continua apontando. Os valores voltam aos de um MOD recem-criado.
+// Vale em RAM: o indicador R aparece ao confirmar, e so o SHARE grava na EEPROM.
 function Reset_Page() {
     if(MenuDin == 36) {
         Wz_S1 = FALSE; Wz_S2 = FALSE; Wz_S3 = FALSE; Wz_S4 = FALSE;
+        Set_Spvar_A(WzSlot, 1);        // so o SLOT_USED
+        Set_Spvar_B(WzSlot, 0);
+        Set_Spvar_C(WzSlot, 0);
+        Zero_F1_Behavior(WzSlot);      // os mesmos padroes de um MOD novo
+        Set_F1_Excl(WzSlot, 0); Set_F1_Assoc(WzSlot, 0); Set_F1_Bloq(WzSlot, 0);
+        Set_Blok(WzSlot, 0);
+        Set_Fin(WzSlot, 0);
+        Set_TrbSt_X(WzSlot, 0);
+        Set_Estatc_Travado(WzSlot, 0);
+        Delay_Zerar(WzSlot);
+        Inst_Ativa = Inst_Ativa & (~(1 << (WzSlot - 1)));
+        combo_run(VIBRATE_SAVE);       // confirma no controle que o reset aconteceu
     }
 }
 // Cria nova instância (zera SPVAR_A com SLOT_USED=1)
@@ -3910,19 +4507,48 @@ function Zerar_Posicao(pos) {
 // Substituem arrays — GPC não suporta int arr[25]
 // =============================================================
 function Get_F1_Excl(n) {
-    if(n== 1) return SR_F1_EXCL_01; if(n== 2) return SR_F1_EXCL_02;
-    if(n== 3) return SR_F1_EXCL_03; if(n== 4) return SR_F1_EXCL_04;
-    if(n== 5) return SR_F1_EXCL_05; if(n== 6) return SR_F1_EXCL_06;
-    if(n== 7) return SR_F1_EXCL_07; if(n== 8) return SR_F1_EXCL_08;
-    if(n== 9) return SR_F1_EXCL_09; if(n==10) return SR_F1_EXCL_10;
-    if(n==11) return SR_F1_EXCL_11; if(n==12) return SR_F1_EXCL_12;
-    if(n==13) return SR_F1_EXCL_13; if(n==14) return SR_F1_EXCL_14;
-    if(n==15) return SR_F1_EXCL_15; if(n==16) return SR_F1_EXCL_16;
-    if(n==17) return SR_F1_EXCL_17;
-    if(n==18) return SR_F1_EXCL_18;
-    if(n==19) return SR_F1_EXCL_19;
-    if(n==20) return SR_F1_EXCL_20;
-    if(n==21) return SR_F1_EXCL_21;
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) return SR_F1_EXCL_01;
+                if(n == 2) return SR_F1_EXCL_02;
+                if(n == 3) return SR_F1_EXCL_03;
+            } else {
+                if(n == 4) return SR_F1_EXCL_04;
+                if(n == 5) return SR_F1_EXCL_05;
+                if(n == 6) return SR_F1_EXCL_06;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) return SR_F1_EXCL_07;
+                if(n == 8) return SR_F1_EXCL_08;
+                if(n == 9) return SR_F1_EXCL_09;
+            } else {
+                if(n == 10) return SR_F1_EXCL_10;
+                if(n == 11) return SR_F1_EXCL_11;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) return SR_F1_EXCL_12;
+                if(n == 13) return SR_F1_EXCL_13;
+                if(n == 14) return SR_F1_EXCL_14;
+            } else {
+                if(n == 15) return SR_F1_EXCL_15;
+                if(n == 16) return SR_F1_EXCL_16;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) return SR_F1_EXCL_17;
+                if(n == 18) return SR_F1_EXCL_18;
+                if(n == 19) return SR_F1_EXCL_19;
+            } else {
+                if(n == 20) return SR_F1_EXCL_20;
+                if(n == 21) return SR_F1_EXCL_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_F1_Excl(n, v) {
@@ -3941,19 +4567,48 @@ function Set_F1_Excl(n, v) {
     if(n==21) SR_F1_EXCL_21=v;
 }
 function Get_F1_Assoc(n) {
-    if(n== 1) return SR_F1_ASSOC_01; if(n== 2) return SR_F1_ASSOC_02;
-    if(n== 3) return SR_F1_ASSOC_03; if(n== 4) return SR_F1_ASSOC_04;
-    if(n== 5) return SR_F1_ASSOC_05; if(n== 6) return SR_F1_ASSOC_06;
-    if(n== 7) return SR_F1_ASSOC_07; if(n== 8) return SR_F1_ASSOC_08;
-    if(n== 9) return SR_F1_ASSOC_09; if(n==10) return SR_F1_ASSOC_10;
-    if(n==11) return SR_F1_ASSOC_11; if(n==12) return SR_F1_ASSOC_12;
-    if(n==13) return SR_F1_ASSOC_13; if(n==14) return SR_F1_ASSOC_14;
-    if(n==15) return SR_F1_ASSOC_15; if(n==16) return SR_F1_ASSOC_16;
-    if(n==17) return SR_F1_ASSOC_17;
-    if(n==18) return SR_F1_ASSOC_18;
-    if(n==19) return SR_F1_ASSOC_19;
-    if(n==20) return SR_F1_ASSOC_20;
-    if(n==21) return SR_F1_ASSOC_21;
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) return SR_F1_ASSOC_01;
+                if(n == 2) return SR_F1_ASSOC_02;
+                if(n == 3) return SR_F1_ASSOC_03;
+            } else {
+                if(n == 4) return SR_F1_ASSOC_04;
+                if(n == 5) return SR_F1_ASSOC_05;
+                if(n == 6) return SR_F1_ASSOC_06;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) return SR_F1_ASSOC_07;
+                if(n == 8) return SR_F1_ASSOC_08;
+                if(n == 9) return SR_F1_ASSOC_09;
+            } else {
+                if(n == 10) return SR_F1_ASSOC_10;
+                if(n == 11) return SR_F1_ASSOC_11;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) return SR_F1_ASSOC_12;
+                if(n == 13) return SR_F1_ASSOC_13;
+                if(n == 14) return SR_F1_ASSOC_14;
+            } else {
+                if(n == 15) return SR_F1_ASSOC_15;
+                if(n == 16) return SR_F1_ASSOC_16;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) return SR_F1_ASSOC_17;
+                if(n == 18) return SR_F1_ASSOC_18;
+                if(n == 19) return SR_F1_ASSOC_19;
+            } else {
+                if(n == 20) return SR_F1_ASSOC_20;
+                if(n == 21) return SR_F1_ASSOC_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_F1_Assoc(n, v) {
@@ -3972,19 +4627,48 @@ function Set_F1_Assoc(n, v) {
     if(n==21) SR_F1_ASSOC_21=v;
 }
 function Get_F1_Bloq(n) {
-    if(n== 1) return SR_F1_BLOQ_01; if(n== 2) return SR_F1_BLOQ_02;
-    if(n== 3) return SR_F1_BLOQ_03; if(n== 4) return SR_F1_BLOQ_04;
-    if(n== 5) return SR_F1_BLOQ_05; if(n== 6) return SR_F1_BLOQ_06;
-    if(n== 7) return SR_F1_BLOQ_07; if(n== 8) return SR_F1_BLOQ_08;
-    if(n== 9) return SR_F1_BLOQ_09; if(n==10) return SR_F1_BLOQ_10;
-    if(n==11) return SR_F1_BLOQ_11; if(n==12) return SR_F1_BLOQ_12;
-    if(n==13) return SR_F1_BLOQ_13; if(n==14) return SR_F1_BLOQ_14;
-    if(n==15) return SR_F1_BLOQ_15; if(n==16) return SR_F1_BLOQ_16;
-    if(n==17) return SR_F1_BLOQ_17;
-    if(n==18) return SR_F1_BLOQ_18;
-    if(n==19) return SR_F1_BLOQ_19;
-    if(n==20) return SR_F1_BLOQ_20;
-    if(n==21) return SR_F1_BLOQ_21;
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) return SR_F1_BLOQ_01;
+                if(n == 2) return SR_F1_BLOQ_02;
+                if(n == 3) return SR_F1_BLOQ_03;
+            } else {
+                if(n == 4) return SR_F1_BLOQ_04;
+                if(n == 5) return SR_F1_BLOQ_05;
+                if(n == 6) return SR_F1_BLOQ_06;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) return SR_F1_BLOQ_07;
+                if(n == 8) return SR_F1_BLOQ_08;
+                if(n == 9) return SR_F1_BLOQ_09;
+            } else {
+                if(n == 10) return SR_F1_BLOQ_10;
+                if(n == 11) return SR_F1_BLOQ_11;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) return SR_F1_BLOQ_12;
+                if(n == 13) return SR_F1_BLOQ_13;
+                if(n == 14) return SR_F1_BLOQ_14;
+            } else {
+                if(n == 15) return SR_F1_BLOQ_15;
+                if(n == 16) return SR_F1_BLOQ_16;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) return SR_F1_BLOQ_17;
+                if(n == 18) return SR_F1_BLOQ_18;
+                if(n == 19) return SR_F1_BLOQ_19;
+            } else {
+                if(n == 20) return SR_F1_BLOQ_20;
+                if(n == 21) return SR_F1_BLOQ_21;
+            }
+        }
+    }
     return 0;
 }
 function Set_F1_Bloq(n, v) {
@@ -4077,6 +4761,7 @@ function Load_Wz(num) {
 // DESTINO: máscara de 15 bits no SPVAR_A (shift 15)
 // TIPO destino: 2 bits no SPVAR_A (shift 13)
 function Get_F1_Tipo(num) {
+    if(num == Spv_N) { Work_A = Spv_A; return (Work_A >> SHIFT_F1_DST_TIPO) & 0x03; }   // v7l: MOD em execucao
     Work_A = Get_Spvar_A(num);
     return (Work_A >> SHIFT_F1_DST_TIPO) & 0x03;
 }
@@ -4152,31 +4837,54 @@ function Commit_Wz(num) {
 // Instâncias 13–25: RAM only (apenas SPVAR_A disponível nesta fase)
 // =============================================================
 function Get_Spvar_A(num) {
-    if(num== 1) return SR_A_01;
-    if(num== 2) return SR_A_02;
-    if(num== 3) return SR_A_03;
-    if(num== 4) return SR_A_04;
-    if(num== 5) return SR_A_05;
-    if(num== 6) return SR_A_06;
-    if(num== 7) return SR_A_07;
-    if(num== 8) return SR_A_08;
-    if(num== 9) return SR_A_09;
-    if(num==10) return SR_A_10;
-    if(num==11) return SR_A_11;
-    if(num==12) return SR_A_12;
-    if(num==13) return SR_A_13;
-    if(num==14) return SR_A_14;
-    if(num==15) return SR_A_15;
-    if(num==16) return SR_A_16;
-    if(num==17) return SR_A_17;
-    if(num==18) return SR_A_18;
-    if(num==19) return SR_A_19;
-    if(num==20) return SR_A_20;
-    if(num==21) return SR_A_21;
+    if(num == Spv_N) return Spv_A;   // v7l: MOD em execucao, sem busca
+    if(num <= 11) {
+        if(num <= 6) {
+            if(num <= 3) {
+                if(num == 1) return SR_A_01;
+                if(num == 2) return SR_A_02;
+                if(num == 3) return SR_A_03;
+            } else {
+                if(num == 4) return SR_A_04;
+                if(num == 5) return SR_A_05;
+                if(num == 6) return SR_A_06;
+            }
+        } else {
+            if(num <= 9) {
+                if(num == 7) return SR_A_07;
+                if(num == 8) return SR_A_08;
+                if(num == 9) return SR_A_09;
+            } else {
+                if(num == 10) return SR_A_10;
+                if(num == 11) return SR_A_11;
+            }
+        }
+    } else {
+        if(num <= 16) {
+            if(num <= 14) {
+                if(num == 12) return SR_A_12;
+                if(num == 13) return SR_A_13;
+                if(num == 14) return SR_A_14;
+            } else {
+                if(num == 15) return SR_A_15;
+                if(num == 16) return SR_A_16;
+            }
+        } else {
+            if(num <= 19) {
+                if(num == 17) return SR_A_17;
+                if(num == 18) return SR_A_18;
+                if(num == 19) return SR_A_19;
+            } else {
+                if(num == 20) return SR_A_20;
+                if(num == 21) return SR_A_21;
+            }
+        }
+    }
     return 0;
 }
 
 function Set_Spvar_A(num, val) {
+    if(num == Spv_N) Spv_A = val;   // v7l: mantem o cache coerente
     if(num== 1) SR_A_01 = val;
     if(num== 2) SR_A_02 = val;
     if(num== 3) SR_A_03 = val;
@@ -4201,31 +4909,54 @@ function Set_Spvar_A(num, val) {
 }
 
 function Get_Spvar_B(num) {
-    if(num== 1) return SR_B_01;
-    if(num== 2) return SR_B_02;
-    if(num== 3) return SR_B_03;
-    if(num== 4) return SR_B_04;
-    if(num== 5) return SR_B_05;
-    if(num== 6) return SR_B_06;
-    if(num== 7) return SR_B_07;
-    if(num== 8) return SR_B_08;
-    if(num== 9) return SR_B_09;
-    if(num==10) return SR_B_10;
-    if(num==11) return SR_B_11;
-    if(num==12) return SR_B_12;
-    if(num==13) return SR_B_13;
-    if(num==14) return SR_B_14;
-    if(num==15) return SR_B_15;
-    if(num==16) return SR_B_16;
-    if(num==17) return SR_B_17;
-    if(num==18) return SR_B_18;
-    if(num==19) return SR_B_19;
-    if(num==20) return SR_B_20;
-    if(num==21) return SR_B_21;
+    if(num == Spv_N) return Spv_B;   // v7l: MOD em execucao, sem busca
+    if(num <= 11) {
+        if(num <= 6) {
+            if(num <= 3) {
+                if(num == 1) return SR_B_01;
+                if(num == 2) return SR_B_02;
+                if(num == 3) return SR_B_03;
+            } else {
+                if(num == 4) return SR_B_04;
+                if(num == 5) return SR_B_05;
+                if(num == 6) return SR_B_06;
+            }
+        } else {
+            if(num <= 9) {
+                if(num == 7) return SR_B_07;
+                if(num == 8) return SR_B_08;
+                if(num == 9) return SR_B_09;
+            } else {
+                if(num == 10) return SR_B_10;
+                if(num == 11) return SR_B_11;
+            }
+        }
+    } else {
+        if(num <= 16) {
+            if(num <= 14) {
+                if(num == 12) return SR_B_12;
+                if(num == 13) return SR_B_13;
+                if(num == 14) return SR_B_14;
+            } else {
+                if(num == 15) return SR_B_15;
+                if(num == 16) return SR_B_16;
+            }
+        } else {
+            if(num <= 19) {
+                if(num == 17) return SR_B_17;
+                if(num == 18) return SR_B_18;
+                if(num == 19) return SR_B_19;
+            } else {
+                if(num == 20) return SR_B_20;
+                if(num == 21) return SR_B_21;
+            }
+        }
+    }
     return 0;
 }
 
 function Set_Spvar_B(num, val) {
+    if(num == Spv_N) Spv_B = val;   // v7l: mantem o cache coerente
     if(num== 1) SR_B_01 = val;
     if(num== 2) SR_B_02 = val;
     if(num== 3) SR_B_03 = val;
@@ -4250,31 +4981,54 @@ function Set_Spvar_B(num, val) {
 }
 
 function Get_Spvar_C(num) {
-    if(num== 1) return SR_C_01;
-    if(num== 2) return SR_C_02;
-    if(num== 3) return SR_C_03;
-    if(num== 4) return SR_C_04;
-    if(num== 5) return SR_C_05;
-    if(num== 6) return SR_C_06;
-    if(num== 7) return SR_C_07;
-    if(num== 8) return SR_C_08;
-    if(num== 9) return SR_C_09;
-    if(num==10) return SR_C_10;
-    if(num==11) return SR_C_11;
-    if(num==12) return SR_C_12;
-    if(num==13) return SR_C_13;
-    if(num==14) return SR_C_14;
-    if(num==15) return SR_C_15;
-    if(num==16) return SR_C_16;
-    if(num==17) return SR_C_17;
-    if(num==18) return SR_C_18;
-    if(num==19) return SR_C_19;
-    if(num==20) return SR_C_20;
-    if(num==21) return SR_C_21;
+    if(num == Spv_N) return Spv_C;   // v7l: MOD em execucao, sem busca
+    if(num <= 11) {
+        if(num <= 6) {
+            if(num <= 3) {
+                if(num == 1) return SR_C_01;
+                if(num == 2) return SR_C_02;
+                if(num == 3) return SR_C_03;
+            } else {
+                if(num == 4) return SR_C_04;
+                if(num == 5) return SR_C_05;
+                if(num == 6) return SR_C_06;
+            }
+        } else {
+            if(num <= 9) {
+                if(num == 7) return SR_C_07;
+                if(num == 8) return SR_C_08;
+                if(num == 9) return SR_C_09;
+            } else {
+                if(num == 10) return SR_C_10;
+                if(num == 11) return SR_C_11;
+            }
+        }
+    } else {
+        if(num <= 16) {
+            if(num <= 14) {
+                if(num == 12) return SR_C_12;
+                if(num == 13) return SR_C_13;
+                if(num == 14) return SR_C_14;
+            } else {
+                if(num == 15) return SR_C_15;
+                if(num == 16) return SR_C_16;
+            }
+        } else {
+            if(num <= 19) {
+                if(num == 17) return SR_C_17;
+                if(num == 18) return SR_C_18;
+                if(num == 19) return SR_C_19;
+            } else {
+                if(num == 20) return SR_C_20;
+                if(num == 21) return SR_C_21;
+            }
+        }
+    }
     return 0;
 }
 
 function Set_Spvar_C(num, val) {
+    if(num == Spv_N) Spv_C = val;   // v7l: mantem o cache coerente
     if(num== 1) SR_C_01 = val;
     if(num== 2) SR_C_02 = val;
     if(num== 3) SR_C_03 = val;
@@ -4305,6 +5059,7 @@ function Set_Spvar_C(num, val) {
 // =============================================================
 // [v3za REMOVIDAS: Get_Fonte_Relig / Set_Fonte_Relig — RELIG da fonte deu lugar ao INIC]
 function Get_Fonte_Tipo(num) {
+    if(num == Spv_N) { return (Spv_A >> SHIFT_FONTE_TIPO) & 0x1F; }   // v7l: MOD em execucao
     return (Get_Spvar_A(num) >> SHIFT_FONTE_TIPO) & 0x1F;
 }
 function Set_Fonte_Tipo(num, v) {
@@ -4313,6 +5068,7 @@ function Set_Fonte_Tipo(num, v) {
     Set_Spvar_A(num, Work_A);
 }
 function Get_Fonte_Passivo(num) {
+    if(num == Spv_N) { return (Spv_A >> SHIFT_FONTE_PASSIVO) & 1; }   // v7l: MOD em execucao
     return (Get_Spvar_A(num) >> SHIFT_FONTE_PASSIVO) & 1;
 }
 function Set_Fonte_Passivo(num, v) {
@@ -4342,6 +5098,7 @@ function Get_Fonte_Categoria(tipo) {
 // BOTAO tambem, porque Trb_Aplicar_Cond retorna cedo em CAT_BOTAO sem chegar nos getters
 // — que e precisamente a assimetria observada no teste. Agora usam Cond_Tmp, dedicada.
 function Get_Cond_Mult(num) {
+    if(num == Spv_N) { Cond_Tmp = (Spv_B >> SHIFT_COND_PACK) & 0x3F; return Cond_Tmp / 3; }   // v7l: MOD em execucao
     Cond_Tmp = (Get_Spvar_B(num) >> SHIFT_COND_PACK) & 0x3F;
     return Cond_Tmp / 3;
 }
@@ -4355,6 +5112,7 @@ function Set_Cond_Mult(num, v) {
 // Cond_Tmp e a mesma variavel dedicada do pack MULT/DIR/INV, e nao colide: os getters
 // terminam antes de qualquer outro uso dela.
 function Get_Cond_ThrIn(num) {
+    if(num == Spv_N) { Cond_Tmp = (Spv_B >> SHIFT_COND_THR) & 0x1FF; return Cond_Tmp / 20; }   // v7l: MOD em execucao
     Cond_Tmp = (Get_Spvar_B(num) >> SHIFT_COND_THR) & 0x1FF;
     return Cond_Tmp / 20;
 }
@@ -4365,6 +5123,7 @@ function Set_Cond_ThrIn(num, v) {
     Set_Spvar_B(num, Work_A | ((Cond_Tmp & 0x1FF) << SHIFT_COND_THR));
 }
 function Get_Cond_ThrOut(num) {
+    if(num == Spv_N) { Cond_Tmp = (Spv_B >> SHIFT_COND_THR) & 0x1FF; return Cond_Tmp - ((Cond_Tmp / 20) * 20); }   // v7l: MOD em execucao
     Cond_Tmp = (Get_Spvar_B(num) >> SHIFT_COND_THR) & 0x1FF;
     return Cond_Tmp - ((Cond_Tmp / 20) * 20);
 }
@@ -4375,6 +5134,7 @@ function Set_Cond_ThrOut(num, v) {
     Set_Spvar_B(num, Work_A | ((Cond_Tmp & 0x1FF) << SHIFT_COND_THR));
 }
 function Get_Cond_Dir(num) {
+    if(num == Spv_N) { Cond_Tmp = (Spv_B >> SHIFT_COND_PACK) & 0x3F; return Cond_Tmp - ((Cond_Tmp / 3) * 3); }   // v7l: MOD em execucao
     Cond_Tmp = (Get_Spvar_B(num) >> SHIFT_COND_PACK) & 0x3F;
     return Cond_Tmp - ((Cond_Tmp / 3) * 3);
 }
@@ -4389,7 +5149,10 @@ function Set_Cond_Dir(num, v) {
 // Os dois sao mutuamente excludentes por construcao: segurou demais, o ATE ja perdeu a
 // janela; soltou cedo, o APOS nunca chegou ao tempo. Por isso dois MODs no MESMO botao,
 // um de cada modo, nunca disparam juntos — e e assim que um botao vira dois comandos.
-function Get_Hold_Modo(num) { return (Get_Spvar_B(num) >> BIT_HOLD_MODO) & 1; }
+function Get_Hold_Modo(num) {
+    if(num == Spv_N) { return (Spv_B >> BIT_HOLD_MODO) & 1; }   // v7l: MOD em execucao
+ return (Get_Spvar_B(num) >> BIT_HOLD_MODO) & 1; 
+}
 function Set_Hold_Modo(num, v) {
     Work_A = Get_Spvar_B(num) & (~(1 << BIT_HOLD_MODO));
     if(v) Work_A = Work_A | (1 << BIT_HOLD_MODO);
@@ -4404,12 +5167,12 @@ function Set_Hold_Modo(num, v) {
 //   tempos:   pack de 4 x 8 valores = 4096 -> 12 bits, distribuidos em 3 pedacos
 // O PERM global deixou de existir: cada passo carrega o seu tempo. LAT continua (silencio
 // ENTRE passos) e CICLOS continua (agora conta SEQUENCIAS completas, nao pulsos).
-function Get_Turbo_Lat(num) { return (Get_Spvar_C(num) >> 18) & 0xF; }   // v3zr: 4 bits
+function Get_Turbo_Lat(num) { if(num == Spv_N) { return (Spv_C >> 18) & 0xF; } return (Get_Spvar_C(num) >> 18) & 0xF; }   // v3zr: 4 bits
 function Set_Turbo_Lat(num, v) {
     Work_A = Get_Spvar_C(num) & (~(0xF << 18));
     Set_Spvar_C(num, Work_A | ((v & 0xF) << 18));
 }
-function Get_Turbo_Ciclos(num) { return (Get_Spvar_C(num) >> 22) & 0x7; }   // v3zr: 3 bits
+function Get_Turbo_Ciclos(num) { if(num == Spv_N) { return (Spv_C >> 22) & 0x7; } return (Get_Spvar_C(num) >> 22) & 0x7; }   // v3zr: 3 bits
 function Set_Turbo_Ciclos(num, v) {
     Work_A = Get_Spvar_C(num) & (~(0x7 << 22));
     Set_Spvar_C(num, Work_A | ((v & 0x7) << 22));
@@ -4550,7 +5313,7 @@ function Combo_Lat_Extra(num, de) {
     }
     return 0;   // nenhum passo configurado adiante: vazios do fim nao geram pausa
 }
-function Get_Turbo_Modo(num) { return (Get_Spvar_B(num) >> 27) & 0x3; }   // v3ze
+function Get_Turbo_Modo(num) { if(num == Spv_N) { return (Spv_B >> 27) & 0x3; } return (Get_Spvar_B(num) >> 27) & 0x3; }   // v3ze
 function Set_Turbo_Modo(num, v) {
     Work_A = Get_Spvar_B(num) & (~(0x3 << 27));
     Set_Spvar_B(num, Work_A | ((v & 0x3) << 27));
@@ -5579,6 +6342,7 @@ function Reset_Perfil() {
     Ent_Trava  = 0x1FFFFF;   // v3z1: nenhuma instancia opera ate passar por repouso
 }
 function Switch_Mode(m) {
+    Cfg_Sujo = TRUE;   // v7l: o dominio muda quem esta ativo
     if(CurrentMode == m) CurrentMode = 0;
     else                 CurrentMode = m;
     MenuDin    = 0;
@@ -5742,6 +6506,33 @@ function listaVolatil(m){var v=[];
   if(finReal(m))v.push('modo FINALIZA dos GAMA');
   return v}
 function temDestino(m){return m.dst.some(function(d){return d>0})}
+// v7l: resumo da lista na ordem das telas — ALFA/BETA · GAMA · DELTA · ZETA —, cada parte
+// so quando existe (pedido do Daniel). Devolve HTML ja escapado.
+function resumoLista(m){
+  var P=[], x, g=[], z=[], mm=function(v){return String(v+1).padStart(2,'0')};
+  if(FONTES[m.fonte]!=='---'){
+    x=FONTES[m.fonte]; var cf=catFonte(m.fonte);
+    if(cf==='eixo'||cf==='touch')x+=' '+['NEG','ABS','POS'][m.dir];
+    if(cf!=='botao'){x+=' ≥'+THR[m.tin]+(m.tout?' ≤'+THR[m.tout]:'');if(m.mult!==9)x+=' '+MULT[m.mult]}
+    if(m.passivo)x+=' PASS';
+    P.push(['ALFA',x]);
+  } else if(!temGatilhoEstado(m)&&m.assoc.length) P.push(['ALFA','órfão']);
+  var fz=function(f){return f?' FIN':''};
+  if(m.g2clk)g.push('2CLK '+BOTOES[m.g2clk]+fz(m.fin2clk));
+  if(m.gTog)g.push('TOG '+BOTOES[m.gTog]+fz(m.finTog));
+  if(m.gHold)g.push('HOLD '+BOTOES[m.gHold]+' '+THOLD[m.gHoldT]+' '+(m.gHoldM?'ATÉ':'APÓS')+fz(m.finHold));
+  if(m.gAfter)g.push('AFTER '+BOTOES[m.gAfter]+' '+TAFTER[m.gAfterT]+fz(m.finAfter));
+  if(m.gBlok)g.push('BLOK '+BOTOES[m.gBlok]);
+  if(g.length)P.push(['GAMA',g.join(', ')]);
+  var ds=m.dst.filter(function(d){return d}).map(function(d){return DESTINOS[d]});
+  x=['DIRECT','STATIC','TURBO'][m.tipo]+' '+(ds.length?ds.join(m.tipo===2?' → ':' '):'sem saída');
+  if(m.delay)x+=' após '+TDELAY[m.delay];
+  P.push(['DELTA',x]);
+  if(m.excl.length)z.push('EXCL '+m.excl.map(mm).join(','));
+  if(m.assoc.length)z.push('ASSOC '+m.assoc.map(mm).join(','));
+  if(m.bloq.length)z.push('BLOQ '+m.bloq.map(mm).join(','));
+  if(z.length)P.push(['ZETA',z.join(' ')]);
+  return P.map(function(p){return '<i>'+p[0]+'</i> '+h(p[1])}).join(' – ')}
 
 // Troca dois MODs de posicao e REINDEXA as relacoes ZETA de todos: quem apontava para A
 // passa a apontar para B e vice-versa. E a mesma operacao que o L2+UP/DOWN faz no
@@ -5770,9 +6561,10 @@ function resumo(j,i){
 
   // o que aciona
   if(orfao){
-    p.push('Sem ALFA e sem GAMA que ligue: sobe junto com '+
+    p.push('Sem ALFA e sem GAMA que ligue: sobe quando '+
       listaAlvos(m.assoc).replace(/MOD_\d+/g,function(x){return'<em>'+x+'</em>'})+
-      ' pelo ZETA ASSOC, enquanto o alvo responder.');
+      ' sobe de fato (depois do DELAY dele, se houver), pelo ZETA ASSOC, e fica enquanto o alvo responder. '+
+      'A intensidade vem do primeiro MOD com ALFA da cadeia.');
   } else if(cat==='nenhuma'){
     // v7e: so entram aqui os gatilhos que REALMENTE alternam. Os marcados como FINALIZA
     // nao ligam, e listar todos juntos dizia o contrario do que a linha seguinte do
@@ -5917,17 +6709,19 @@ function alertas(j,i){
     O.push('DELTA STATIC em eixo trava no sentido para onde o ALFA foi empurrado.');
   // v7k: o timer do combo no script tem 11 bits — espera e pausa acima de 2047ms sao
   // cortadas em 2047. Antes o app mostrava o valor cheio (3000ms) e o Cronus fazia 2047.
-  if(m.tipo===2&&m.dst.some(function(d){return d})){
-    var tms=[30,50,70,100,150,250,500,1000], e0=0, q0=0, pz=0, vs=false, cortes=[];
-    while(q0<4&&!m.dst[q0]){e0+=tms[m.tmp[q0]];q0++}
-    if(e0>2047)cortes.push('a espera ('+e0+'ms)');
-    for(;q0<4;q0++){
-      if(m.dst[q0]){ if(vs&&pz+TLATMS[m.lat]>2047)cortes.push('uma pausa ('+(pz+TLATMS[m.lat])+'ms, com a latência)'); pz=0; vs=true; }
-      else pz+=tms[m.tmp[q0]];
-    }
-    if(cortes.length)O.push('No TURBO, '+cortes.join(' e ')+' passa de 2047ms — o Cronus corta em 2047ms (limite do timer).');
-  }
+  // v7l: o aviso de corte do TURBO saiu daqui — fica no fim da secao DELTA (corteTurbo)
   return{A:A,O:O}}
+// v7k/v7l: frase do corte em 2047ms, usada nos avisos E no fim da secao DELTA.
+function corteTurbo(m){
+  if(m.tipo!==2||!m.dst.some(function(d){return d}))return '';
+  var tms=[30,50,70,100,150,250,500,1000], e0=0, q0=0, pz=0, vs=false, cortes=[];
+  while(q0<4&&!m.dst[q0]){e0+=tms[m.tmp[q0]];q0++}
+  if(e0>2047)cortes.push('a espera ('+e0+'ms)');
+  for(;q0<4;q0++){
+    if(m.dst[q0]){ if(vs&&pz+TLATMS[m.lat]>2047)cortes.push('uma pausa ('+(pz+TLATMS[m.lat])+'ms, com a latência)'); pz=0; vs=true; }
+    else pz+=tms[m.tmp[q0]];
+  }
+  return cortes.length?'No TURBO, '+cortes.join(' e ')+' passa de 2047ms — o Cronus corta em 2047ms (limite do timer).':''}
 
 // ---------- gerador de código ----------
 function codigo(j){
@@ -5987,7 +6781,13 @@ function spvars(m){
 function maskZeta(a){var v=0;a.forEach(function(k){v|=1<<k});return v}
 
 // selo: muda sempre que a configuração muda, para o script saber que deve reaplicar
-function selo(j){var s=2166136261,txt=JSON.stringify(j.mods)+j.nome,i;
+// v7l: jogo SEM nenhum MOD configurado (o caso do script "InLoco", para configurar pelo
+// OLED) sai com selo 0 — o Cronus entao nao aplica config nenhuma e PRESERVA o que ja estiver
+// gravado. Com selo proprio, o primeiro boot gravaria 21 MODs vazios por cima da EEPROM.
+function selo(j){
+  var usado=false,k; for(k=0;k<21;k++) if(nomeMod(j,k)) usado=true;
+  if(!usado) return 0;
+  var s=2166136261,txt=JSON.stringify(j.mods)+j.nome,i;
   for(i=0;i<txt.length;i++){s^=txt.charCodeAt(i);s=(s*16777619)|0}
   return (s&0x7FFFFFFF)||1}
 
@@ -6049,6 +6849,8 @@ function configGpc(j){
   // Config_Inicial() ele so valia no primeiro, porque aquela funcao roda uma vez so —
   // foi o que o Daniel viu ao gravar num Cronus recem-limpo.
   L.push('function Config_Zeta() {');
+  // v7l: corpo nunca vazio — sem ZETA/BLOK/FIN o ZenStudio avisava "Empty function"
+  L.push('    Work_A = Work_A;');
   for(i=0;i<21;i++){
     var mz=j.mods[i]; n=String(i+1).padStart(2,'0');
     if(!nomeMod(j,i))continue;
@@ -6164,12 +6966,9 @@ function telaJogo(A){
   j.mods.forEach(function(m,i){
     var b=document.createElement('button');b.className='modrow';
     var al=alertas(j,i), usado=nomeMod(j,i);
-    var TP=['DIRECT','STATIC','TURBO'];
-    var desc=usado?(FONTES[m.fonte]==='---'?'sem ALFA':FONTES[m.fonte])+' · '+TP[m.tipo]+
-      (temDestino(m)?' → '+m.dst.filter(function(d){return d}).map(function(d){return DESTINOS[d]}).join(' '):' · sem saída')
-      :'não configurado';
+    var desc=usado?resumoLista(m):h('não configurado');
     b.innerHTML='<span class="id mono">'+String(i+1).padStart(2,'0')+'</span>'+
-      '<span class="t"><b>'+h(m.nota||('MOD_'+String(i+1).padStart(2,'0')))+'</b><s>'+h(desc)+'</s></span>'+
+      '<span class="t"><b>'+h(m.nota||('MOD_'+String(i+1).padStart(2,'0')))+'</b><s>'+desc+'</s></span>'+
       (al.A.length?'<span class="tag al">'+al.A.length+'</span>':'')+
       (temVolatil(m)?'<span class="tag vo">RAM</span>':'')+
       (usado?'<span class="tag">'+['D1','D2','D3','D4'].filter(function(d,k){
@@ -6295,6 +7094,9 @@ function telaMod(A){
         sd.appendChild(fld(m.dst[k]?'· tempo':'· pausa',
           sel(m.tmp[k],TPASSO,function(v){m.tmp[k]=v;up()})));
     }});
+  // v7l: o aviso de corte aparece tambem aqui, junto dos tempos que o causam (pedido no K19)
+  var ctv=corteTurbo(m);
+  if(ctv){var cw=document.createElement('div');cw.className='obs';cw.style.marginTop='10px';cw.textContent=ctv;sd.appendChild(cw)}
   A.appendChild(sd);
 
   var sh=document.createElement('section');sh.innerHTML='<h2>ZETA</h2>';
@@ -6403,7 +7205,7 @@ function telaInfo(A){
     ['L1 e R1','Muda de tela.'],
     ['UP / DOWN e LEFT / RIGHT','Navega e ajusta valores.'],
     ['TRIANGLE por 1s','Deleta o MOD, com confirmação.'],
-    ['SQUARE por 1s','Só na tela de DOMÍNIOS do MOD: desmarca D1 a D4 de uma vez.'],
+    ['SQUARE por 1s','Só na tela de DOMÍNIOS do MOD: zera o MOD inteiro — domínios, ALFA/BETA, GAMA, DELTA, DELAY e ZETA. O controle vibra. Fica em RAM até confirmar e salvar.'],
     ['L2 + UP / DOWN','Na lista, reordena o MOD. A ordem decide o desempate do bloqueio mútuo.']]);
 
   bloco('Indicadores da lista', [
@@ -6437,8 +7239,11 @@ function telaInfo(A){
     ['DELAY','Atrasa a SUBIDA da resposta — não importa quem acionou: o ALFA entrando na zona, '+
      'o GAMA ligando ou um ZETA liberando. Sair da zona rearma: a próxima subida recomeça a contagem.'],
     ['Órfão herda a intensidade','Um MOD órfão com DELTA DIRECT ou TURBO responde com a '+
-     'intensidade que o ALFA/BETA do alvo produz, não com 100% fixo. De órfão para órfão não há '+
-     'métrica a herdar, e vale só a regra de DELTA para DELTA.'],
+     'intensidade que o ALFA/BETA do alvo produz, não com 100% fixo. Numa cadeia de órfãos, todos '+
+     'herdam do primeiro MOD com ALFA que houver subindo a cadeia (até 4 níveis).'],
+    ['DELAY em cadeia','Um MOD só conta como "de pé" para o ZETA depois que o DELAY dele termina. '+
+     'Numa cadeia de órfãos cada um espera o anterior subir de fato, então os DELAYs SOMAM — '+
+     '300ms + 700ms dão 1s no segundo órfão.'],
     ['Adoção é por borda','O órfão liga no instante em que o alvo do ZETA ASSOC sobe. Depois disso '+
      'obedece ao próprio estado — um GAMA em FINALIZA consegue derrubá-lo, e ele só volta na próxima subida do alvo.'],
     ['Pausa dentro do combo','Um passo VAZIO no meio da sequência gera uma pausa com o tempo dele, '+
@@ -6449,6 +7254,9 @@ function telaInfo(A){
      'cadeia — o pipeline avalia do MOD_01 ao MOD_21. Reordenar muda esse desempate.']]);
 
   bloco('Limites', [
+    ['Tempos e carga','Todos os tempos contam as voltas do Cronus (10ms cada). Se o script pesar mais '+
+     'que isso, cada volta demora mais e TODOS os tempos esticam na mesma proporção. A v7l cortou '+
+     'o trabalho por volta pela metade ou mais.'],
     ['21 MODs','96 bits cada, ocupando 63 das 64 SPVARs. Não há bit livre.'],
     ['5 SigRouter no Cronus','O dispositivo não comporta mais que isso, embora a biblioteca aqui seja ilimitada.'],
     ['Sem backup no Cronus','Não há como extrair um script depois de gravado. Este app é o seu único registro — exporte de vez em quando.']]);
