@@ -111,7 +111,8 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 * ANATOMIA DE UM MOD  (a ordem das telas do wizard)
 *   PL_HAB  DOMINIOS em que o MOD existe (D1-D4)
 *   ALFA    a FONTE: 23 opcoes (--- , touch, eixos, gatilhos, botoes) + ATIVO/PASSIVO
-*           PASSIVO suprime do jogo a fonte E os botoes de gatilho.
+*           PASSIVO suprime do jogo a fonte E os botoes de gatilho. Com a fonte em "---"
+*           o campo continua valendo: e ele que decide se os botoes do GAMA chegam ao jogo.
 *   BETA    as CONDICOES da fonte: MULT (x0.1-x1.9), THR_IN, THR_OUT, DIR.
 *           So aparece para fontes que tem valor a condicionar (touch, eixo, L2/R2).
 *   GAMA    os GATILHOS, cinco coexistentes, um botao cada:
@@ -248,6 +249,7 @@ const string F1_AX_LX  = "LX";
 const string F1_AX_LY  = "LY";
 const string F1_AX_RX  = "RX";
 const string F1_AX_RY  = "RY";
+const string F1_MODO_LBL= "MODO:";   // v7m: rotulo da linha ATIVO/PASSIVO
 const string F1_ATIVO   = "ATIVO";
 const string F1_PASSIV  = "PASSIVO";
 // --- FONTE_1 — Condições ---
@@ -687,6 +689,7 @@ int Msk_Assoc = 0; int Msk_Bloq = 0; int Msk_Excl = 0;
 int Msk_GatEst = 0;
 int Msk_Livre = 0;     // com ALFA e SEM GAMA que ligue: esta sempre ativo    // tem GAMA que liga (Tem_Gatilho_Estado)
 int Rc_A = 0; int Rc_B = 0;
+int Esx_T = 0;   // v7m: leitura do resto da espera
 int Va_Msk = 0; int Va_Prox = 0; int Va_Visto = 0; int Va_Nv = 0;   // v7l: cadeia de orfaos
 int Spv_N = -1; int Spv_A = 0; int Spv_B = 0; int Spv_C = 0;
 int Esp_I=0; int Esp_N=0;   // v7i: contador e acumulador da espera do combo — dedicados
@@ -844,6 +847,12 @@ int Wz_S3 = FALSE; int Wz_S4 = FALSE;
 // v7d: estado da maquina do TURBO por MOD (o "por eixo" era da v2). RAM: bits0-8=timer(ms) bit9=fase bits10-13=ciclos_rest bit14=rodando
 int SR_TrbSt_X_01=0; int SR_TrbSt_X_02=0; int SR_TrbSt_X_03=0; int SR_TrbSt_X_04=0; int SR_TrbSt_X_05=0; int SR_TrbSt_X_06=0; int SR_TrbSt_X_07=0; int SR_TrbSt_X_08=0; int SR_TrbSt_X_09=0; int SR_TrbSt_X_10=0; int SR_TrbSt_X_11=0; int SR_TrbSt_X_12=0; int SR_TrbSt_X_13=0; int SR_TrbSt_X_14=0; int SR_TrbSt_X_15=0; int SR_TrbSt_X_16=0;
 int SR_TrbSt_X_17=0; int SR_TrbSt_X_18=0; int SR_TrbSt_X_19=0; int SR_TrbSt_X_20=0; int SR_TrbSt_X_21=0;
+// v7m: RESTO DA ESPERA do combo. O timer do TrbSt tem 11 bits (ate 2047ms), e ate a v7l a
+// espera maior que isso era simplesmente CORTADA — tres passos vazios de 1s davam 2,047s em
+// vez de 3s (o Daniel pegou no C11c). Agora o que passa de 2047 fica guardado aqui e o timer
+// e recarregado em fatias, sem sair da fase. E RAM, nao gasta bit de EEPROM.
+int Esx_01=0; int Esx_02=0; int Esx_03=0; int Esx_04=0; int Esx_05=0; int Esx_06=0; int Esx_07=0; int Esx_08=0; int Esx_09=0; int Esx_10=0; int Esx_11=0;
+int Esx_12=0; int Esx_13=0; int Esx_14=0; int Esx_15=0; int Esx_16=0; int Esx_17=0; int Esx_18=0; int Esx_19=0; int Esx_20=0; int Esx_21=0;
 
 // --- Variáveis de wizard FONTE_1 (edição temporária) ---
 // --- Wizard FONTE_1 EIXO_X (0=F1X 1=LX 2=RX) ---
@@ -1036,6 +1045,10 @@ function Migrar_V5() {
 }
 init {
     cls_oled(0);
+    // v7m: o ZenStudio avisava "Cfg_Selo is never assigned" no script avulso e no InLoco,
+    // onde o app nao substitui a linha da declaracao. Esta atribuicao nao muda nada e
+    // tira o aviso.
+    Cfg_Selo = Cfg_Selo;
     Load_All();
     // A migracao roda UMA VEZ na vida da EEPROM, independente do selo do app.
     if(!Migrado_V5()) Migrar_V5();
@@ -1961,7 +1974,7 @@ function Executar_Turbo_Fonte(num) {
         // primeiro configurado, para que o fim do silencio caia no ramo "proximo passo
         // com destino" que ja existe — sem ramo novo na maquina.
         if(Cmb_P > 1) {
-            Work_B = Combo_Espera(num, Cmb_P);
+            Work_B = Trb_Prog_Espera(num, Combo_Espera(num, Cmb_P));
             if(Work_B > 0) {
                 Work_A = (Work_B & 0x7FF) | ((Get_Turbo_Ciclos(num) & 0xF) << 12)
                          | (1 << 16) | ((Cmb_P - 2) << 17);
@@ -1984,13 +1997,20 @@ function Executar_Turbo_Fonte(num) {
         Cmb_P = ((Work_A >> 17) & 0x3) + 1;         // passo atual (1-4)
         if(Get_Turbo_Ciclos(num) == 0 || Work_C > 0) {
             Work_B = (Work_A & 0x7FF) - get_rtime();
-            if(Work_B <= 0) {
+            Esx_T = Get_Esx(num);
+            if(Work_B <= 0 && Esx_T > 0) {
+                // v7m: ainda ha resto de espera — recarrega o timer e FICA na mesma fase
+                Work_B = Esx_T;
+                if(Work_B > 2047) Work_B = 2047;
+                Set_Esx(num, Esx_T - Work_B);
+                Work_A = (Work_A & (~0x7FF)) | (Work_B & 0x7FF);
+            } else if(Work_B <= 0) {
                 if(((Work_A >> 11) & 1) && (Trb_Lat_Ms(Get_Turbo_Lat(num)) + Combo_Lat_Extra(num, Cmb_P)) > 0) {
                     // fim do passo LIGADO -> silencio, no mesmo passo
                     // v7j: a pausa e a latencia global MAIS os tempos dos passos vazios
                     // que vierem a seguir. Com a global em "---", so os vazios contam.
-                    Work_B = Trb_Lat_Ms(Get_Turbo_Lat(num)) + Combo_Lat_Extra(num, Cmb_P);
-                    if(Work_B > 2047) Work_B = 2047;   // o timer tem 11 bits
+                    Work_B = Trb_Prog_Espera(num,
+                        Trb_Lat_Ms(Get_Turbo_Lat(num)) + Combo_Lat_Extra(num, Cmb_P));
                     Work_A = (Work_B & 0x7FF) | (Work_C << 12) | (1 << 16) | ((Cmb_P - 1) << 17);
                 } else {
                     // v6: com LAT em --- a fase de silencio nao existe — o passo termina e
@@ -2015,7 +2035,7 @@ function Executar_Turbo_Fonte(num) {
                         Cmb_P = 1;
                         if(!Get_Combo_Dst(num, 1)) Cmb_P = Combo_Prox_Passo(num, 1);
                         Cmb_N = 0;
-                        if(Cmb_P > 1) Cmb_N = Combo_Espera(num, Cmb_P);
+                        if(Cmb_P > 1) Cmb_N = Trb_Prog_Espera(num, Combo_Espera(num, Cmb_P));
                         if(Get_Turbo_Ciclos(num) > 0) {
                             Work_C = Work_C - 1;
                             if(Work_C == 0) {
@@ -2775,6 +2795,102 @@ function Estatc_Escrever_Dst_Val(mask, v, sinal) {
     if((mask >> 17) & 1) Acc_Um(17, v);
 }
 // ===== EXECUÇÃO DO TURBO (3I-c: botões) =====
+function Get_Esx(n) {
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) return Esx_01;
+                if(n == 2) return Esx_02;
+                if(n == 3) return Esx_03;
+            } else {
+                if(n == 4) return Esx_04;
+                if(n == 5) return Esx_05;
+                if(n == 6) return Esx_06;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) return Esx_07;
+                if(n == 8) return Esx_08;
+                if(n == 9) return Esx_09;
+            } else {
+                if(n == 10) return Esx_10;
+                if(n == 11) return Esx_11;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) return Esx_12;
+                if(n == 13) return Esx_13;
+                if(n == 14) return Esx_14;
+            } else {
+                if(n == 15) return Esx_15;
+                if(n == 16) return Esx_16;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) return Esx_17;
+                if(n == 18) return Esx_18;
+                if(n == 19) return Esx_19;
+            } else {
+                if(n == 20) return Esx_20;
+                if(n == 21) return Esx_21;
+            }
+        }
+    }
+    return 0;
+}
+function Set_Esx(n, v) {
+    if(n <= 11) {
+        if(n <= 6) {
+            if(n <= 3) {
+                if(n == 1) Esx_01 = v;
+                if(n == 2) Esx_02 = v;
+                if(n == 3) Esx_03 = v;
+            } else {
+                if(n == 4) Esx_04 = v;
+                if(n == 5) Esx_05 = v;
+                if(n == 6) Esx_06 = v;
+            }
+        } else {
+            if(n <= 9) {
+                if(n == 7) Esx_07 = v;
+                if(n == 8) Esx_08 = v;
+                if(n == 9) Esx_09 = v;
+            } else {
+                if(n == 10) Esx_10 = v;
+                if(n == 11) Esx_11 = v;
+            }
+        }
+    } else {
+        if(n <= 16) {
+            if(n <= 14) {
+                if(n == 12) Esx_12 = v;
+                if(n == 13) Esx_13 = v;
+                if(n == 14) Esx_14 = v;
+            } else {
+                if(n == 15) Esx_15 = v;
+                if(n == 16) Esx_16 = v;
+            }
+        } else {
+            if(n <= 19) {
+                if(n == 17) Esx_17 = v;
+                if(n == 18) Esx_18 = v;
+                if(n == 19) Esx_19 = v;
+            } else {
+                if(n == 20) Esx_20 = v;
+                if(n == 21) Esx_21 = v;
+            }
+        }
+    }
+}
+// v7m: programa uma espera de qualquer tamanho. Devolve o que cabe nos 11 bits do timer
+// e guarda o resto em Esx, que a maquina consome em fatias antes de mudar de fase.
+function Trb_Prog_Espera(num, ms) {
+    if(ms > 2047) { Set_Esx(num, ms - 2047); return 2047; }
+    Set_Esx(num, 0);
+    return ms;
+}
 function Get_TrbSt_X(n) {
     if(n <= 11) {
         if(n <= 6) {
@@ -2821,6 +2937,7 @@ function Get_TrbSt_X(n) {
     return 0;
 }
 function Set_TrbSt_X(n, v) {
+    if(v == 0 || v == 65536) Set_Esx(n, 0);   // v7m: rearme/terminado zera o resto da espera
     if(n <= 11) {
         if(n <= 6) {
             if(n <= 3) {
@@ -5280,8 +5397,7 @@ function Combo_Espera(num, ate) {
         Esp_N = Esp_N + Trb_Tempo_Ms(Get_Combo_Tmp(num, Esp_I));
         Esp_I = Esp_I + 1;
     }
-    if(Esp_N > 2047) Esp_N = 2047;   // o timer do TrbSt tem 11 bits
-    return Esp_N;
+    return Esp_N;   // v7m: sem corte — Trb_Prog_Espera fatia o que passa de 2047ms
 }
 function Combo_Prox_Passo(num, de) {
     Cmb_N = de;
@@ -5623,9 +5739,13 @@ function Update_OLED() {
         rect_oled(0, 11, 128, 1, 0, 1);
         if(Wz_SubCursor == 0) print(2, 17, 0, 1, SCR_SEL[0]);
         Print_Fonte_Label(10, 17, Wz_Fonte_Tipo);
+        // v7m: a linha ganhou rotulo. Antes aparecia so "ATIVO"/"PASSIVO", solto, e era
+        // facil confundir com o nome da fonte da linha de cima. Agora fica alinhada com a
+        // linha do DELAY: rotulo em x=10, valor em x=70.
         if(Wz_SubCursor == 1) print(2, 26, 0, 1, SCR_SEL[0]);
-        if(Wz_Fonte_Passivo) print(10, 27, 0, 1, F1_PASSIV[0]);
-        else                 print(10, 27, 0, 1, F1_ATIVO[0]);
+        print(10, 27, 0, 1, F1_MODO_LBL[0]);
+        if(Wz_Fonte_Passivo) print(70, 27, 0, 1, F1_PASSIV[0]);
+        else                 print(70, 27, 0, 1, F1_ATIVO[0]);
         // v5: o DELAY vive na tela do ALFA porque e sobre QUANDO a resposta comeca —
         // mas vale para qualquer caminho de acionamento, nao so o da fonte.
         if(Wz_SubCursor == 2) print(2, 39, 0, 1, SCR_SEL[0]);
@@ -6435,7 +6555,7 @@ var TDELAY=['OFF','300ms','700ms','1.2s'];
 var TAFTER=['50ms','100ms','150ms','200ms','300ms','500ms','1.0s','2.0s'];
 var TLAT=['---','10ms','20ms','30ms','40ms','50ms','60ms','80ms','100ms','120ms',
   '150ms','200ms','250ms','350ms','500ms','750ms'];
-var TLATMS=[0,10,20,30,40,50,60,80,100,120,150,200,250,350,500,750];   // v7k: TLAT em ms, para o limite de 2047
+var TLATMS=[0,10,20,30,40,50,60,80,100,120,150,200,250,350,500,750];   // TLAT em ms
 var THOLD=(function(){var v=[],i;
   for(i=0;i<=25;i++)v.push(((50+i*10)/1000).toFixed(2)+'s');
   for(i=26;i<=39;i++)v.push(((350+(i-26)*50)/1000).toFixed(2)+'s');
@@ -6457,7 +6577,7 @@ function modVazio(){return{nota:'',d1:0,d2:0,d3:0,d4:0,fonte:0,passivo:0,mult:9,
   tipo:0,dst:[0,0,0,0],tmp:[3,3,3,3],lat:4,modo:0,ciclos:0,excl:[],assoc:[],bloq:[]}}
 function jogoVazio(){var m=[],i;for(i=0;i<21;i++)m.push(modVazio());
   return{nome:'',cores:[3,6,9,12],noZen:false,mods:m}}
-function base(){return{jogos:[]}}
+function base(){return{jogos:[],ordem:'manual'}}
 
 var D=ler()||base(), tela='cat', jg=0, md=0, modo='';
 
@@ -6614,8 +6734,7 @@ function resumo(j,i){
     // v6: passos vazios ANTES do primeiro configurado viram espera, somando os tempos.
     var esp=0, ms=[30,50,70,100,150,250,500,1000], k2=0;
     while(k2<4 && !m.dst[k2]){ esp+=ms[m.tmp[k2]]; k2++; }
-    if(esp)p.push('Espera <em>'+Math.min(esp,2047)+'ms</em> a cada volta — soma dos passos vazios antes do primeiro configurado'+
-      (esp>2047?' (seriam '+esp+'ms; o Cronus corta em 2047)':'')+'.');
+    if(esp)p.push('Espera <em>'+esp+'ms</em> a cada volta — soma dos passos vazios antes do primeiro configurado.');
     p.push('DELTA TURBO: '+seq.join(' → ')+
       (m.lat?', com '+TLAT[m.lat]+' entre cada.':', <em>emendados</em> (sem latência).')+
       (m.ciclos?' Repete '+m.ciclos+'× e encerra.':' Repete enquanto acionado.'));
@@ -6629,6 +6748,8 @@ function resumo(j,i){
   if(m.delay)p.push('DELAY: a resposta só sobe <em>'+TDELAY[m.delay]+'</em> depois de ser acionada.');
   if(m.gBlok)p.push('GAMA BLOK: segurar <em>'+BOTOES[m.gBlok]+'</em> suspende enquanto pressionado. <em>(RAM)</em>');
   if(m.passivo&&cat!=='nenhuma')p.push('PASSIVO: a entrada e os botões do GAMA <em>não chegam ao jogo</em>.');
+  // v7m: sem ALFA o campo continua valendo — é ele que decide se os botões do GAMA passam.
+  else if(m.passivo)p.push('PASSIVO sem ALFA: os botões do GAMA <em>não chegam ao jogo</em> (só acionam o MOD).');
   // v7a: o modo FINALIZA precisa aparecer aqui pelo mesmo motivo do ZETA — e para
   // CONFERIR a ultima configuracao do MOD que o resumo serve.
   var fins=[];
@@ -6709,19 +6830,32 @@ function alertas(j,i){
     O.push('DELTA STATIC em eixo trava no sentido para onde o ALFA foi empurrado.');
   // v7k: o timer do combo no script tem 11 bits — espera e pausa acima de 2047ms sao
   // cortadas em 2047. Antes o app mostrava o valor cheio (3000ms) e o Cronus fazia 2047.
-  // v7l: o aviso de corte do TURBO saiu daqui — fica no fim da secao DELTA (corteTurbo)
-  return{A:A,O:O}}
-// v7k/v7l: frase do corte em 2047ms, usada nos avisos E no fim da secao DELTA.
-function corteTurbo(m){
-  if(m.tipo!==2||!m.dst.some(function(d){return d}))return '';
-  var tms=[30,50,70,100,150,250,500,1000], e0=0, q0=0, pz=0, vs=false, cortes=[];
-  while(q0<4&&!m.dst[q0]){e0+=tms[m.tmp[q0]];q0++}
-  if(e0>2047)cortes.push('a espera ('+e0+'ms)');
-  for(;q0<4;q0++){
-    if(m.dst[q0]){ if(vs&&pz+TLATMS[m.lat]>2047)cortes.push('uma pausa ('+(pz+TLATMS[m.lat])+'ms, com a latência)'); pz=0; vs=true; }
-    else pz+=tms[m.tmp[q0]];
+  // v7m: outro MOD com a MESMA entrada em PASSIVO. A supressao e da ENTRADA, não do MOD:
+  // basta um MOD em PASSIVO para aquele eixo/botao nao chegar ao jogo, mesmo que este aqui
+  // esteja em ATIVO. Foi a explicacao provavel do "ATIVO nao passa o sinal".
+  if(!m.passivo&&m.fonte){
+    var pas=[];
+    j.mods.forEach(function(o,k){
+      if(k===i||!nomeMod(j,k)||!o.passivo||o.fonte!==m.fonte)return;
+      if(![1,2,3,4].some(function(n){return m['d'+n]&&o['d'+n]}))return;
+      pas.push('MOD_'+String(k+1).padStart(2,'0'))});
+    if(pas.length)A.push('MOD_'+String(i+1).padStart(2,'0')+' está em ATIVO, mas '+pas.join(', ')+
+      ' usa a mesma entrada ('+FONTES[m.fonte]+') em PASSIVO — o sinal não chega ao jogo de qualquer forma.');
   }
-  return cortes.length?'No TURBO, '+cortes.join(' e ')+' passa de 2047ms — o Cronus corta em 2047ms (limite do timer).':''}
+  // v7m: outro MOD escrevendo no MESMO destino. Nao e erro — o Acc guarda o de maior
+  // intensidade —, mas explica um destino que "sobe sozinho" ou nao respeita este MOD.
+  // Foi o que apareceu no D2: um RX que subia fora do THR_IN e do DELAY deste MOD.
+  var meusDst=m.dst.filter(function(d){return d}), dup=[];
+  j.mods.forEach(function(o,k){
+    if(k===i||!nomeMod(j,k))return;
+    if(![1,2,3,4].some(function(n){return m['d'+n]&&o['d'+n]}))return;
+    meusDst.forEach(function(d){
+      if(o.dst.indexOf(d)>=0)dup.push(DESTINOS[d]+' (MOD_'+String(k+1).padStart(2,'0')+')')})});
+  if(dup.length)O.push('Outro MOD escreve no mesmo destino: '+dup.join(', ')+
+    '. Vale o de maior intensidade no instante — se um destino não respeitar o BETA ou o DELAY deste MOD, veja o outro.');
+  return{A:A,O:O}}
+// v7m: o corte em 2047ms acabou — o resto da espera passou a ser guardado em RAM e o
+// combo cumpre o tempo cheio (ate 3s de espera, ate 3,75s de pausa). Nao ha mais o que avisar.
 
 // ---------- gerador de código ----------
 function codigo(j){
@@ -6904,8 +7038,26 @@ function telaCat(A){
   var noZen=D.jogos.filter(function(j){return j.noZen}).length;
   if(!D.jogos.length){var v=document.createElement('div');v.className='vazio';
     v.textContent='Nenhum jogo cadastrado.';A.appendChild(v)}
-  D.jogos.forEach(function(j,i){
-    var b=document.createElement('button');b.className='slot';
+  // v7m: a lista pode ficar na ordem que voce arrastou (manual) ou em ordem alfabetica.
+  // A escolha fica gravada junto com o catalogo. Na ordem A-Z as setas somem, porque quem
+  // manda e o nome; volte para manual para reordenar.
+  if(D.jogos.length>1){
+    var ro=document.createElement('div');ro.className='row';
+    var lb=document.createElement('span');lb.className='hint';lb.style.alignSelf='center';
+    lb.textContent='Ordem:';ro.appendChild(lb);
+    [['manual','manual'],['az','A-Z']].forEach(function(o){
+      var t=document.createElement('button');t.className='btn sm';t.textContent=o[1];
+      if((D.ordem||'manual')===o[0])t.classList.add('pri');
+      t.onclick=function(){D.ordem=o[0];grava(D);render()};ro.appendChild(t)});
+    A.appendChild(ro);
+  }
+  var ordem=D.ordem||'manual';
+  var vis=D.jogos.map(function(j,i){return{j:j,i:i}});
+  if(ordem==='az')vis.sort(function(a,b){
+    return (a.j.nome||'').localeCompare(b.j.nome||'','pt',{sensitivity:'base'})});
+  vis.forEach(function(o,pos){
+    var j=o.j, i=o.i;
+    var b=document.createElement('button');b.className='slot';b.style.marginBottom='0';
     var leds=j.cores.map(function(x){return'<i class="led" style="background:'+CORES[x][5]+'"></i>'}).join('');
     var nm=0;j.mods.forEach(function(mm,k){if(nomeMod(j,k))nm++});
     b.innerHTML='<span class="nm'+(j.nome?'':' vaz')+'">'+h(j.nome||'sem nome')+
@@ -6913,7 +7065,26 @@ function telaCat(A){
       (j.noZen?' · no Zen':'')+'</s></span><span class="leds">'+leds+'</span>';
     if(j.noZen)b.style.borderColor='var(--azul)';
     b.onclick=function(){jg=i;tela='jogo';modo='';render()};
-    A.appendChild(b)});
+    var lin=document.createElement('div');lin.style.display='flex';lin.style.gap='4px';
+    lin.style.alignItems='stretch';lin.style.marginBottom='10px';
+    b.style.flex='1';lin.appendChild(b);
+    if(ordem==='manual'&&D.jogos.length>1){
+      var mv=document.createElement('div');mv.style.display='flex';mv.style.flexDirection='column';
+      mv.style.gap='2px';mv.style.flex='none';
+      [['↑',-1],['↓',1]].forEach(function(s){
+        var bt=document.createElement('button');bt.className='btn sm';bt.textContent=s[0];
+        bt.style.padding='0 9px';bt.style.fontSize='12px';bt.style.lineHeight='1';bt.style.flex='1';
+        bt.setAttribute('aria-label',(s[1]<0?'Subir ':'Descer ')+(j.nome||'jogo sem nome'));
+        var alvo=i+s[1];
+        if(alvo<0||alvo>=D.jogos.length){bt.disabled=true;bt.style.opacity=.3}
+        else bt.onclick=function(ev){ev.stopPropagation();
+          var tmp=D.jogos[i];D.jogos[i]=D.jogos[alvo];D.jogos[alvo]=tmp;
+          if(jg===i)jg=alvo; else if(jg===alvo)jg=i;
+          grava(D);render()};
+        mv.appendChild(bt)});
+      lin.appendChild(mv);
+    }
+    A.appendChild(lin)});
   var r=document.createElement('div');r.className='row';
   var bn=document.createElement('button');bn.className='btn pri';bn.textContent='Novo jogo';
   bn.onclick=function(){D.jogos.push(jogoVazio());jg=D.jogos.length-1;tela='jogo';modo='';grava(D);render()};
@@ -7094,9 +7265,6 @@ function telaMod(A){
         sd.appendChild(fld(m.dst[k]?'· tempo':'· pausa',
           sel(m.tmp[k],TPASSO,function(v){m.tmp[k]=v;up()})));
     }});
-  // v7l: o aviso de corte aparece tambem aqui, junto dos tempos que o causam (pedido no K19)
-  var ctv=corteTurbo(m);
-  if(ctv){var cw=document.createElement('div');cw.className='obs';cw.style.marginTop='10px';cw.textContent=ctv;sd.appendChild(cw)}
   A.appendChild(sd);
 
   var sh=document.createElement('section');sh.innerHTML='<h2>ZETA</h2>';
@@ -7249,7 +7417,10 @@ function telaInfo(A){
     ['Pausa dentro do combo','Um passo VAZIO no meio da sequência gera uma pausa com o tempo dele, '+
      'somada à latência. Com a latência em ---, essa vira a única pausa naquele ponto. '+
      'Passos vazios ANTES do primeiro configurado somam e viram a espera de entrada. '+
-     'Vazios DEPOIS do último configurado não têm efeito.'],
+     'Vazios DEPOIS do último configurado não têm efeito. Os tempos valem cheios: até 3s de '+
+     'espera e até 3,75s de pausa.'],
+    ['ATIVO / PASSIVO sem ALFA','Com a entrada em ---, o campo continua valendo: em PASSIVO, os '+
+     'botões do GAMA acionam o MOD mas não chegam ao jogo. Em ATIVO, chegam.'],
     ['Ordem dos MODs','A posição na lista decide o desempate do bloqueio mútuo e a propagação em '+
      'cadeia — o pipeline avalia do MOD_01 ao MOD_21. Reordenar muda esse desempate.']]);
 
