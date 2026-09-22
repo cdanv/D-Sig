@@ -6634,7 +6634,7 @@ function resumoLista(m){
     x=FONTES[m.fonte]; var cf=catFonte(m.fonte);
     if(cf==='eixo'||cf==='touch')x+=' '+['NEG','ABS','POS'][m.dir];
     if(cf!=='botao'){x+=' ≥'+THR[m.tin]+(m.tout?' ≤'+THR[m.tout]:'');if(m.mult!==9)x+=' '+MULT[m.mult]}
-    if(m.passivo)x+=' PASS';
+    if(m.passivo)x+=' PASSIVO';   // v7n: mesma palavra do campo e do OLED
     P.push(['ALFA',x]);
   } else if(!temGatilhoEstado(m)&&m.assoc.length) P.push(['ALFA','órfão']);
   var fz=function(f){return f?' FIN':''};
@@ -6839,8 +6839,11 @@ function alertas(j,i){
       if(k===i||!nomeMod(j,k)||!o.passivo||o.fonte!==m.fonte)return;
       if(![1,2,3,4].some(function(n){return m['d'+n]&&o['d'+n]}))return;
       pas.push('MOD_'+String(k+1).padStart(2,'0'))});
-    if(pas.length)A.push('MOD_'+String(i+1).padStart(2,'0')+' está em ATIVO, mas '+pas.join(', ')+
-      ' usa a mesma entrada ('+FONTES[m.fonte]+') em PASSIVO — o sinal não chega ao jogo de qualquer forma.');
+    // v7n: era um alerta de "não vai funcionar", e não é isso — o MOD funciona normalmente.
+    // O que não acontece é a entrada chegar ao jogo, porque a supressão é da ENTRADA.
+    if(pas.length)O.push('Este MOD está em ATIVO, mas '+pas.join(', ')+' usa a mesma entrada ('+
+      FONTES[m.fonte]+') em PASSIVO. Este MOD responde normalmente; o que não chega ao jogo é o '+
+      FONTES[m.fonte]+' em si, porque a supressão vale para a entrada, não para o MOD.');
   }
   // v7m: outro MOD escrevendo no MESMO destino. Nao e erro — o Acc guarda o de maior
   // intensidade —, mas explica um destino que "sobe sozinho" ou nao respeita este MOD.
@@ -7216,8 +7219,9 @@ function telaMod(A){
 
   var sa=document.createElement('section');sa.innerHTML='<h2>ALFA</h2>';
   sa.appendChild(fld('Entrada',sel(m.fonte,FONTES,function(v){m.fonte=v;up()})));
-  sa.appendChild(fld('Modo',chk(m.passivo,function(v){m.passivo=v?1:0;up()})));
-  sa.querySelector('.fld:last-child label').textContent='Passivo';
+  // v7n: o campo passou a se chamar MODO, com ATIVO/PASSIVO — as mesmas palavras do OLED e
+  // do script. O valor gravado continua o mesmo bit: indice 0 = ATIVO, 1 = PASSIVO.
+  sa.appendChild(fld('Modo',sel(m.passivo?1:0,['ATIVO','PASSIVO'],function(v){m.passivo=v;up()})));
   sa.appendChild(fld('Delay',sel(m.delay,TDELAY,function(v){m.delay=v;up()})));
   A.appendChild(sa);
 

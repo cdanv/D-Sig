@@ -4,7 +4,7 @@
 // IMPORTANTE: incremente SEMPRE que o index.html mudar — inclusive quando so o
 // template do script embutido mudar. Sem isso, quem tem o app instalado continua
 // gerando .gpc de uma versao antiga.
-const CACHE = 'sigrouter-v32';
+const CACHE = 'sigrouter-v33';
 
 // Separados de proposito: sem o index e o manifest o app nao abre; sem os icones ele
 // abre normalmente. Um icone faltando nao pode impedir a instalacao inteira, que era
