@@ -1051,10 +1051,11 @@ function Config_Zeta() {
     // ---- o app escreve aqui: ZETA, botao do BLOK e modo FINALIZA (RAM) ----
     Work_A = Work_A;   // v7i: idem — evita o aviso de funcao vazia no template
 }
-function Salvar_Tudo() {
-    Work_N = 1;
-    while(Work_N <= 21) { Save_Instance(Work_N); Work_N++; }
-}
+// O Salvar_Tudo saiu daqui. Ele gravava as 21 instancias de uma vez, e era chamado
+// exatamente nos dois pontos do init que causavam a pane do boot. Com a gravacao diferida
+// quem faz esse trabalho e o Boot_Persistir, uma instancia por volta — e o Salvar_Tudo
+// ficou sem nenhum chamador. O ZenStudio avisou ("Function 'Salvar_Tudo' is never used");
+// o embutir.py agora faz essa mesma checagem antes de publicar, para nao depender disso.
 // v5a MIGRACAO DE EEPROM (achado da auditoria externa). Os bits 22-26 do SPVAR_B eram o
 // BOTAO DO BLOK; na v5 sao DELAY (22-23) e AFTER_TMP (24-26). Uma EEPROM gravada antes
 // disso tem valores ali que seriam lidos como DELAY e AFTER — sem erro nem aviso, so

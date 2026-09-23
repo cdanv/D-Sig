@@ -189,6 +189,9 @@ Precisando espaçar ainda mais, o passo a dividir é o `Boot_Persistir`:
 um SPVAR por volta em vez de três levaria 63 voltas (~630 ms) e exigiria
 um dispatch por SPVAR.
 
+O `Salvar_Tudo`, que gravava as 21 de uma vez, deixou de existir — era
+ele que o `init` chamava nos dois pontos que causavam a pane.
+
 ## O que não é gravado na EEPROM
 
 Três variáveis vivem em RAM: as relações **ZETA**, o botão do **GAMA
@@ -228,7 +231,7 @@ segue a ordem física.
 3. Em `sw.js`, incremente o número:
 
 ```js
-const CACHE = 'dsig-v4';   // era dsig-v3
+const CACHE = 'dsig-v5';   // era dsig-v4
 ```
 
 É essa troca que faz o navegador buscar a versão nova. Sem ela, quem

@@ -38,9 +38,30 @@ for a in ANCORAS:
 # --- 3. estrutura ------------------------------------------------------------
 assert limpo.count('{') == limpo.count('}'), 'chaves desbalanceadas'
 assert limpo.count('(') == limpo.count(')'), 'parenteses desbalanceados'
-nf = len(re.findall(r'^function\s+(\w+)', limpo, re.M))
+nomes = re.findall(r'^function\s+(\w+)', limpo, re.M)
+nf = len(nomes)
 assert nf == len(re.findall(r'^function\s+(\w+)', bruto, re.M)), 'perdeu funcao'
-assert 'combo ' not in re.sub(r'//[^\n]*', '', limpo), 'apareceu combo'
+assert 'combo ' not in limpo, 'apareceu combo'
+
+# --- 3b. funcao orfa: o ZenStudio avisa, e um aviso vale um erro aqui ---------
+# Esta checagem existe porque eu a fiz a mao uma vez, antes de uma alteracao, e nao
+# repeti depois: a correcao do boot tirou os dois unicos chamadores do Salvar_Tudo e
+# so o compilador percebeu. Auditoria que depende de alguem lembrar nao e auditoria.
+orfas = [f for f in nomes if len(re.findall(r'\b' + f + r'\s*\(', limpo)) < 2]
+assert not orfas, f'funcao sem nenhum chamador (o ZenStudio vai avisar): {orfas}'
+
+# variavel declarada e nunca mencionada fora da declaracao
+sem_decl = re.sub(r'^\s*int\s+.*$', '', limpo, flags=re.M)
+mortas = [v for v in sorted(set(re.findall(r'\bint\s+(\w+)', limpo)))
+          if not re.findall(r'\b' + v + r'\b', sem_decl)]
+assert not mortas, f'variavel declarada e nunca usada: {mortas}'
+
+# define declarado e nunca usado — nao gera aviso, mas mente sobre o que existe
+dfs = re.findall(r'^define\s+(\w+)', limpo, re.M)
+sem_uso = [d for d in dfs if len(re.findall(r'\b' + d + r'\b', limpo)) < 2]
+DOC = {'SPVARS_PER_INST', 'BIT_SLOT_USED', 'F1_DIR_ABSOLUTO', 'LAYOUT_VER'}
+sem_uso = [d for d in sem_uso if d not in DOC and not d.startswith(('DST_BIT_', 'BTN_BIT_'))]
+assert not sem_uso, f'define sem uso: {sem_uso}'
 
 open(PUB, 'w', encoding='utf-8').write(limpo)
 

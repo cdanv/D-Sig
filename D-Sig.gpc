@@ -465,10 +465,6 @@ function Config_Inicial() {
 function Config_Zeta() {
     Work_A = Work_A;
 }
-function Salvar_Tudo() {
-    Work_N = 1;
-    while(Work_N <= 21) { Save_Instance(Work_N); Work_N++; }
-}
 define LAYOUT_VER = 5;
 define BIT_MIGRADO_V5 = 1;
 function Selo_Cfg_Gravado() {
