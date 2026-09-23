@@ -1,10 +1,13 @@
-// Service worker do SigRouter.
+// Service worker do D-Sig.
 // Guarda os arquivos na primeira visita para o app abrir offline depois.
 // A versao no nome do cache dispara a atualizacao: ao publicar, incremente o numero.
 // IMPORTANTE: incremente SEMPRE que o index.html mudar — inclusive quando so o
 // template do script embutido mudar. Sem isso, quem tem o app instalado continua
 // gerando .gpc de uma versao antiga.
-const CACHE = 'sigrouter-v35';
+// A contagem recomecou em v1 com o nome final do projeto. O 'activate' apaga todo
+// cache cujo nome seja diferente deste, entao o cache da versao anterior e descartado
+// sozinho na primeira abertura — nada a limpar a mao.
+const CACHE = 'dsig-v1';
 
 // Separados de proposito: sem o index e o manifest o app nao abre; sem os icones ele
 // abre normalmente. Um icone faltando nao pode impedir a instalacao inteira, que era

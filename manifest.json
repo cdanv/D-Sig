@@ -1,8 +1,8 @@
 {
-  "id": "sigrouter",
-  "name": "SigRouter — biblioteca",
-  "short_name": "SigRouter",
-  "description": "Catálogo e configurador dos MODs do SigRouter para Cronus Zen.",
+  "id": "dsig",
+  "name": "D-Sig — biblioteca",
+  "short_name": "D-Sig",
+  "description": "Catálogo e configurador dos MODs do D-Sig para Cronus Zen.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
