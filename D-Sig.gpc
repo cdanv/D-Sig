@@ -456,6 +456,9 @@ int DS_F1_BLOQ_09=0; int DS_F1_BLOQ_10=0; int DS_F1_BLOQ_11=0; int DS_F1_BLOQ_12
 int DS_F1_BLOQ_13=0; int DS_F1_BLOQ_14=0; int DS_F1_BLOQ_15=0; int DS_F1_BLOQ_16=0;
 int DS_F1_BLOQ_17=0; int DS_F1_BLOQ_18=0; int DS_F1_BLOQ_19=0; int DS_F1_BLOQ_20=0; int DS_F1_BLOQ_21=0;
 int Cfg_Selo = 0;
+int Boot_Inst = 0;
+int Boot_Selo = 0;
+int Boot_Mud  = 0;
 function Config_Inicial() {
     Work_A = Work_A;
 }
@@ -477,19 +480,37 @@ function Migrado_V5() {
 function Marcar_Selo(migrado, selo) {
     Work_A = (selo & 0x7FFFFFFF) << 1;
     if(migrado) Work_A = Work_A | BIT_MIGRADO_V5;
-    set_pvar(SPVAR_64, Work_A);
+    Grava_Spv(SPVAR_64, Work_A);
 }
 function Migrar_V5() {
+    Boot_Mud = 0;
     Esp_I = 1;
     while(Esp_I <= 21) {
         if(Get_Spvar_A(Esp_I) & 1) {
             Work_A = Get_Spvar_B(Esp_I) & (~(0x1F << 22));
-            Set_Spvar_B(Esp_I, Work_A);
+            if(Work_A != Get_Spvar_B(Esp_I)) {
+                Set_Spvar_B(Esp_I, Work_A);
+                Boot_Mud = Boot_Mud + 1;
+            }
         }
         Esp_I++;
     }
-    Salvar_Tudo();
-    Marcar_Selo(1, Selo_Cfg_Gravado());
+    Boot_Agendar(Selo_Cfg_Gravado(), Boot_Mud > 0);
+}
+function Boot_Agendar(selo, com_instancias) {
+    Boot_Selo = selo;
+    if(com_instancias)        Boot_Inst = 1;
+    else if(Boot_Inst == 0)   Boot_Inst = 22;
+}
+function Boot_Persistir() {
+    if(Boot_Inst == 0) return;
+    if(Boot_Inst <= 21) {
+        Save_Instance(Boot_Inst);
+        Boot_Inst = Boot_Inst + 1;
+        return;
+    }
+    Marcar_Selo(1, Boot_Selo);
+    Boot_Inst = 0;
 }
 init {
     cls_oled(0);
@@ -498,8 +519,7 @@ init {
     if(!Migrado_V5()) Migrar_V5();
     if(Cfg_Selo != 0 && Selo_Cfg_Gravado() != (Cfg_Selo & 0x7FFFFFFF)) {
         Config_Inicial();
-        Salvar_Tudo();
-        Marcar_Selo(1, Cfg_Selo);
+        Boot_Agendar(Cfg_Selo, TRUE);
     }
     if(Cfg_Selo != 0) Config_Zeta();
     Count_Instances();
@@ -507,6 +527,7 @@ init {
     Update_OLED();
 }
 main {
+    Boot_Persistir();
     Cfg_Marcar_Sujo();
     Ler_Dominios();
     Menu_Din();
@@ -4000,28 +4021,32 @@ function Load_All() {
     DS_B_21 = get_pvar(SPVAR_62, -2147483648, 2147483647, 0);
     DS_C_21 = get_pvar(SPVAR_63, -2147483648, 2147483647, 0);
 }
+function Grava_Spv(qual, valor) {
+    if(get_pvar(qual, -2147483648, 2147483647, 0) == valor) return;
+    set_pvar(qual, valor);
+}
 function Save_Instance(num) {
-    if(num ==  1) { set_pvar(SPVAR_1, DS_A_01); set_pvar(SPVAR_2, DS_B_01); set_pvar(SPVAR_3, DS_C_01); }
-    if(num ==  2) { set_pvar(SPVAR_4, DS_A_02); set_pvar(SPVAR_5, DS_B_02); set_pvar(SPVAR_6, DS_C_02); }
-    if(num ==  3) { set_pvar(SPVAR_7, DS_A_03); set_pvar(SPVAR_8, DS_B_03); set_pvar(SPVAR_9, DS_C_03); }
-    if(num ==  4) { set_pvar(SPVAR_10, DS_A_04); set_pvar(SPVAR_11, DS_B_04); set_pvar(SPVAR_12, DS_C_04); }
-    if(num ==  5) { set_pvar(SPVAR_13, DS_A_05); set_pvar(SPVAR_14, DS_B_05); set_pvar(SPVAR_15, DS_C_05); }
-    if(num ==  6) { set_pvar(SPVAR_16, DS_A_06); set_pvar(SPVAR_17, DS_B_06); set_pvar(SPVAR_18, DS_C_06); }
-    if(num ==  7) { set_pvar(SPVAR_19, DS_A_07); set_pvar(SPVAR_20, DS_B_07); set_pvar(SPVAR_21, DS_C_07); }
-    if(num ==  8) { set_pvar(SPVAR_22, DS_A_08); set_pvar(SPVAR_23, DS_B_08); set_pvar(SPVAR_24, DS_C_08); }
-    if(num ==  9) { set_pvar(SPVAR_25, DS_A_09); set_pvar(SPVAR_26, DS_B_09); set_pvar(SPVAR_27, DS_C_09); }
-    if(num == 10) { set_pvar(SPVAR_28, DS_A_10); set_pvar(SPVAR_29, DS_B_10); set_pvar(SPVAR_30, DS_C_10); }
-    if(num == 11) { set_pvar(SPVAR_31, DS_A_11); set_pvar(SPVAR_32, DS_B_11); set_pvar(SPVAR_33, DS_C_11); }
-    if(num == 12) { set_pvar(SPVAR_34, DS_A_12); set_pvar(SPVAR_35, DS_B_12); set_pvar(SPVAR_36, DS_C_12); }
-    if(num == 13) { set_pvar(SPVAR_37, DS_A_13); set_pvar(SPVAR_38, DS_B_13); set_pvar(SPVAR_39, DS_C_13); }
-    if(num == 14) { set_pvar(SPVAR_40, DS_A_14); set_pvar(SPVAR_41, DS_B_14); set_pvar(SPVAR_42, DS_C_14); }
-    if(num == 15) { set_pvar(SPVAR_43, DS_A_15); set_pvar(SPVAR_44, DS_B_15); set_pvar(SPVAR_45, DS_C_15); }
-    if(num == 16) { set_pvar(SPVAR_46, DS_A_16); set_pvar(SPVAR_47, DS_B_16); set_pvar(SPVAR_48, DS_C_16); }
-    if(num == 17) { set_pvar(SPVAR_49, DS_A_17); set_pvar(SPVAR_50, DS_B_17); set_pvar(SPVAR_51, DS_C_17); }
-    if(num == 18) { set_pvar(SPVAR_52, DS_A_18); set_pvar(SPVAR_53, DS_B_18); set_pvar(SPVAR_54, DS_C_18); }
-    if(num == 19) { set_pvar(SPVAR_55, DS_A_19); set_pvar(SPVAR_56, DS_B_19); set_pvar(SPVAR_57, DS_C_19); }
-    if(num == 20) { set_pvar(SPVAR_58, DS_A_20); set_pvar(SPVAR_59, DS_B_20); set_pvar(SPVAR_60, DS_C_20); }
-    if(num == 21) { set_pvar(SPVAR_61, DS_A_21); set_pvar(SPVAR_62, DS_B_21); set_pvar(SPVAR_63, DS_C_21); }
+    if(num ==  1) { Grava_Spv(SPVAR_1, DS_A_01); Grava_Spv(SPVAR_2, DS_B_01); Grava_Spv(SPVAR_3, DS_C_01); }
+    if(num ==  2) { Grava_Spv(SPVAR_4, DS_A_02); Grava_Spv(SPVAR_5, DS_B_02); Grava_Spv(SPVAR_6, DS_C_02); }
+    if(num ==  3) { Grava_Spv(SPVAR_7, DS_A_03); Grava_Spv(SPVAR_8, DS_B_03); Grava_Spv(SPVAR_9, DS_C_03); }
+    if(num ==  4) { Grava_Spv(SPVAR_10, DS_A_04); Grava_Spv(SPVAR_11, DS_B_04); Grava_Spv(SPVAR_12, DS_C_04); }
+    if(num ==  5) { Grava_Spv(SPVAR_13, DS_A_05); Grava_Spv(SPVAR_14, DS_B_05); Grava_Spv(SPVAR_15, DS_C_05); }
+    if(num ==  6) { Grava_Spv(SPVAR_16, DS_A_06); Grava_Spv(SPVAR_17, DS_B_06); Grava_Spv(SPVAR_18, DS_C_06); }
+    if(num ==  7) { Grava_Spv(SPVAR_19, DS_A_07); Grava_Spv(SPVAR_20, DS_B_07); Grava_Spv(SPVAR_21, DS_C_07); }
+    if(num ==  8) { Grava_Spv(SPVAR_22, DS_A_08); Grava_Spv(SPVAR_23, DS_B_08); Grava_Spv(SPVAR_24, DS_C_08); }
+    if(num ==  9) { Grava_Spv(SPVAR_25, DS_A_09); Grava_Spv(SPVAR_26, DS_B_09); Grava_Spv(SPVAR_27, DS_C_09); }
+    if(num == 10) { Grava_Spv(SPVAR_28, DS_A_10); Grava_Spv(SPVAR_29, DS_B_10); Grava_Spv(SPVAR_30, DS_C_10); }
+    if(num == 11) { Grava_Spv(SPVAR_31, DS_A_11); Grava_Spv(SPVAR_32, DS_B_11); Grava_Spv(SPVAR_33, DS_C_11); }
+    if(num == 12) { Grava_Spv(SPVAR_34, DS_A_12); Grava_Spv(SPVAR_35, DS_B_12); Grava_Spv(SPVAR_36, DS_C_12); }
+    if(num == 13) { Grava_Spv(SPVAR_37, DS_A_13); Grava_Spv(SPVAR_38, DS_B_13); Grava_Spv(SPVAR_39, DS_C_13); }
+    if(num == 14) { Grava_Spv(SPVAR_40, DS_A_14); Grava_Spv(SPVAR_41, DS_B_14); Grava_Spv(SPVAR_42, DS_C_14); }
+    if(num == 15) { Grava_Spv(SPVAR_43, DS_A_15); Grava_Spv(SPVAR_44, DS_B_15); Grava_Spv(SPVAR_45, DS_C_15); }
+    if(num == 16) { Grava_Spv(SPVAR_46, DS_A_16); Grava_Spv(SPVAR_47, DS_B_16); Grava_Spv(SPVAR_48, DS_C_16); }
+    if(num == 17) { Grava_Spv(SPVAR_49, DS_A_17); Grava_Spv(SPVAR_50, DS_B_17); Grava_Spv(SPVAR_51, DS_C_17); }
+    if(num == 18) { Grava_Spv(SPVAR_52, DS_A_18); Grava_Spv(SPVAR_53, DS_B_18); Grava_Spv(SPVAR_54, DS_C_18); }
+    if(num == 19) { Grava_Spv(SPVAR_55, DS_A_19); Grava_Spv(SPVAR_56, DS_B_19); Grava_Spv(SPVAR_57, DS_C_19); }
+    if(num == 20) { Grava_Spv(SPVAR_58, DS_A_20); Grava_Spv(SPVAR_59, DS_B_20); Grava_Spv(SPVAR_60, DS_C_20); }
+    if(num == 21) { Grava_Spv(SPVAR_61, DS_A_21); Grava_Spv(SPVAR_62, DS_B_21); Grava_Spv(SPVAR_63, DS_C_21); }
     Cfg_Ram   = Cfg_Ram   & (~(1 << (num - 1)));
     Cfg_Salvo = Cfg_Salvo |  (1 << (num - 1));
 }

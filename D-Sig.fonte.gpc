@@ -138,7 +138,7 @@
 *   19  REFERENCIAS .................... LED, OLED, mascaras, os tres verbos de I/O
 * -----------------------------------------------------------------------------------
 * O QUE A REESTRUTURACAO CUSTOU, medido
-*   O main deixou de ser um bloco de 700 linhas e virou um indice de nove chamadas; o
+*   O main deixou de ser um bloco de 700 linhas e virou um indice de dez chamadas; o
 *   MenuDin deixou de ser uma cadeia de doze "else if" e virou doze funcoes; os cinco
 *   combos viraram contadores. Isso acrescenta cerca de 30 chamadas e 80 linhas
 *   executadas por volta, medidas no simulador — +1,2% na configuracao mais pesada
@@ -1011,6 +1011,28 @@ int DS_F1_BLOQ_17=0; int DS_F1_BLOQ_18=0; int DS_F1_BLOQ_19=0; int DS_F1_BLOQ_20
 // v4a: variavel, nao define. Como define, o compilador via "CFG_SELO != 0" como condicao
 // constante e avisava duas vezes. Como int o valor e o mesmo e o aviso some.
 int Cfg_Selo = 0;
+
+// --- GRAVACAO DIFERIDA DO BOOT ---
+// Estas tres variaveis existem por causa de uma pane real, e vale a historia inteira.
+// SINTOMA: depois de uma limpeza de slots no ZenStudio, o Cronus travava no boot
+// seguinte, piscando vermelho, e so voltava com hardreset. Acontecia com o script do
+// app, com o InLoco e com o avulso — ou seja, com todos.
+// CAUSA: a limpeza zera a EEPROM. Com ela zerada, os DOIS caminhos de gravacao do init
+// entram no mesmo boot — Migrado_V5() devolve 0 porque a SPVAR_64 foi apagada, e o selo
+// gravado (0) nunca bate com o do app. Eram 64 gravacoes no avulso e 128 no script do
+// app, todas seguidas, dentro do init, sem devolver o controle ao firmware. Do segundo
+// boot em diante nao havia gravacao nenhuma, e era por isso que o hardreset "resolvia":
+// as gravacoes que chegaram a passar deixaram o selo marcado.
+// CORRECAO: o init passou a so LER e a AGENDAR. Quem grava e o Boot_Persistir, chamado
+// no comeco do main: uma instancia (3 SPVARs) por volta, e o selo no fim. As 21
+// instancias levam 21 voltas, cerca de 210ms — nada que se perceba, e o firmware recebe
+// o controle de volta 21 vezes no caminho.
+// Precisando espacar ainda mais, o passo a dividir e o Boot_Persistir: gravar um SPVAR
+// por volta em vez de tres levaria 63 voltas (~630ms) e exigiria um dispatch por SPVAR.
+int Boot_Inst = 0;   // 0 = nada pendente; 1-21 = proxima instancia a gravar;
+                     // 22 = instancias prontas, falta so registrar o selo
+int Boot_Selo = 0;   // valor do selo a registrar quando a gravacao terminar
+int Boot_Mud  = 0;   // quantas instancias a migracao realmente alterou
 function Config_Inicial() {
     // ---- o app escreve aqui: os 3 SPVARs de cada MOD (persistente) ----
     // A linha abaixo existe so para o corpo nao ficar vazio: sem config o ZenStudio
@@ -1069,22 +1091,57 @@ function Migrado_V5() {
 function Marcar_Selo(migrado, selo) {
     Work_A = (selo & 0x7FFFFFFF) << 1;
     if(migrado) Work_A = Work_A | BIT_MIGRADO_V5;
-    set_pvar(SPVAR_64, Work_A);
+    Grava_Spv(SPVAR_64, Work_A);
 }
+// A migracao agora so mexe na RAM e AGENDA a gravacao. Duas mudancas, e as duas
+// importam:
+//   1. GRAVA SO SE MUDOU. Antes chamava Salvar_Tudo() sempre. Numa EEPROM zerada o laco
+//      abaixo nao altera nada — nenhum MOD tem o bit SLOT_USED —, e ainda assim 63
+//      gravacoes de zero sobre zero eram disparadas. Era a maior parte da pane, e a razao
+//      de o InLoco, que nao tem MOD nem selo, travar igual ao script cheio.
+//   2. NAO GRAVA AQUI. Quem grava e o Boot_Persistir, do main, uma instancia por volta.
+// v7i: contador dedicado. Work_N funcionava por sorte — Salvar_Tudo tambem o usa como
+// contador, e so nao quebrava porque rodava DEPOIS do laco.
 function Migrar_V5() {
-    // v7i: contador dedicado. Work_N funcionava por sorte — Salvar_Tudo tambem o usa como
-    // contador, e so nao quebrava porque roda DEPOIS do laco. Uma reordenacao futura
-    // transformaria isso num bug silencioso.
+    Boot_Mud = 0;
     Esp_I = 1;
     while(Esp_I <= 21) {
         if(Get_Spvar_A(Esp_I) & 1) {   // so MODs que existem
             Work_A = Get_Spvar_B(Esp_I) & (~(0x1F << 22));
-            Set_Spvar_B(Esp_I, Work_A);
+            if(Work_A != Get_Spvar_B(Esp_I)) {
+                Set_Spvar_B(Esp_I, Work_A);
+                Boot_Mud = Boot_Mud + 1;
+            }
         }
         Esp_I++;
     }
-    Salvar_Tudo();
-    Marcar_Selo(1, Selo_Cfg_Gravado());   // marca a migracao SEM tocar no selo do app
+    // O selo da migracao e registrado de todo modo: e ele que impede este laco de rodar
+    // em cada boot. O que fica condicionado ao Boot_Mud e a gravacao das instancias.
+    Boot_Agendar(Selo_Cfg_Gravado(), Boot_Mud > 0);
+}
+
+// Agenda o que o main vai gravar. Chamada duas vezes no mesmo boot quando a EEPROM esta
+// zerada — pela migracao e pela config do app —, e a ordem resolve sozinha: quem pede
+// instancias ganha de quem pede so o selo, e o selo do app, que vem depois, ganha do da
+// migracao. E o mesmo resultado do codigo antigo, onde o ultimo Marcar_Selo vencia.
+function Boot_Agendar(selo, com_instancias) {
+    Boot_Selo = selo;
+    if(com_instancias)        Boot_Inst = 1;
+    else if(Boot_Inst == 0)   Boot_Inst = 22;
+}
+
+// Uma instancia por volta, e o selo no fim. Chamada no COMECO do main: o quanto antes a
+// configuracao estiver na EEPROM, menor a janela em que um desligamento a perde — e
+// perder essa janela nao custa nada, porque o boot seguinte refaz o mesmo trabalho.
+function Boot_Persistir() {
+    if(Boot_Inst == 0) return;
+    if(Boot_Inst <= 21) {
+        Save_Instance(Boot_Inst);
+        Boot_Inst = Boot_Inst + 1;
+        return;
+    }
+    Marcar_Selo(1, Boot_Selo);
+    Boot_Inst = 0;
 }
 init {
     cls_oled(0);
@@ -1095,11 +1152,11 @@ init {
     Load_All();
     // A migracao roda UMA VEZ na vida da EEPROM, independente do selo do app.
     if(!Migrado_V5()) Migrar_V5();
-    // A config do app e aplicada quando o selo do codigo difere do gravado.
+    // A config do app e aplicada quando o selo do codigo difere do gravado. Config_Inicial
+    // so escreve no cache em RAM, que e instantaneo; a ida para a EEPROM fica agendada.
     if(Cfg_Selo != 0 && Selo_Cfg_Gravado() != (Cfg_Selo & 0x7FFFFFFF)) {
         Config_Inicial();
-        Salvar_Tudo();
-        Marcar_Selo(1, Cfg_Selo);
+        Boot_Agendar(Cfg_Selo, TRUE);
     }
     // O ZETA e reaplicado SEMPRE — e RAM, entao nao ha o que preservar entre boots.
     if(Cfg_Selo != 0) Config_Zeta();
@@ -1110,24 +1167,28 @@ init {
 // =============================================================
 // SEÇÃO 6 — MAIN
 // =============================================================
-// main e um INDICE: nove chamadas, nenhuma logica. Cada uma era um "BLOCO N" comentado
+// main e um INDICE: dez chamadas, nenhuma logica. Cada uma era um "BLOCO N" comentado
 // dentro de um main de 700 linhas, e o comentario era a unica coisa que dizia onde um
 // assunto acabava e o outro comecava. Agora o nome da funcao diz, e o compilador cobra.
 //
 // A ORDEM E FUNCIONAL, e esta e a razao de cada posicao:
-//   1. Cfg_Marcar_Sujo   menu aberto = a configuracao pode mudar; as mascaras estaticas
+//   1. Boot_Persistir    grava na EEPROM o que o init agendou, UMA instancia por volta.
+//                        Sai na primeira linha quando nao ha nada pendente, o que e o
+//                        caso de todo boot em que a configuracao ja estava gravada
+//   2. Cfg_Marcar_Sujo   menu aberto = a configuracao pode mudar; as mascaras estaticas
 //                        sao refeitas na saida, nunca no meio de uma edicao
-//   2. Ler_Dominios      os comandos podem TROCAR o dominio nesta volta
-//   3. Menu_Din          o menu de configuracao le os botoes e os suprime do jogo
-//   4. Menu_Din_Saida    fechou o MenuDin? o estado de execucao recomeca do INIC
-//   5. Rodar_Mods        os MODs rodam no dominio que acabou de ser decidido, e so com
+//   3. Ler_Dominios      os comandos podem TROCAR o dominio nesta volta
+//   4. Menu_Din          o menu de configuracao le os botoes e os suprime do jogo
+//   5. Menu_Din_Saida    fechou o MenuDin? o estado de execucao recomeca do INIC
+//   6. Rodar_Mods        os MODs rodam no dominio que acabou de ser decidido, e so com
 //                        os dois menus fechados
-//   6. Menu_Status       vem DEPOIS dos MODs porque e ele quem os congela
-//   7. Tela_Manter       a tela reflete o que as cinco primeiras fizeram
-//   8. Menu_Disponivel   decide se os menus podem abrir na volta SEGUINTE
-//   9. Saidas_Manter     POR ULTIMO: o que as saidas com duracao escrevem nao pode ser
+//   7. Menu_Status       vem DEPOIS dos MODs porque e ele quem os congela
+//   8. Tela_Manter       a tela reflete o que as cinco primeiras fizeram
+//   9. Menu_Disponivel   decide se os menus podem abrir na volta SEGUINTE
+//  10. Saidas_Manter     POR ULTIMO: o que as saidas com duracao escrevem nao pode ser
 //                        sobrescrito por ninguem nesta volta (ver SECAO 18)
 main {
+    Boot_Persistir();
     Cfg_Marcar_Sujo();
     Ler_Dominios();
     Menu_Din();
@@ -5947,28 +6008,41 @@ function Load_All() {
     // da configuracao gerada pelo app. Ver Marcar_Selo / Selo_Cfg_Gravado.
 }
 // Salva 3 SPVARs de uma instância — chamado apenas no SHARE 1s
+// Grava um SPVAR SO se o valor for diferente do que ja esta la.
+// A EEPROM do Cronus e "rated for 1000's of" ciclos, segundo a documentacao — e nao ha
+// contador nenhum avisando quantos ja foram. Uma leitura para evitar uma gravacao e
+// sempre um bom negocio: leitura nao desgasta, e o tempo de uma gravacao evitada e
+// maior que o de uma leitura feita.
+// O ganho real esta na regeracao de script pelo app: trocar um MOD e gerar de novo
+// regravava as 21 instancias, 63 SPVARs. Agora regrava so o que mudou.
+function Grava_Spv(qual, valor) {
+    if(get_pvar(qual, -2147483648, 2147483647, 0) == valor) return;
+    set_pvar(qual, valor);
+}
+
 function Save_Instance(num) {
-    if(num ==  1) { set_pvar(SPVAR_1, DS_A_01); set_pvar(SPVAR_2, DS_B_01); set_pvar(SPVAR_3, DS_C_01); }
-    if(num ==  2) { set_pvar(SPVAR_4, DS_A_02); set_pvar(SPVAR_5, DS_B_02); set_pvar(SPVAR_6, DS_C_02); }
-    if(num ==  3) { set_pvar(SPVAR_7, DS_A_03); set_pvar(SPVAR_8, DS_B_03); set_pvar(SPVAR_9, DS_C_03); }
-    if(num ==  4) { set_pvar(SPVAR_10, DS_A_04); set_pvar(SPVAR_11, DS_B_04); set_pvar(SPVAR_12, DS_C_04); }
-    if(num ==  5) { set_pvar(SPVAR_13, DS_A_05); set_pvar(SPVAR_14, DS_B_05); set_pvar(SPVAR_15, DS_C_05); }
-    if(num ==  6) { set_pvar(SPVAR_16, DS_A_06); set_pvar(SPVAR_17, DS_B_06); set_pvar(SPVAR_18, DS_C_06); }
-    if(num ==  7) { set_pvar(SPVAR_19, DS_A_07); set_pvar(SPVAR_20, DS_B_07); set_pvar(SPVAR_21, DS_C_07); }
-    if(num ==  8) { set_pvar(SPVAR_22, DS_A_08); set_pvar(SPVAR_23, DS_B_08); set_pvar(SPVAR_24, DS_C_08); }
-    if(num ==  9) { set_pvar(SPVAR_25, DS_A_09); set_pvar(SPVAR_26, DS_B_09); set_pvar(SPVAR_27, DS_C_09); }
-    if(num == 10) { set_pvar(SPVAR_28, DS_A_10); set_pvar(SPVAR_29, DS_B_10); set_pvar(SPVAR_30, DS_C_10); }
-    if(num == 11) { set_pvar(SPVAR_31, DS_A_11); set_pvar(SPVAR_32, DS_B_11); set_pvar(SPVAR_33, DS_C_11); }
-    if(num == 12) { set_pvar(SPVAR_34, DS_A_12); set_pvar(SPVAR_35, DS_B_12); set_pvar(SPVAR_36, DS_C_12); }
-    if(num == 13) { set_pvar(SPVAR_37, DS_A_13); set_pvar(SPVAR_38, DS_B_13); set_pvar(SPVAR_39, DS_C_13); }
-    if(num == 14) { set_pvar(SPVAR_40, DS_A_14); set_pvar(SPVAR_41, DS_B_14); set_pvar(SPVAR_42, DS_C_14); }
-    if(num == 15) { set_pvar(SPVAR_43, DS_A_15); set_pvar(SPVAR_44, DS_B_15); set_pvar(SPVAR_45, DS_C_15); }
-    if(num == 16) { set_pvar(SPVAR_46, DS_A_16); set_pvar(SPVAR_47, DS_B_16); set_pvar(SPVAR_48, DS_C_16); }
-    if(num == 17) { set_pvar(SPVAR_49, DS_A_17); set_pvar(SPVAR_50, DS_B_17); set_pvar(SPVAR_51, DS_C_17); }
-    if(num == 18) { set_pvar(SPVAR_52, DS_A_18); set_pvar(SPVAR_53, DS_B_18); set_pvar(SPVAR_54, DS_C_18); }
-    if(num == 19) { set_pvar(SPVAR_55, DS_A_19); set_pvar(SPVAR_56, DS_B_19); set_pvar(SPVAR_57, DS_C_19); }
-    if(num == 20) { set_pvar(SPVAR_58, DS_A_20); set_pvar(SPVAR_59, DS_B_20); set_pvar(SPVAR_60, DS_C_20); }
-    if(num == 21) { set_pvar(SPVAR_61, DS_A_21); set_pvar(SPVAR_62, DS_B_21); set_pvar(SPVAR_63, DS_C_21); }
+    if(num ==  1) { Grava_Spv(SPVAR_1, DS_A_01); Grava_Spv(SPVAR_2, DS_B_01); Grava_Spv(SPVAR_3, DS_C_01); }
+    if(num ==  2) { Grava_Spv(SPVAR_4, DS_A_02); Grava_Spv(SPVAR_5, DS_B_02); Grava_Spv(SPVAR_6, DS_C_02); }
+    if(num ==  3) { Grava_Spv(SPVAR_7, DS_A_03); Grava_Spv(SPVAR_8, DS_B_03); Grava_Spv(SPVAR_9, DS_C_03); }
+    if(num ==  4) { Grava_Spv(SPVAR_10, DS_A_04); Grava_Spv(SPVAR_11, DS_B_04); Grava_Spv(SPVAR_12, DS_C_04); }
+    if(num ==  5) { Grava_Spv(SPVAR_13, DS_A_05); Grava_Spv(SPVAR_14, DS_B_05); Grava_Spv(SPVAR_15, DS_C_05); }
+    if(num ==  6) { Grava_Spv(SPVAR_16, DS_A_06); Grava_Spv(SPVAR_17, DS_B_06); Grava_Spv(SPVAR_18, DS_C_06); }
+    if(num ==  7) { Grava_Spv(SPVAR_19, DS_A_07); Grava_Spv(SPVAR_20, DS_B_07); Grava_Spv(SPVAR_21, DS_C_07); }
+    if(num ==  8) { Grava_Spv(SPVAR_22, DS_A_08); Grava_Spv(SPVAR_23, DS_B_08); Grava_Spv(SPVAR_24, DS_C_08); }
+    if(num ==  9) { Grava_Spv(SPVAR_25, DS_A_09); Grava_Spv(SPVAR_26, DS_B_09); Grava_Spv(SPVAR_27, DS_C_09); }
+    if(num == 10) { Grava_Spv(SPVAR_28, DS_A_10); Grava_Spv(SPVAR_29, DS_B_10); Grava_Spv(SPVAR_30, DS_C_10); }
+    if(num == 11) { Grava_Spv(SPVAR_31, DS_A_11); Grava_Spv(SPVAR_32, DS_B_11); Grava_Spv(SPVAR_33, DS_C_11); }
+    if(num == 12) { Grava_Spv(SPVAR_34, DS_A_12); Grava_Spv(SPVAR_35, DS_B_12); Grava_Spv(SPVAR_36, DS_C_12); }
+    if(num == 13) { Grava_Spv(SPVAR_37, DS_A_13); Grava_Spv(SPVAR_38, DS_B_13); Grava_Spv(SPVAR_39, DS_C_13); }
+    if(num == 14) { Grava_Spv(SPVAR_40, DS_A_14); Grava_Spv(SPVAR_41, DS_B_14); Grava_Spv(SPVAR_42, DS_C_14); }
+    if(num == 15) { Grava_Spv(SPVAR_43, DS_A_15); Grava_Spv(SPVAR_44, DS_B_15); Grava_Spv(SPVAR_45, DS_C_15); }
+    if(num == 16) { Grava_Spv(SPVAR_46, DS_A_16); Grava_Spv(SPVAR_47, DS_B_16); Grava_Spv(SPVAR_48, DS_C_16); }
+    if(num == 17) { Grava_Spv(SPVAR_49, DS_A_17); Grava_Spv(SPVAR_50, DS_B_17); Grava_Spv(SPVAR_51, DS_C_17); }
+    if(num == 18) { Grava_Spv(SPVAR_52, DS_A_18); Grava_Spv(SPVAR_53, DS_B_18); Grava_Spv(SPVAR_54, DS_C_18); }
+    if(num == 19) { Grava_Spv(SPVAR_55, DS_A_19); Grava_Spv(SPVAR_56, DS_B_19); Grava_Spv(SPVAR_57, DS_C_19); }
+    if(num == 20) { Grava_Spv(SPVAR_58, DS_A_20); Grava_Spv(SPVAR_59, DS_B_20); Grava_Spv(SPVAR_60, DS_C_20); }
+    if(num == 21) { Grava_Spv(SPVAR_61, DS_A_21); Grava_Spv(SPVAR_62, DS_B_21); Grava_Spv(SPVAR_63, DS_C_21); }
+    // As tres gravacoes passam pelo Grava_Spv, que le antes e so escreve se mudou.
     // Nada global a gravar aqui: a SPVAR_64 e escrita SO por Marcar_Selo, que e quem
     // conhece a reparticao dela (bit 0 = migracao de layout, bits 1-31 = selo do app).
     // D-Sig: o comentario antigo dizia "o SPVAR_64 ficou livre" — verdade na v3zb, falso

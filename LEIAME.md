@@ -157,6 +157,38 @@ A **SPVAR_64** não está livre: o bit 0 marca que a migração de layout já
 foi feita, e os bits 1–31 guardam o selo da configuração gerada pelo app.
 Cada um tem seu espaço para que um não apague o outro.
 
+### Gravação: nunca no `init`
+
+A EEPROM do Cronus é frágil — a documentação a descreve como *rated for
+1000's of* ciclos de leitura/gravação — e gravar nela é lento. Duas
+regras, as duas nascidas de uma pane real:
+
+1. **O `init` não grava.** Ele só lê e **agenda**. Quem grava é o
+   `Boot_Persistir`, na primeira linha do `main`: uma instância (3
+   SPVARs) por volta, e o selo no fim. As 21 levam ~210 ms.
+2. **Só se grava o que mudou.** Todo `set_pvar` passa pelo `Grava_Spv`,
+   que lê antes e desiste se o valor já está lá. Leitura não desgasta.
+
+O que isso resolveu: depois de uma **limpeza de slots no ZenStudio** a
+EEPROM fica zerada, e nesse boot os dois caminhos de gravação do `init`
+entravam juntos — 64 gravações seguidas no script avulso, 128 no script
+do app, sem devolver o controle ao firmware. O Cronus travava piscando
+vermelho e só voltava com hardreset. Do segundo boot em diante não havia
+gravação nenhuma, e era por isso que o hardreset parecia "resolver".
+
+| cenário | antes | depois |
+|---|---|---|
+| EEPROM zerada, avulso ou InLoco | 64 | **1** |
+| EEPROM zerada, app com 21 MODs | 128 | 64, em 21 voltas |
+| migração de layout antigo | 64 | **4** |
+| regerar script com 1 MOD alterado | 64 | **2** |
+| boot normal | 0 | 0 |
+| **pico numa só passagem** | **128** | **3** |
+
+Precisando espaçar ainda mais, o passo a dividir é o `Boot_Persistir`:
+um SPVAR por volta em vez de três levaria 63 voltas (~630 ms) e exigiria
+um dispatch por SPVAR.
+
 ## O que não é gravado na EEPROM
 
 Três variáveis vivem em RAM: as relações **ZETA**, o botão do **GAMA
@@ -196,7 +228,7 @@ segue a ordem física.
 3. Em `sw.js`, incremente o número:
 
 ```js
-const CACHE = 'dsig-v2';   // era dsig-v1
+const CACHE = 'dsig-v4';   // era dsig-v3
 ```
 
 É essa troca que faz o navegador buscar a versão nova. Sem ela, quem
