@@ -4233,6 +4233,7 @@ main {
         if(event_release(PS5_OPTIONS)) {
             if(MenuLevel == 0) MenuLevel = 1;
             else               MenuLevel = 0;
+            DbleClick_FingOnOff = 0;   // v7o: a janela do duplo DOWN nao atravessa o menu
             Update_OLED();
         }
     if(MenuLevel > 0) {
@@ -4240,13 +4241,18 @@ main {
         if(event_press(PS5_CIRCLE)) { MenuLevel--; Update_OLED(); }
         // CIRCLE longo fecha MenuLevel, MAS não se este hold acabou de fechar o MenuDin
         if(get_ival(PS5_CIRCLE) && get_ptime(PS5_CIRCLE) > 200 && !Flag_Circle_Hold) {
-            MenuLevel = 0; Update_OLED();
+            MenuLevel = 0;
+            DbleClick_FingOnOff = 0;   // v7o: idem, fechando pelo CIRCLE segurado
+            Update_OLED();
         }
         colorled(0, 0, 0, 0);
     	} else if(MenuDin == 0) {
         update_leds();
     	}
     }
+    // v7o: a janela do duplo DOWN so corria com o menu aberto, entao um primeiro clique
+    // dado antes de fechar o menu ficava congelado e valia como SEGUNDO clique na proxima
+    // abertura, mesmo muito depois. Agora a janela e zerada ao abrir e ao fechar o menu.
     if(MenuLevel > 0) {
      if(DbleClick_FingOnOff > 0) DbleClick_FingOnOff = DbleClick_FingOnOff - get_rtime();
     	if(get_ival(PS5_L2) && event_press(PS5_DOWN)) {
@@ -4266,7 +4272,11 @@ main {
         Update_OLED();
         LastMode = CurrentMode;
     }
-    if(!CurrentMode) { Status_Menu = FALSE; MenuDin = 0; }
+    // v7o CORRIGIDO (achado ao reescrever a base). O MenuLevel nao era zerado aqui:
+    // desligar o dominio com o menu comum aberto deixava MenuLevel = 1, e ao religar o
+    // dominio o Run_Pipeline continuava barrado (o Bloco 3 exige MenuLevel == 0). Os MODs
+    // ficavam congelados sem nada na tela explicando, e a unica saida era apertar OPTIONS.
+    if(!CurrentMode) { Status_Menu = FALSE; MenuDin = 0; MenuLevel = 0; }
     else              Status_Menu = TRUE;
 } // fim main
 // =============================================================
