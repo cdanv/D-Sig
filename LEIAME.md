@@ -4,7 +4,9 @@ Roteador de sinais para Cronus Zen (PS5), com aplicativo web para
 catalogar as configurações e gerar o script pronto.
 
 - **`index.html`** — o app. Contém o D-Sig embutido.
-- **`D-Sig.gpc`** — o script avulso, se você quiser só ele.
+- **`D-Sig.gpc`** — o script avulso, limpo, pronto para o ZenStudio.
+- **`D-Sig.fonte.gpc`** — o mesmo script comentado. É o arquivo que se
+  edita, e onde está explicado o *porquê* de cada decisão.
 
 O que o GitHub Pages precisa servir são quatro arquivos — `index.html`,
 `manifest.json`, `sw.js` e os três ícones. O `.gpc` e as ferramentas
@@ -22,16 +24,44 @@ estiver ao lado do `index.html` de que ele é cópia.
 
 ## Fonte de verdade
 
-**Só existe um app: o `index.html`.**
+Três arquivos, e a ordem entre eles é fixa:
 
-O `D-Sig.gpc` desta pasta e o template embutido no `index.html` são o
-mesmo arquivo, byte a byte. Ao atualizar um, atualize o outro —
-divergência entre os dois gera scripts inconsistentes sem dar nenhum
-sinal.
+```
+D-Sig.fonte.gpc  ->  D-Sig.gpc  ->  template dentro do index.html
+  (comentado)        (limpo)        (limpo, byte a byte igual ao .gpc)
+```
 
-Quem faz isso é o `embutir.py`: ele copia o `.gpc` para dentro do
-`index.html` e compara os dois por SHA-256, falhando se divergirem.
-Rode-o sempre que mexer no script.
+**Só se edita o `D-Sig.fonte.gpc`.** Os outros dois são gerados, e quem
+os gera é o `embutir.py` — uma chamada, `python3 embutir.py`. Ele falha
+em vez de entregar algo errado se:
+
+- as linhas de código do limpo não forem iguais, uma a uma, às do
+  comentado;
+- sobrar qualquer comentário no que vai ser publicado;
+- faltar uma das 9 âncoras de texto que o app usa para injetar a
+  configuração;
+- o `.gpc` e o template embutido não tiverem o mesmo SHA-256.
+
+Editar o `D-Sig.gpc` direto é trabalho perdido: a próxima chamada do
+`embutir.py` o sobrescreve.
+
+### Por que comentado e limpo
+
+Comentário em GPC **não custa byte nenhum no Zen** — o compilador os
+descarta, e o binário tem o mesmo tamanho com ou sem eles. O que eles
+custam é **peso de download do app**, porque o template viaja dentro do
+`index.html`: com comentários são 361 KB, sem eles 182 KB. Daí a divisão
+clássica entre fonte e publicado.
+
+Os scripts que o app **gera** também saem limpos, pela mesma regra
+(`limparGpc`, gêmea do `limpar.py`). Faz sentido: depois de gravado no
+Cronus o script não pode mais ser extraído nem aberto no ZenStudio,
+então comentário ali não serve a ninguém.
+
+Qualquer outro arquivo com o app dentro — `sig_router_app.html` ou
+nomes parecidos — é cópia antiga e deve ser apagado. Foi ter duas
+cópias circulando que gerou um script com `FA_Cfg_01`, variável que
+não existe desde a v5.
 
 Qualquer outro arquivo com o app dentro — `sig_router_app.html` ou
 nomes parecidos — é cópia antiga e deve ser apagado. Foi ter duas
@@ -161,8 +191,8 @@ segue a ordem física.
 
 ## Publicando uma versão nova
 
-1. Mexa no `D-Sig.gpc`.
-2. Rode `python3 embutir.py` — ele embute e confere o SHA-256.
+1. Mexa no `D-Sig.fonte.gpc` — nunca no `D-Sig.gpc`.
+2. Rode `python3 embutir.py`. Ele limpa, embute e confere tudo.
 3. Em `sw.js`, incremente o número:
 
 ```js
