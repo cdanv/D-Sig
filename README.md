@@ -8,11 +8,24 @@ catalogar as configurações e gerar o script pronto.
 - **`D-Sig.fonte.gpc`** — o mesmo script comentado. É o arquivo que se
   edita, e onde está explicado o *porquê* de cada decisão.
 
-O que o GitHub Pages precisa servir são quatro arquivos — `index.html`,
-`manifest.json`, `sw.js` e os três ícones. O `.gpc` e as ferramentas
-(`embutir.py`, `verificar_gpc.py`) podem ficar no repositório sem
-atrapalhar, e é onde convém guardá-los: o `.gpc` avulso só tem valor se
-estiver ao lado do `index.html` de que ele é cópia.
+O que o **GitHub Pages** precisa servir são `index.html`, `manifest.json`,
+`sw.js` e os três ícones. O resto fica no repositório sem atrapalhar, e é
+onde convém guardá-lo — o `.gpc` avulso só tem valor se estiver ao lado do
+`index.html` de que ele é cópia.
+
+### As ferramentas
+
+| arquivo | o que faz |
+|---|---|
+| `embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
+| `limpar.py` | o removedor de comentários e a lista das 7 âncoras que o app usa |
+| `publicado.json` | o SHA-256 da última publicação. É com ele que o `embutir.py` recusa publicar conteúdo novo sob a mesma letra de build |
+| `oled/padrao.py` | **a fonte única da arte do OLED.** Dele saem os PNGs de revisão, o `timbre.png` e o código das telas |
+| `oled/png2gpc.py` | PNG de 1 bit → `const image` do GPC, no formato que o compilador exige |
+
+A cadeia da arte é reproduzível a partir do repositório: `python3 oled/padrao.py`
+grava o `timbre.png`, e o `oled/png2gpc.py` devolve deste os mesmos 300 bytes
+que estão no `const image DS_TIMBRE` do publicado.
 
 > **D-Sig é o nome final do projeto.** A 1.0 é a v7o reestruturada e
 > auditada — mesmo comportamento, verificado saída por saída no
@@ -38,7 +51,7 @@ em vez de entregar algo errado se:
 - as linhas de código do limpo não forem iguais, uma a uma, às do
   comentado;
 - sobrar qualquer comentário no que vai ser publicado;
-- faltar uma das 9 âncoras de texto que o app usa para injetar a
+- faltar uma das 7 âncoras de texto que o app usa para injetar a
   configuração;
 - o `.gpc` e o template embutido não tiverem o mesmo SHA-256.
 
@@ -235,12 +248,80 @@ segue a ordem física.
 
 ---
 
+## A arte do OLED
+
+Três telas desenhadas, e o nome delas no script diz onde vivem:
+
+| função | quando aparece | o que mostra |
+|---|---|---|
+| `Tela_Identidade` | nenhum domínio ativo | o timbre "D-Sig" + régua + nome do jogo em duas linhas |
+| `Tela_Dominio(n)` | domínio 1 a 4 | quatro blocos, o ativo em **vídeo invertido**, e a derivação ativa no rodapé |
+| `Tela_Status` | menu do OPTIONS | as réguas do título e da versão + o motivo do **sinal cortado** |
+
+O motivo do sinal aparece **só onde carrega informação** — no domínio diz qual saída
+está ativa, no status diz que o sinal está interrompido. Na tela de identidade seria
+papel de parede, e papel de parede em 128×64 é desperdício de um espaço que não existe.
+
+### Primitiva, não bitmap
+
+Há **uma única imagem** no script, o timbre (`DS_TIMBRE`, 80×30, 300 bytes), e ela se
+justifica sozinha: o `print` só tem fonte 0 (10px) e fonte 1 (17px), e aquele "D-Sig"
+tem 30px de altura. Todo o resto é `line_oled` e `rect_oled`.
+
+Os dois custos, **medidos no compilador** e não estimados:
+
+| | custo |
+|---|---|
+| `const image` | 1 byte de binário por byte de dado |
+| chamada de primitiva | ~12,3 bytes |
+
+Daí a regra: **imagem compensa quando substitui mais de `bytes_da_imagem / 12` primitivas.**
+As sete telas em bitmap davam 5.849 bytes; em primitiva dão ~742. O ganho maior está nos
+domínios — quatro telas que diferem em dois detalhes viram **uma função parametrizada**
+pelo `Igual(n, k)`, 252 bytes contra 3.488. Bitmap não sabe parametrizar.
+
+### O formato do `const image`
+
+Quem o fixou foi o compilador, não a documentação, que não menciona `image_oled` nem o
+tipo `image`. A mensagem **GPC5116** diz que o número de valores é
+`2 + ceil(larg * alt / 8)` — ou seja **fluxo contínuo de bits**, MSB primeiro, sem
+enchimento no fim da linha.
+
+Toda largura de imagem é **múltipla de 8**, de propósito: aí o empacotamento por linha e
+o contínuo produzem os mesmos bytes, e a ordem dos bits no cruzamento de linha deixa de
+ser uma pergunta. Custa no máximo 7 colunas de preto e compra a garantia.
+
+### A faixa de texto é proibida, e a conferência é do `embutir.py`
+
+`print(x, y, tam, 1, ...)` pinta fundo preto próprio: **apaga o que estiver embaixo**.
+Desenhar ali não é só desperdício, é invisível — ninguém descobre o erro olhando a tela.
+
+O `embutir.py` extrai as faixas **do próprio publicado**, lendo as chamadas de `print`
+das funções de tela, e recusa publicar se qualquer `line_oled`, `rect_oled` ou
+`image_oled` cair dentro de uma. Para as strings que o app substitui (nome do jogo,
+nomes de domínio) a faixa vai até a margem, porque o conteúdo é desconhecido na hora de
+publicar; para as fixas no script, é o tamanho real do texto.
+
+> Esta checagem nasceu de uma falha: existia uma conferência com a mesma finalidade, e
+> ela **aprovou 343 pixels** de desenho que o `print` ia apagar. As faixas que a
+> alimentavam estavam num dicionário digitado à mão — duas faixas, onde o script
+> imprimia quatro linhas. Conferência vale o que vale o dado que a alimenta.
+
+### O nome do jogo tem duas linhas
+
+Eram quatro até a 1.0b, e as duas últimas estavam **mortas por construção**: o app corta
+o nome em 20 caracteres (`slice(0,10)` e `slice(10,20)`) e sempre gravava `""` nelas.
+Reservavam `y 35..59` da tela inicial para não mostrar nada — e é nesse espaço que o nome
+mora agora, com o timbre em cima. Foram **duas âncoras a menos** na lista do `limpar.py`.
+
+---
+
 ## Versionamento e publicação
 
 A versão vive em **um lugar só**, no `D-Sig.fonte.gpc`:
 
 ```gpc
-const string DS_VERSAO    = "D-Sig 1.0a";
+const string DS_VERSAO    = "D-Sig 1.0b";
 ```
 
 O número é a versão do **script**; a letra é o **build**, e ela muda em
@@ -249,9 +330,9 @@ toda publicação. Dessa string saem, automaticamente:
 - o que aparece no **OLED**, no menu de status (OPTIONS);
 - o título e a tela de Informações do **app**, que lê a string do próprio
   template embutido;
-- o nome do cache do service worker (`dsig-1.0a`).
+- o nome do cache do service worker (`dsig-1.0b`).
 
-Assim os três nunca discordam. Se o OLED diz `1.0a` e o app diz `1.0b`,
+Assim os três nunca discordam. Se o OLED diz `1.0b` e o app diz `1.0c`,
 o Cronus está com uma versão anterior gravada — e a resposta é olhar a
 tela, não abrir arquivo.
 
@@ -273,7 +354,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0a**; o `LAYOUT_VER` está em **5**, porque as
+O script está na **1.0b**; o `LAYOUT_VER` está em **5**, porque as
 posições dos campos nos SPVARs não mudam desde então. Incremente o
 `LAYOUT_VER` apenas quando um campo mudar de posição ou tamanho — e,
 ao fazer isso, atualize o app junto. App e script divergindo em

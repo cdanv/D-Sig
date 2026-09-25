@@ -2,7 +2,7 @@
 * D-Sig 1.0 — Sistema Universal de Roteamento de Sinais
 * -----------------------------------------------------------------------------------
 * DISPOSITIVO : Cronus Zen + PlayStation 5 (DualSense)   |   GPC 32-bit
-* VERSAO      : script 1.0   |   LAYOUT DE BITS 5   |   app D-Sig (cache dsig-v1)
+* VERSAO      : script 1.0b  |   LAYOUT DE BITS 5   |   app D-Sig (cache dsig-1.0b)
 *   Os tres numeros andam separados de proposito. O SCRIPT e a versao deste arquivo. O
 *   LAYOUT e a posicao dos campos dentro dos SPVARs, e so muda quando um campo muda de
 *   lugar ou tamanho — mudar o layout sem mudar o app junto e o unico jeito de este
@@ -114,7 +114,7 @@
 *   5. Secao nova entra no INDICE abaixo, e o numero segue a ordem FISICA do arquivo.
 * -----------------------------------------------------------------------------------
 * INDICE
-*    1  STRINGS DO OLED ................ todo texto que aparece na tela
+*    1  STRINGS E ARTE DO OLED ......... o texto e o timbre que aparecem na tela
 *    2  DEFINES ........................ limites, geometria do OLED e a tabela de TEMPOS
 *    3  VARIAVEIS DE ESTADO GLOBAL ..... tudo o que o script lembra, com o que significa
 *    4  SPVARs EM RAM .................. o cache dos 96 bits persistentes de cada MOD
@@ -131,7 +131,7 @@
 *   14  WIZARD: LOAD E COMMIT .......... RAM de edicao <-> configuracao do MOD
 *   15  SPVARs: ACESSO POR NUMERO ...... o dispatch em arvore e o cache por MOD
 *  15B  CAMPOS DA CONFIGURACAO ......... um par Get_/Set_ por campo de bits
-*   16  DESENHO DO OLED ................ Update_OLED e uma funcao por tela
+*   16  DESENHO DO OLED ................ Update_OLED, uma funcao por tela, e a arte
 *  16B  AUXILIARES DO DESENHO
 *   17  AUXILIARES GERAIS
 *   18  SAIDAS COM DURACAO ............. os contadores que substituiram os combos
@@ -147,18 +147,61 @@
 *   folgado nessa margem, e foi pago de proposito: quem le uma funcao entende um assunto.
 *********************************************************************************** */
 // =============================================================
-// SEÇÃO 1 — STRINGS DO OLED
+// SEÇÃO 1 — STRINGS E ARTE DO OLED
 // =============================================================
 // --- Tela inicial ---
+// As duas linhas do nome do jogo. Eram QUATRO ate a 1.0b, e as duas ultimas estavam
+// mortas por construcao: o app corta o nome em 20 caracteres e gravava "" nelas. O que
+// elas faziam era reservar y 35..59 da tela inicial para nao mostrar nada — espaco que
+// agora e do nome do jogo, com o timbre em cima. Mexer no numero de linhas mexe no
+// index.html junto: sao duas ancoras a menos na lista do limpar.py.
 const string GAME_NAME_1  = "-TITULO-";
 const string GAME_NAME_2  = "-TITULO-";
-const string GAME_NAME_3  = "-TITULO-";
-const string GAME_NAME_4  = "-TITULO-";
 const string MODE_S1      = "Dominio_1";  // v3zz
 const string MODE_S2      = "Dominio_2";
 const string MODE_S3      = "Dominio_3";
 const string MODE_S4      = "Dominio_4";
 const string MENU_TITLE   = "Status_Menu";
+// A UNICA IMAGEM DO SCRIPT: o timbre da tela de identidade, 80x30 = 300 bytes.
+// O formato e o do Export do OLED Studio, e quem o fixou foi o compilador (GPC5116): o
+// numero de valores e 2 + ceil(larg * alt / 8) — fluxo continuo de bits, MSB primeiro,
+// SEM enchimento no fim da linha. A largura e multipla de 8 de proposito: assim o
+// empacotamento por linha e o continuo coincidem e a ordem dos bits no cruzamento de
+// linha deixa de ser uma pergunta que eu teria de responder por tentativa no hardware.
+// Desenha-se com image_oled(x, y, cor, ?, DS_TIMBRE[0]) — o quarto parametro veio FALSE
+// do proprio Studio e e o unico campo cujo significado eu nao confirmei.
+const image DS_TIMBRE[] = {
+    {80, 30,
+     0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xF8, 0x03, 0x80, 0x00, 0x00, 0xFF, 0xF0, 0x00,
+     0x00, 0x0F, 0xF8, 0x03, 0x80, 0x00, 0x00, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xF8,
+     0x03, 0x80, 0x00, 0x00, 0xE0, 0x0E, 0x00, 0x00, 0x70, 0x07, 0x00, 0x00, 0x00,
+     0x00, 0xE0, 0x0E, 0x00, 0x00, 0x70, 0x07, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x0E,
+     0x00, 0x00, 0x70, 0x07, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x01, 0xC0, 0x00, 0x70,
+     0x00, 0x03, 0x80, 0x3F, 0xFC, 0xE0, 0x01, 0xC0, 0x00, 0x70, 0x00, 0x03, 0x80,
+     0x3F, 0xFC, 0xE0, 0x01, 0xC0, 0x00, 0x70, 0x00, 0x03, 0x80, 0x3F, 0xFC, 0xE0,
+     0x01, 0xC0, 0x00, 0x0E, 0x00, 0x03, 0x81, 0xC0, 0x1C, 0xE0, 0x01, 0xC0, 0x00,
+     0x0E, 0x00, 0x03, 0x81, 0xC0, 0x1C, 0xE0, 0x01, 0xC0, 0x00, 0x0E, 0x00, 0x03,
+     0x81, 0xC0, 0x1C, 0xE0, 0x01, 0xC7, 0xE0, 0x01, 0xFF, 0x03, 0x81, 0xC0, 0x1C,
+     0xE0, 0x01, 0xC7, 0xE0, 0x01, 0xFF, 0x03, 0x81, 0xC0, 0x1C, 0xE0, 0x01, 0xC7,
+     0xE0, 0x01, 0xFF, 0x03, 0x81, 0xC0, 0x1C, 0xE0, 0x01, 0xC0, 0x00, 0x00, 0x07,
+     0x03, 0x81, 0xC0, 0x1C, 0xE0, 0x01, 0xC0, 0x00, 0x00, 0x07, 0x03, 0x81, 0xC0,
+     0x1C, 0xE0, 0x01, 0xC0, 0x00, 0x00, 0x07, 0x03, 0x81, 0xC0, 0x1C, 0xE0, 0x0E,
+     0x00, 0x00, 0x70, 0x07, 0x03, 0x81, 0xC0, 0x1C, 0xE0, 0x0E, 0x00, 0x00, 0x70,
+     0x07, 0x03, 0x81, 0xC0, 0x1C, 0xE0, 0x0E, 0x00, 0x00, 0x70, 0x07, 0x03, 0x81,
+     0xC0, 0x1C, 0xFF, 0xF0, 0x00, 0x00, 0x0F, 0xF8, 0x03, 0x80, 0x3F, 0xFC, 0xFF,
+     0xF0, 0x00, 0x00, 0x0F, 0xF8, 0x03, 0x80, 0x3F, 0xFC, 0xFF, 0xF0, 0x00, 0x00,
+     0x0F, 0xF8, 0x03, 0x80, 0x3F, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+     0x01, 0xC0, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xC0, 0x1C,
+     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xC0, 0x1C, 0x00, 0x00, 0x00,
+     0x00, 0x00, 0x00, 0x00, 0x00, 0x3F, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+     0x00, 0x00, 0x3F, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3F,
+     0xE0}
+};
+// Os algarismos dos quatro blocos da tela de dominio. Quatro strings de um caractere e
+// nao uma de quatro: o print le da posicao dada ate o terminador, entao DS_DIG[2] numa
+// string "1234" imprimiria "34", nao "3".
+const string DS_N1 = "1"; const string DS_N2 = "2";
+const string DS_N3 = "3"; const string DS_N4 = "4";
 // --- D-SIG ---
 const string DS_TITULO    = "D-Sig";   // v3zz
 // A VERSAO, e ela aparece no OLED — ver a tela do menu de status, no Update_OLED.
@@ -170,7 +213,7 @@ const string DS_TITULO    = "D-Sig";   // v3zz
 // conteudo diferente com a mesma letra, entao os dois nunca divergem em silencio.
 // Esta mesma string alimenta o nome do cache do service worker do app (dsig-1.0a), de
 // modo que o app e o script nunca ficam em versoes diferentes sem aviso.
-const string DS_VERSAO    = "D-Sig 1.0a";
+const string DS_VERSAO    = "D-Sig 1.0b";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -6426,21 +6469,91 @@ function Update_OLED() {
     // O menu de status era uma tela de uma linha so. Agora ela diz tambem QUAL build
     // esta rodando neste aparelho — a informacao que faltava no dia em que a duvida era
     // se o app do notebook havia atualizado antes de gerar os scripts.
-    if(MenuLevel > 0) {
-        print(5, 10, 1, 1, MENU_TITLE[0]);
-        print(5, 36, 0, 1, DS_VERSAO[0]);
-        return;
-    }
-    if(CurrentMode == 0) {
-        print(20,  5, 0, 1, GAME_NAME_1[0]);
-        print(20, 20, 0, 1, GAME_NAME_2[0]);
-        print(20, 35, 0, 1, GAME_NAME_3[0]);
-        print(20, 50, 0, 1, GAME_NAME_4[0]);
-    }
-    if(CurrentMode == 1) print(12, 25, 1, 1, MODE_S1[0]);
-    if(CurrentMode == 2) print(12, 25, 1, 1, MODE_S2[0]);
-    if(CurrentMode == 3) print(12, 25, 1, 1, MODE_S3[0]);
-    if(CurrentMode == 4) print(12, 25, 1, 1, MODE_S4[0]);
+    // Uma funcao por tela, e o Update_OLED volta a ser o indice que era. A ordem das
+    // guardas e a de precedencia: menu na frente de dominio, dominio na frente de nada.
+    if(MenuLevel > 0)    { Tela_Status();     return; }
+    if(CurrentMode == 0) { Tela_Identidade(); return; }
+    Tela_Dominio(CurrentMode);
+}
+// A IDENTIDADE — nenhum dominio ativo. O timbre em cima, regua, nome do jogo embaixo.
+// O motivo do sinal NAO entra aqui, e e decisao, nao esquecimento: ele aparece so onde
+// carrega informacao (no dominio diz qual saida esta ativa, no status diz que o sinal
+// esta cortado). Aqui seria papel de parede, e papel de parede em 128x64 e desperdicio
+// de um espaco que nao existe. Que nenhum dominio esta ativo, esta tela ja diz por ser
+// esta tela.
+function Tela_Identidade() {
+    image_oled(25, 2, OLED_WHITE, FALSE, DS_TIMBRE[0]);
+    line_oled(4, 34, 123, 34, 1, 1);
+    print(4, 37, 0, 1, GAME_NAME_1[0]);
+    print(4, 49, 0, 1, GAME_NAME_2[0]);
+}
+// OS QUATRO DOMINIOS EM UMA FUNCAO SO. Os quatro blocos em cima, o ativo em video
+// invertido — da para saber em que dominio se esta SEM LER NADA, que e o que importa no
+// meio do jogo, quando se troca de dominio. O rodape repete na linguagem do sinal: so a
+// derivacao ativa cheia. A mesma informacao em duas linguagens, de proposito: o bloco e
+// para quem conta, a derivacao e para quem reconhece a forma.
+// O Igual(n, k) e o que permite UMA funcao no lugar de quatro. Em bitmap isto seriam
+// quatro arrays de 872 bytes para telas que diferem em dois detalhes — 3.488 contra 252.
+// Se o print nao conseguir letra preta sobre fundo branco, o bloco ativo fica um
+// retangulo branco sem algarismo, e continua lendo: os outros tres tem numero e a
+// posicao diz qual e. O desenho nao depende dessa resposta.
+function Tela_Dominio(n) {
+    rect_oled(9, 4, 23, 15, Igual(n, 1), 1);
+    print(18, 7, 0, 1 - Igual(n, 1), DS_N1[0]);
+    rect_oled(38, 4, 23, 15, Igual(n, 2), 1);
+    print(47, 7, 0, 1 - Igual(n, 2), DS_N2[0]);
+    rect_oled(67, 4, 23, 15, Igual(n, 3), 1);
+    print(76, 7, 0, 1 - Igual(n, 3), DS_N3[0]);
+    rect_oled(96, 4, 23, 15, Igual(n, 4), 1);
+    print(105, 7, 0, 1 - Igual(n, 4), DS_N4[0]);
+    line_oled(4, 22, 123, 22, 1, 1);
+    line_oled(4, 45, 123, 45, 1, 1);
+    print(4, 48, 0, 1, DS_TITULO[0]);
+    line_oled(50, 52, 122, 52, 1, 1);
+    rect_oled(50, 50, 4, 5, 1, 1);
+    line_oled(60, 52, 60, 56, 1, 1);
+    rect_oled(57, 56, 7, 6, Igual(n, 1), 1);
+    line_oled(75, 52, 75, 56, 1, 1);
+    rect_oled(72, 56, 7, 6, Igual(n, 2), 1);
+    line_oled(90, 52, 90, 56, 1, 1);
+    rect_oled(87, 56, 7, 6, Igual(n, 3), 1);
+    line_oled(105, 52, 105, 56, 1, 1);
+    rect_oled(102, 56, 7, 6, Igual(n, 4), 1);
+    Nome_Dominio(n);
+}
+// O dispatch que substitui o array que o GPC nao tem — quatro strings, um nome cada.
+function Nome_Dominio(n) {
+    if(n == 1) { print(12, 25, 1, 1, MODE_S1[0]); return; }
+    if(n == 2) { print(12, 25, 1, 1, MODE_S2[0]); return; }
+    if(n == 3) { print(12, 25, 1, 1, MODE_S3[0]); return; }
+    print(12, 25, 1, 1, MODE_S4[0]);
+}
+// O MENU DE STATUS, o que CONGELA os MODs. As reguas emolduram o titulo e a versao; o
+// motivo mostra o sinal INTERROMPIDO — a entrada chega, o no esta la, o corte, e as
+// quatro saidas vazias. Nao ha rotulo de texto: as tres faixas livres tem 9, 8 e 16px e
+// a fonte de 11px nao cabe em nenhuma. Tentar por um rotulo em y=1 foi o que fez a
+// primeira versao deste desenho invadir o titulo.
+function Tela_Status() {
+    print(5, 10, 1, 1, MENU_TITLE[0]);
+    print(5, 36, 0, 1, DS_VERSAO[0]);
+    line_oled(4, 5, 123, 5, 1, 1);
+    line_oled(4, 31, 123, 31, 1, 1);
+    line_oled(4, 49, 123, 49, 1, 1);
+    line_oled(6, 56, 16, 56, 1, 1);
+    rect_oled(16, 54, 5, 5, 1, 1);
+    line_oled(25, 51, 33, 61, 1, 1);
+    line_oled(33, 51, 25, 61, 1, 1);
+    rect_oled(40, 53, 13, 7, 0, 1);
+    rect_oled(63, 53, 13, 7, 0, 1);
+    rect_oled(86, 53, 13, 7, 0, 1);
+    rect_oled(109, 53, 13, 7, 0, 1);
+}
+// 1 se iguais, 0 se nao. Existe porque o GPC nao tem variavel local nem laco, e as telas
+// precisam de um booleano como ARGUMENTO. Escrever (n == 1) direto no argumento
+// provavelmente funcionaria; esta funcao custa quatro bytes e dispensa o "provavelmente".
+function Igual(a, b) {
+    if(a == b) return 1;
+    return 0;
 }
 // Imprime uma linha da lista de instâncias
 // idx = índice 0-based. Se idx == Total_Inst e Total_Inst < MAX_INST → mostra [+]

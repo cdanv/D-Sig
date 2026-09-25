@@ -56,6 +56,66 @@ mortas = [v for v in sorted(set(re.findall(r'\bint\s+(\w+)', limpo)))
           if not re.findall(r'\b' + v + r'\b', sem_decl)]
 assert not mortas, f'variavel declarada e nunca usada: {mortas}'
 
+# const string declarada e nunca impressa. Entrou na 1.0b, quando GAME_NAME_3 e 4
+# sairam da tela: se eu tivesse tirado so os print e esquecido as declaracoes, ficariam
+# duas strings mortas no binario e o ZenStudio talvez nem avisasse.
+strs = re.findall(r'^const string\s+(\w+)\s*=', limpo, re.M)
+str_mortas = [v for v in strs if len(re.findall(r'\b' + v + r'\b', limpo)) < 2]
+assert not str_mortas, f'const string declarada e nunca usada: {str_mortas}'
+
+# --- 3d. a ARTE nao pode cair onde o texto sera impresso --------------------------
+# ESTA CHECAGEM EXISTE POR UM ERRO MEU, e ele merece ficar registrado: eu tinha uma
+# conferencia que impedia desenho debaixo de texto, e ela aprovou 343 pixels de desenho
+# que o print ia apagar. O motivo e que as FAIXAS de texto que a alimentavam estavam
+# num dicionario que eu DIGITEI — duas faixas, onde o script imprimia quatro linhas.
+# Conferencia vale o que vale o dado que a alimenta, e dado digitado a mao nao vale.
+# Agora as faixas saem do proprio publicado, e a checagem roda na publicacao, nao
+# quando eu lembrar de rodar.
+#
+# print(x, y, tam, fundo, VAR[0]) com fundo 1 pinta fundo preto proprio: APAGA o que
+# estiver embaixo. A largura da faixa depende de quem escreve a string:
+#   - as que o APP substitui (nome do jogo, nomes de dominio) tem conteudo desconhecido
+#     na hora de publicar -> a faixa vai ate a margem, que e a hipotese conservadora;
+#   - as fixas no script -> a faixa e o tamanho real do texto.
+ALT_FONTE = {0: 10, 1: 17}
+LARG_FONTE = {0: 7, 1: 12}
+DO_APP = {'GAME_NAME_1', 'GAME_NAME_2', 'MODE_S1', 'MODE_S2', 'MODE_S3', 'MODE_S4'}
+valores = dict(re.findall(r'^const string\s+(\w+)\s*=\s*"([^"]*)";', limpo, re.M))
+
+for fn in re.findall(r'function (Tela_\w+)\(\w*\)\s*\{(.*?)\n\}', limpo, re.S):
+    nome, corpo = fn
+    faixas = []
+    for x, y, tam, fundo, var in re.findall(
+            r'print\((\d+),\s*(\d+),\s*(\d+),\s*([^,]+),\s*(\w+)\[0\]\)', corpo):
+        if fundo.strip() != '1':
+            continue                      # fundo 0 e transparente: nao apaga nada
+        x, y, tam = int(x), int(y), int(tam)
+        x1 = 127 if var in DO_APP else min(127, x + len(valores.get(var, '')) * LARG_FONTE[tam])
+        faixas.append((var, x, y, x1, y + ALT_FONTE[tam] - 1))
+
+    desenhos = []
+    for a, b, c, d in re.findall(r'line_oled\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),', corpo):
+        a, b, c, d = int(a), int(b), int(c), int(d)
+        desenhos.append(('line', min(a, c), min(b, d), max(a, c), max(b, d)))
+    for a, b, w, h in re.findall(r'rect_oled\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),', corpo):
+        a, b, w, h = int(a), int(b), int(w), int(h)
+        desenhos.append(('rect', a, b, a + w - 1, b + h - 1))
+    # O tamanho da imagem vem da DECLARACAO DELA, casada pelo nome. A primeira versao
+    # disto pegava o primeiro 'const image' do arquivo — funcionava com uma imagem so e
+    # apontaria para a imagem errada no dia em que houvesse duas.
+    for a, b, img in re.findall(r'image_oled\((\d+),\s*(\d+),[^,]+,[^,]+,\s*(\w+)\[0\]\)', corpo):
+        m = re.search(r'const image\s+' + img + r'\[\]\s*=\s*\{\s*\{(\d+),\s*(\d+),', limpo)
+        assert m, f'{nome}: imagem {img} usada e nao declarada'
+        a, b = int(a), int(b)
+        desenhos.append((img, a, b, a + int(m.group(1)) - 1, b + int(m.group(2)) - 1))
+
+    for var, fx0, fy0, fx1, fy1 in faixas:
+        for tipo, dx0, dy0, dx1, dy1 in desenhos:
+            if dx0 <= fx1 and fx0 <= dx1 and dy0 <= fy1 and fy0 <= dy1:
+                print(f'  ERRO {nome}: {tipo}({dx0},{dy0})-({dx1},{dy1}) cai na faixa de '
+                      f'{var} (x {fx0}..{fx1}, y {fy0}..{fy1}) — o print vai apagar')
+                sys.exit(1)
+
 # define declarado e nunca usado — nao gera aviso, mas mente sobre o que existe
 dfs = re.findall(r'^define\s+(\w+)', limpo, re.M)
 sem_uso = [d for d in dfs if len(re.findall(r'\b' + d + r'\b', limpo)) < 2]

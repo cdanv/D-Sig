@@ -12,10 +12,11 @@ apaga o que e comentario e as linhas que ficaram vazias.
 import re, sys
 
 ANCORAS = [
+    # Eram QUATRO linhas de nome de jogo ate a 1.0b. As duas ultimas sairam do script:
+    # o app corta o nome em 20 caracteres e sempre gravava "" nelas, ou seja reservavam
+    # y 35..59 da tela inicial para nao mostrar nada. O timbre ficou com esse espaco.
     'const string GAME_NAME_1  = "-TITULO-";',
     'const string GAME_NAME_2  = "-TITULO-";',
-    'const string GAME_NAME_3  = "-TITULO-";',
-    'const string GAME_NAME_4  = "-TITULO-";',
     'function update_leds() {',
     'CurrentMode == 4',
     'int Cfg_Selo = 0;',
