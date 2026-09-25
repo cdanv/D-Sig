@@ -108,6 +108,7 @@ const string MODE_S3      = "Dominio_3";
 const string MODE_S4      = "Dominio_4";
 const string MENU_TITLE   = "Status_Menu";
 const string DS_TITULO    = "D-Sig";
+const string DS_VERSAO    = "D-Sig 1.0a";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -4379,7 +4380,11 @@ function Update_OLED() {
         print(5, FOOTER_Y, 0, 1, NAV_WZ[0]);
         return;
     }
-    if(MenuLevel > 0) { print(5, 10, 1, 1, MENU_TITLE[0]); return; }
+    if(MenuLevel > 0) {
+        print(5, 10, 1, 1, MENU_TITLE[0]);
+        print(5, 36, 0, 1, DS_VERSAO[0]);
+        return;
+    }
     if(CurrentMode == 0) {
         print(20,  5, 0, 1, GAME_NAME_1[0]);
         print(20, 20, 0, 1, GAME_NAME_2[0]);
@@ -5386,7 +5391,7 @@ function render(){
   else if(tela==='info')telaInfo(A);
 }
 function telaCat(A){
-  $('titulo').innerHTML='D-Sig <span class="sub">biblioteca</span>';
+  $('titulo').innerHTML='D-Sig <span class="sub">'+versaoDSig().replace('D-Sig ','')+'</span>';
   var noZen=D.jogos.filter(function(j){return j.noZen}).length;
   if(!D.jogos.length){var v=document.createElement('div');v.className='vazio';
     v.textContent='Nenhum jogo cadastrado.';A.appendChild(v)}
@@ -5691,6 +5696,14 @@ function telaCod(A){
   bloco('2 · Configuração dos MODs',configGpc(j));
 }
 
+// A versao e lida do TEMPLATE, nao escrita aqui. Se fosse uma constante do app, ela
+// poderia discordar do script embutido — e foi justamente a duvida "o app atualizou?"
+// que motivou colocar a versao na tela. Uma fonte, dois lugares que a mostram.
+function versaoDSig(){
+  var m=/const string DS_VERSAO\s*=\s*"([^"]+)";/.exec(
+    document.getElementById('tpl').textContent);
+  return m?m[1]:'D-Sig';
+}
 function telaInfo(A){
   $('titulo').innerHTML='Informações';
   $('volta').onclick=function(){tela='cat';render()};
@@ -5703,6 +5716,13 @@ function telaInfo(A){
       d.innerHTML='<b style="color:var(--txt)">'+p[0]+'</b><br><span style="color:var(--dim)">'+p[1]+'</span>';
       s.appendChild(d)});
     A.appendChild(s)}
+
+  bloco('Versão', [
+    [versaoDSig(), 'É a versão do script embutido neste app, e é a mesma que aparece no '+
+      'OLED do Cronus quando você abre o menu de status (OPTIONS). Se as duas não '+
+      'coincidirem, o Cronus está com uma versão anterior gravada.'],
+    ['Layout de bits 5', 'Posição dos campos dentro dos SPVARs. Só muda quando um campo '+
+      'muda de lugar ou tamanho — e nesse caso o app e o script têm de ser atualizados juntos.']]);
 
   var av=document.createElement('div');av.className='obs';
   av.innerHTML='<b>Três variáveis vivem em RAM:</b> as relações <b>ZETA</b>, o botão do '+

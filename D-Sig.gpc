@@ -8,6 +8,7 @@ const string MODE_S3      = "Dominio_3";
 const string MODE_S4      = "Dominio_4";
 const string MENU_TITLE   = "Status_Menu";
 const string DS_TITULO    = "D-Sig";
+const string DS_VERSAO    = "D-Sig 1.0a";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -4279,7 +4280,11 @@ function Update_OLED() {
         print(5, FOOTER_Y, 0, 1, NAV_WZ[0]);
         return;
     }
-    if(MenuLevel > 0) { print(5, 10, 1, 1, MENU_TITLE[0]); return; }
+    if(MenuLevel > 0) {
+        print(5, 10, 1, 1, MENU_TITLE[0]);
+        print(5, 36, 0, 1, DS_VERSAO[0]);
+        return;
+    }
     if(CurrentMode == 0) {
         print(20,  5, 0, 1, GAME_NAME_1[0]);
         print(20, 20, 0, 1, GAME_NAME_2[0]);

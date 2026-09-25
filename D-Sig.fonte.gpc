@@ -161,6 +161,16 @@ const string MODE_S4      = "Dominio_4";
 const string MENU_TITLE   = "Status_Menu";
 // --- D-SIG ---
 const string DS_TITULO    = "D-Sig";   // v3zz
+// A VERSAO, e ela aparece no OLED — ver a tela do menu de status, no Update_OLED.
+// Por que na tela e nao so no cabecalho do arquivo: a pergunta "qual build esta gravada
+// neste Cronus?" ja custou o trabalho de abrir um zip e procurar nome de funcao dentro
+// dos GPCs gerados. Com a versao na tela, a resposta e apertar OPTIONS.
+// O numero antes do ponto e a versao do SCRIPT; a letra e o BUILD, e ela muda em TODA
+// publicacao, mesmo que so um comentario tenha mudado. O embutir.py recusa publicar
+// conteudo diferente com a mesma letra, entao os dois nunca divergem em silencio.
+// Esta mesma string alimenta o nome do cache do service worker do app (dsig-1.0a), de
+// modo que o app e o script nunca ficam em versoes diferentes sem aviso.
+const string DS_VERSAO    = "D-Sig 1.0a";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -6413,7 +6423,14 @@ function Update_OLED() {
     //----------------------------------------------------------
     // Estado normal (MenuDin=0)
     //----------------------------------------------------------
-    if(MenuLevel > 0) { print(5, 10, 1, 1, MENU_TITLE[0]); return; }
+    // O menu de status era uma tela de uma linha so. Agora ela diz tambem QUAL build
+    // esta rodando neste aparelho — a informacao que faltava no dia em que a duvida era
+    // se o app do notebook havia atualizado antes de gerar os scripts.
+    if(MenuLevel > 0) {
+        print(5, 10, 1, 1, MENU_TITLE[0]);
+        print(5, 36, 0, 1, DS_VERSAO[0]);
+        return;
+    }
     if(CurrentMode == 0) {
         print(20,  5, 0, 1, GAME_NAME_1[0]);
         print(20, 20, 0, 1, GAME_NAME_2[0]);

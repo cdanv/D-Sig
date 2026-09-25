@@ -7,7 +7,7 @@
 // A contagem recomecou em v1 com o nome final do projeto. O 'activate' apaga todo
 // cache cujo nome seja diferente deste, entao o cache da versao anterior e descartado
 // sozinho na primeira abertura — nada a limpar a mao.
-const CACHE = 'dsig-v4';
+const CACHE = 'dsig-1.0a';
 
 // Separados de proposito: sem o index e o manifest o app nao abre; sem os icones ele
 // abre normalmente. Um icone faltando nao pode impedir a instalacao inteira, que era

@@ -169,7 +169,18 @@ regras, as duas nascidas de uma pane real:
 2. **Só se grava o que mudou.** Todo `set_pvar` passa pelo `Grava_Spv`,
    que lê antes e desiste se o valor já está lá. Leitura não desgasta.
 
-O que isso resolveu: depois de uma **limpeza de slots no ZenStudio** a
+**O que isso NÃO resolve:** a pane com a mensagem **"Zen Bootloader
+E3002"**. Esse código significa, na documentação do Cronus, que *o
+firmware está corrompido ou ausente* — causado por gravação de firmware
+interrompida, **perda de energia durante gravação**, ou arquivo corrompido.
+Um script GPC não alcança a imagem do firmware; quando o bootloader
+falha, o script nem chega a rodar. Se isso acontecer: botão de reset
+embaixo do aparelho segurado ao conectar na porta CONSOLE/PC, depois
+`firmware.modcentral.ca` no Chrome ou Edge. Falhando a gravação, a causa
+usual é **alimentação USB insuficiente** — conecte também a porta PROG,
+do lado direito.
+
+O que a gravação diferida resolveu: depois de uma **limpeza de slots** a
 EEPROM fica zerada, e nesse boot os dois caminhos de gravação do `init`
 entravam juntos — 64 gravações seguidas no script avulso, 128 no script
 do app, sem devolver o controle ao firmware. O Cronus travava piscando
@@ -224,19 +235,36 @@ segue a ordem física.
 
 ---
 
-## Publicando uma versão nova
+## Versionamento e publicação
 
-1. Mexa no `D-Sig.fonte.gpc` — nunca no `D-Sig.gpc`.
-2. Rode `python3 embutir.py`. Ele limpa, embute e confere tudo.
-3. Em `sw.js`, incremente o número:
+A versão vive em **um lugar só**, no `D-Sig.fonte.gpc`:
 
-```js
-const CACHE = 'dsig-v5';   // era dsig-v4
+```gpc
+const string DS_VERSAO    = "D-Sig 1.0a";
 ```
 
-É essa troca que faz o navegador buscar a versão nova. Sem ela, quem
-já tem o app instalado continua na anterior. Incremente **sempre** que
-o `index.html` mudar, inclusive quando só o template embutido mudar.
+O número é a versão do **script**; a letra é o **build**, e ela muda em
+toda publicação. Dessa string saem, automaticamente:
+
+- o que aparece no **OLED**, no menu de status (OPTIONS);
+- o título e a tela de Informações do **app**, que lê a string do próprio
+  template embutido;
+- o nome do cache do service worker (`dsig-1.0a`).
+
+Assim os três nunca discordam. Se o OLED diz `1.0a` e o app diz `1.0b`,
+o Cronus está com uma versão anterior gravada — e a resposta é olhar a
+tela, não abrir arquivo.
+
+**Publicar:**
+
+1. Mexa no `D-Sig.fonte.gpc` — nunca no `D-Sig.gpc`.
+2. **Incremente a letra** em `DS_VERSAO`.
+3. Rode `python3 embutir.py`.
+
+O passo 3 limpa, embute, propaga a versão para o `sw.js` e **recusa
+publicar** se o conteúdo mudou e a letra não — ele guarda o SHA-256 da
+última publicação em `publicado.json` e compara. Mudança só de
+comentário não conta, porque não altera o publicado.
 
 ---
 
@@ -245,7 +273,7 @@ o `index.html` mudar, inclusive quando só o template embutido mudar.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0**; o `LAYOUT_VER` está em **5**, porque as
+O script está na **1.0a**; o `LAYOUT_VER` está em **5**, porque as
 posições dos campos nos SPVARs não mudam desde então. Incremente o
 `LAYOUT_VER` apenas quando um campo mudar de posição ou tamanho — e,
 ao fazer isso, atualize o app junto. App e script divergindo em

@@ -16,7 +16,7 @@ custam e PESO DE DOWNLOAD do app, porque o template viaja dentro do index.html. 
 divisao classica entre FONTE e PUBLICADO: o comentado e onde se trabalha e se aprende, o
 limpo e o que vai para o ar.
 """
-import re, hashlib, sys
+import re, hashlib, sys, json
 from limpar import limpar, ANCORAS
 
 FONTE, PUB, APP = 'D-Sig.fonte.gpc', 'D-Sig.gpc', 'index.html'
@@ -63,6 +63,28 @@ DOC = {'SPVARS_PER_INST', 'BIT_SLOT_USED', 'F1_DIR_ABSOLUTO', 'LAYOUT_VER'}
 sem_uso = [d for d in sem_uso if d not in DOC and not d.startswith(('DST_BIT_', 'BTN_BIT_'))]
 assert not sem_uso, f'define sem uso: {sem_uso}'
 
+# --- 3c. a VERSAO governa a publicacao ---------------------------------------
+# A letra do build tem de mudar em toda publicacao. Esta checagem existe porque
+# "nao sei se o app atualizou" e uma pergunta que nao deveria precisar de investigacao:
+# se o conteudo mudou e a letra nao, o publicado mentiria sobre si mesmo.
+mv = re.search(r'const string DS_VERSAO\s*=\s*"([^"]+)";', limpo)
+assert mv, 'DS_VERSAO nao encontrada no script'
+VERSAO = mv.group(1)                       # ex.: "D-Sig 1.0a"
+mv2 = re.match(r'D-Sig (\d+\.\d+)([a-z])$', VERSAO)
+assert mv2, f'formato da versao invalido: {VERSAO!r} (esperado "D-Sig 1.0a")'
+CACHE = 'dsig-' + mv2.group(1) + mv2.group(2)
+
+sha = hashlib.sha256(limpo.encode()).hexdigest()
+REG = 'publicado.json'
+try:
+    ant = json.load(open(REG))
+except Exception:
+    ant = {}
+if ant.get('sha256') and ant['sha256'] != sha and ant.get('versao') == VERSAO:
+    print(f'  ERRO: o script mudou mas a versao continua {VERSAO}.')
+    print(f'        Incremente a letra do build em DS_VERSAO e rode de novo.')
+    sys.exit(1)
+
 open(PUB, 'w', encoding='utf-8').write(limpo)
 
 # --- 4. embute no app e prova a identidade -----------------------------------
@@ -77,6 +99,21 @@ tpl = re.search(r'<script type="text/plain" id="tpl">(.*?)</script>',
 h1 = hashlib.sha256(limpo.encode()).hexdigest()
 h2 = hashlib.sha256(tpl.encode()).hexdigest()
 
+# --- 5. o cache do service worker acompanha a versao -------------------------
+# Antes o numero do cache era incrementado a mao, e esquecer disso faz o navegador
+# continuar servindo o app anterior — que foi exatamente a duvida de hoje.
+sw = open('sw.js', encoding='utf-8').read()
+atual = re.search(r"const CACHE = '([^']+)';", sw)
+assert atual, 'CACHE nao encontrado no sw.js'
+if atual.group(1) != CACHE:
+    open('sw.js', 'w', encoding='utf-8').write(
+        sw.replace(f"const CACHE = '{atual.group(1)}';", f"const CACHE = '{CACHE}';"))
+    print(f'  sw.js    : {atual.group(1)} -> {CACHE}')
+else:
+    print(f'  sw.js    : {CACHE} (ja estava)')
+
+json.dump({'versao': VERSAO, 'sha256': sha}, open(REG, 'w'), indent=2)
+
 print(f'  fonte    : {FONTE:18s} {bruto.count(chr(10))+1:6d} linhas  {len(bruto):7d} bytes')
 print(f'  publicado: {PUB:18s} {limpo.count(chr(10))+1:6d} linhas  {len(limpo):7d} bytes'
       f'  (-{100 - 100*len(limpo)//len(bruto)}%)')
@@ -84,6 +121,6 @@ print(f'  template : {antes} -> {len(tpl)} bytes')
 print(f'  sha256   : {h1[:32]}')
 if h1 != h2:
     print('  DIVERGEM'); sys.exit(1)
-print(f'  => publicado e template identicos; {nf} funcoes; 0 comentarios; '
+print(f'  => {VERSAO} | publicado e template identicos | {nf} funcoes | 0 comentarios | '
       f'{len(ANCORAS)} ancoras intactas')
 assert '</script>' not in limpo, 'o .gpc contem </script> e quebraria o HTML'
