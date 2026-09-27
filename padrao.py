@@ -132,20 +132,22 @@ def ops_dominio(n, simbolico=False):
 
 
 def ops_status():
-    """MenuLevel > 0. O script imprime MENU_TITLE em y 10..26 e a versao em y 36..45.
-    Sobram tres faixas estreitas: y 1..9, y 27..35 e y 46..62, e nenhuma cabe a fonte
-    de 11px — foi tentar por um rotulo em y=1 que fez a primeira versao invadir o
-    titulo. Entao nao ha rotulo: quem diz o que e a tela ja e o texto do script.
-    O que a imagem acrescenta e o SIGNIFICADO — o menu de status congela os MODs, e o
-    motivo mostra o sinal interrompido: a entrada chega, o no esta la, o corte, e as
-    quatro saidas VAZIAS."""
-    ye = 56
-    ops = [('lin', 4, 5, 123, 5), ('lin', 4, 31, 123, 31), ('lin', 4, 49, 123, 49),
-           ('lin', 6, ye, 16, ye), ('ret', 16, ye - 2, 5, 5, 1),
-           ('lin', 25, ye - 5, 33, ye + 5), ('lin', 33, ye - 5, 25, ye + 5)]
-    for i in range(4):
-        ops.append(('ret', 40 + i * 23, ye - 3, 13, 7, 0))
-    return ops
+    """MenuLevel > 0. A tela virou PAINEL DE DIAGNOSTICO na 1.0d, e o motivo do sinal
+    cortado saiu para dar lugar a informacao. Isso e a minha propria regra sendo
+    aplicada contra o meu proprio desenho: o motivo so ganha espaco onde carrega
+    informacao, e duas linhas que dizem se o boot terminou e se o relogio esta certo
+    carregam mais do que uma ilustracao de sinal interrompido.
+
+    O layout, e cada faixa foi medida para a fonte que a ocupa:
+      y  2..18  MENU_TITLE, fonte 1 (17px)
+      y 20      regua
+      y 22..31  BOOT nn/21 OK   — a persistencia diferida terminou?
+      y 33..42  T nnnnn s P nnn ms — segundos desde o boot e o pico de uma volta
+      y 44      regua
+      y 46..55  DS_VERSAO, fonte 0
+    As duas reguas caem nos vaos de 2px entre as faixas. Quem confere isso e o
+    embutir.py, lendo o publicado."""
+    return [('lin', 4, 20, 123, 20), ('lin', 4, 44, 123, 44)]
 
 
 TELAS = [('identidade', ops_identidade(), 'repouso'),
@@ -189,7 +191,7 @@ def gpc(ops, ind='        '):
         else:
             _, x, y, s, tam = op[:5]
             inv = op[5] if len(op) > 5 else 0
-            v = 'DS_TITULO' if s == 'D-Sig' else 'DS_N' + s
+            v = 'DS_TITULO' if s == 'D-Sig' else 'DS_D' + s
             textos[v] = s
             # fundo 1 = fundo preto, letra branca; no bloco ativo (branco) isso
             # pintaria um retangulo preto por cima, daí fundo 0 quando invertido.

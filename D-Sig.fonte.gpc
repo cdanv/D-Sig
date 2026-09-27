@@ -2,7 +2,7 @@
 * D-Sig 1.0 — Sistema Universal de Roteamento de Sinais
 * -----------------------------------------------------------------------------------
 * DISPOSITIVO : Cronus Zen + PlayStation 5 (DualSense)   |   GPC 32-bit
-* VERSAO      : script 1.0c  |   LAYOUT DE BITS 5   |   app D-Sig (cache dsig-1.0c)
+* VERSAO      : script 1.0d  |   LAYOUT DE BITS 5   |   app D-Sig (cache dsig-1.0d)
 *   Os tres numeros andam separados de proposito. O SCRIPT e a versao deste arquivo. O
 *   LAYOUT e a posicao dos campos dentro dos SPVARs, e so muda quando um campo muda de
 *   lugar ou tamanho — mudar o layout sem mudar o app junto e o unico jeito de este
@@ -197,11 +197,23 @@ const image DS_TIMBRE[] = {
      0x00, 0x00, 0x3F, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3F,
      0xE0}
 };
-// Os algarismos dos quatro blocos da tela de dominio. Quatro strings de um caractere e
-// nao uma de quatro: o print le da posicao dada ate o terminador, entao DS_DIG[2] numa
-// string "1234" imprimiria "34", nao "3".
-const string DS_N1 = "1"; const string DS_N2 = "2";
-const string DS_N3 = "3"; const string DS_N4 = "4";
+// OS DEZ DIGITOS. Dez strings de um caractere e nao uma de dez: o print le da posicao
+// dada ate o terminador, entao DS_DIG[2] numa string "0123456789" imprimiria "23456789",
+// nao "2". Servem a dois usos — os algarismos dos blocos da tela de dominio e o
+// impressor de numeros do painel de diagnostico. Eram duas tabelas ate a 1.0d.
+const string DS_D0 = "0"; const string DS_D1 = "1"; const string DS_D2 = "2";
+const string DS_D3 = "3"; const string DS_D4 = "4"; const string DS_D5 = "5";
+const string DS_D6 = "6"; const string DS_D7 = "7"; const string DS_D8 = "8";
+const string DS_D9 = "9";
+// Os rotulos do painel de diagnostico.
+const string DS_BOOT  = "BOOT";
+const string DS_DE21  = "/21";
+const string DS_OK    = "OK";
+const string DS_NOK   = "--";
+const string DS_TSEG  = "T";
+const string DS_SEG   = "s";
+const string DS_PICO  = "P";
+const string DS_MS    = "ms";
 // --- D-SIG ---
 const string DS_TITULO    = "D-Sig";   // v3zz
 // A VERSAO, e ela aparece no OLED — ver a tela do menu de status, no Update_OLED.
@@ -213,7 +225,7 @@ const string DS_TITULO    = "D-Sig";   // v3zz
 // conteudo diferente com a mesma letra, entao os dois nunca divergem em silencio.
 // Esta mesma string alimenta o nome do cache do service worker do app (dsig-1.0a), de
 // modo que o app e o script nunca ficam em versoes diferentes sem aviso.
-const string DS_VERSAO    = "D-Sig 1.0c";
+const string DS_VERSAO    = "D-Sig 1.0d";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -462,7 +474,11 @@ define OLED_TIMEOUT      = 10000;  // quanto o OLED fica aceso depois de desenha
 define TIME_TROCA_LIMPA  = 500;    // tela apagada durante a troca de dominio
 
 // --- Saidas com duracao (SECAO 18) ---
-define TIME_TOQUE        = 200;    // quanto o toque no touchpad fica de pe
+define TIME_TOQUE        = 200;
+// Avanco de um caractere na fonte 0 do OLED: 18 caracteres em 128 px dao ~7 px. E o passo
+// do impressor de numeros. Se os digitos sairem grudados ou espacados na tela, e este
+// valor, e so ele.
+define LARG_DIG          = 7;    // quanto o toque no touchpad fica de pe
 define FB_ACESO_LONGO    = 200;    // pulso do pisca de dominio LIGADO
 define FB_ACESO_CURTO    = 100;    // pulso do pisca de dominio DESLIGADO
 define FB_APAGADO        = 100;    // intervalo entre pulsos
@@ -759,6 +775,25 @@ int Del_Slot             = 0;   // instância sendo deletada (1-based)
 // --- Total de instâncias criadas ---
 int Total_Inst           = 0;   // quantos MODs existem (0..MAX_INST)
 // --- Variáveis de trabalho (substituem locais — GPC não suporta vars locais) ---
+// ---- DIAGNOSTICO (1.0d) ----------------------------------------------------------
+// Dg_Feitas / Dg_Selado: quantas instancias a persistencia diferida gravou neste boot e
+// se o selo foi marcado. Sao a resposta, na tela, para a pergunta que antes exigia abrir
+// a SPVAR_64 de um backup.
+int Dg_Feitas            = 0;
+int Dg_Selado            = 0;
+// Vl_Ms / Vl_Seg / Vl_Pico: o relogio. Vl_Ms acumula get_rtime() e vira segundo em
+// Vl_Seg (o acumulador volta a zero a cada 1000 ms, entao nenhum dos dois transborda).
+// Vl_Pico e a maior volta ja vista — uma volta que estica atrasa toda contagem de tempo
+// deste script, e e o modo de falha que nenhum cronometro na mao pegaria.
+int Vl_Ms                = 0;
+int Vl_Seg               = 0;
+int Vl_Pico              = 0;
+// Rascunho EXCLUSIVO do impressor de numeros. Nao se usa Work_* nem Esp_* aqui: aquelas
+// sao de outros donos, e o impressor roda no meio do desenho da tela, depois do
+// pipeline dos MODs — reaproveitar rascunho alheio e como esse projeto ja quebrou antes.
+int Dg_V                 = 0;
+int Dg_X                 = 0;
+int Dg_I                 = 0;
 int Work_A               = 0;
 int Work_B               = 0;
 int Work_C               = 0;   // temporário (navegação MOD, posição de bit)
@@ -1195,9 +1230,11 @@ function Boot_Persistir() {
     if(Boot_Inst <= 21) {
         Save_Instance(Boot_Inst);
         Boot_Inst = Boot_Inst + 1;
+        Dg_Feitas = Dg_Feitas + 1;
         return;
     }
     Marcar_Selo(1, Boot_Selo);
+    Dg_Selado = 1;
     Boot_Inst = 0;
 }
 init {
@@ -1258,6 +1295,7 @@ main {
     Menu_Status();
     Tela_Manter();
     Menu_Disponivel();
+    Relogio_Medir();
     Saidas_Manter();
 }
 
@@ -6506,13 +6544,13 @@ function Tela_Identidade() {
 // posicao diz qual e. O desenho nao depende dessa resposta.
 function Tela_Dominio(n) {
     rect_oled(9, 4, 23, 15, Igual(n, 1), 1);
-    print(18, 7, 0, 1 - Igual(n, 1), DS_N1[0]);
+    print(18, 7, 0, 1 - Igual(n, 1), DS_D1[0]);
     rect_oled(38, 4, 23, 15, Igual(n, 2), 1);
-    print(47, 7, 0, 1 - Igual(n, 2), DS_N2[0]);
+    print(47, 7, 0, 1 - Igual(n, 2), DS_D2[0]);
     rect_oled(67, 4, 23, 15, Igual(n, 3), 1);
-    print(76, 7, 0, 1 - Igual(n, 3), DS_N3[0]);
+    print(76, 7, 0, 1 - Igual(n, 3), DS_D3[0]);
     rect_oled(96, 4, 23, 15, Igual(n, 4), 1);
-    print(105, 7, 0, 1 - Igual(n, 4), DS_N4[0]);
+    print(105, 7, 0, 1 - Igual(n, 4), DS_D4[0]);
     line_oled(4, 22, 123, 22, 1, 1);
     line_oled(4, 45, 123, 45, 1, 1);
     print(4, 48, 0, 1, DS_TITULO[0]);
@@ -6541,19 +6579,26 @@ function Nome_Dominio(n) {
 // a fonte de 11px nao cabe em nenhuma. Tentar por um rotulo em y=1 foi o que fez a
 // primeira versao deste desenho invadir o titulo.
 function Tela_Status() {
-    print(5, 10, 1, 1, MENU_TITLE[0]);
-    print(5, 36, 0, 1, DS_VERSAO[0]);
-    line_oled(4, 5, 123, 5, 1, 1);
-    line_oled(4, 31, 123, 31, 1, 1);
-    line_oled(4, 49, 123, 49, 1, 1);
-    line_oled(6, 56, 16, 56, 1, 1);
-    rect_oled(16, 54, 5, 5, 1, 1);
-    line_oled(25, 51, 33, 61, 1, 1);
-    line_oled(33, 51, 25, 61, 1, 1);
-    rect_oled(40, 53, 13, 7, 0, 1);
-    rect_oled(63, 53, 13, 7, 0, 1);
-    rect_oled(86, 53, 13, 7, 0, 1);
-    rect_oled(109, 53, 13, 7, 0, 1);
+    print(5, 2, 1, 1, MENU_TITLE[0]);
+    line_oled(4, 20, 123, 20, 1, 1);
+    line_oled(4, 44, 123, 44, 1, 1);
+    print(5, 22, 0, 1, DS_BOOT[0]);
+    Print_Num(Dg_Feitas, 40, 22, 2);
+    print(54, 22, 0, 1, DS_DE21[0]);
+    Selo_Marca(82, 22);
+    print(5, 33, 0, 1, DS_TSEG[0]);
+    Print_Num(Vl_Seg, 19, 33, 5);
+    print(54, 33, 0, 1, DS_SEG[0]);
+    print(68, 33, 0, 1, DS_PICO[0]);
+    Print_Num(Vl_Pico, 82, 33, 3);
+    print(103, 33, 0, 1, DS_MS[0]);
+    print(5, 46, 0, 1, DS_VERSAO[0]);
+}
+// O selo, em duas letras. "OK" so aparece quando o Marcar_Selo rodou de verdade nesta
+// ligacao — nao quando a EEPROM por acaso tem um selo de antes.
+function Selo_Marca(x, y) {
+    if(Dg_Selado) { print(x, y, 0, 1, DS_OK[0]); return; }
+    print(x, y, 0, 1, DS_NOK[0]);
 }
 // 1 se iguais, 0 se nao. Existe porque o GPC nao tem variavel local nem laco, e as telas
 // precisam de um booleano como ARGUMENTO. Escrever (n == 1) direto no argumento
@@ -7093,6 +7138,50 @@ function colorled(a, b, c, d) {
 // Combo continua sendo a ferramenta certa para UMA coisa: sequencia longa de passos que
 // se quer ler como roteiro (uma macro de 10 botoes, por exemplo). Nao e o caso de nenhuma
 // das cinco que estavam aqui.
+// O RELOGIO. Le get_rtime() UMA vez e guarda: chamar duas vezes na mesma volta devolveria
+// o mesmo valor, mas guardar deixa claro que e uma medida, nao duas.
+// A conversao para segundo e por subtracao, nao por divisao acumulada: Vl_Ms nunca passa
+// de 1999, entao nem ele nem Vl_Seg transbordam, por mais tempo que o aparelho fique
+// ligado. Um acumulador de milissegundos desde o boot estouraria em 24 dias.
+function Relogio_Medir() {
+    Dg_V = get_rtime();
+    if(Dg_V > Vl_Pico) Vl_Pico = Dg_V;
+    Vl_Ms = Vl_Ms + Dg_V;
+    if(Vl_Ms < 1000) return;
+    Vl_Ms = Vl_Ms - 1000;
+    Vl_Seg = Vl_Seg + 1;
+}
+// O IMPRESSOR DE NUMEROS, que este script nao tinha: todo texto do OLED era const string
+// fixa, e nao havia como mostrar um valor medido. Imprime da direita para a esquerda,
+// com zeros a esquerda, porque largura fixa mantem os digitos alinhados entre voltas —
+// um numero que muda de largura faz a tela "tremer" a cada atualizacao.
+// O resto da divisao e (v - ((v / 10) * 10)), e nao (v % 10), porque o operador % nao
+// aparece em nenhum lugar deste script: a divisao inteira aparece, o modulo nao, e nao
+// vou estrear um operador num painel de diagnostico.
+function Print_Num(v, x, y, casas) {
+    Dg_V = v;
+    if(Dg_V < 0) Dg_V = 0;
+    Dg_X = x + (casas - 1) * LARG_DIG;
+    Dg_I = 0;
+    while(Dg_I < casas) {
+        Print_Dig(Dg_V - ((Dg_V / 10) * 10), Dg_X, y);
+        Dg_V = Dg_V / 10;
+        Dg_X = Dg_X - LARG_DIG;
+        Dg_I = Dg_I + 1;
+    }
+}
+function Print_Dig(d, x, y) {
+    if(d == 0) { print(x, y, 0, 1, DS_D0[0]); return; }
+    if(d == 1) { print(x, y, 0, 1, DS_D1[0]); return; }
+    if(d == 2) { print(x, y, 0, 1, DS_D2[0]); return; }
+    if(d == 3) { print(x, y, 0, 1, DS_D3[0]); return; }
+    if(d == 4) { print(x, y, 0, 1, DS_D4[0]); return; }
+    if(d == 5) { print(x, y, 0, 1, DS_D5[0]); return; }
+    if(d == 6) { print(x, y, 0, 1, DS_D6[0]); return; }
+    if(d == 7) { print(x, y, 0, 1, DS_D7[0]); return; }
+    if(d == 8) { print(x, y, 0, 1, DS_D8[0]); return; }
+    print(x, y, 0, 1, DS_D9[0]);
+}
 function Saidas_Manter() {
     Tap_Manter();
     Vib_Manter();

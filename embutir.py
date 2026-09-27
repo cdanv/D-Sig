@@ -118,8 +118,49 @@ LARG_FONTE = {0: 7, 1: 12}
 DO_APP = {'GAME_NAME_1', 'GAME_NAME_2', 'MODE_S1', 'MODE_S2', 'MODE_S3', 'MODE_S4'}
 valores = dict(re.findall(r'^const string\s+(\w+)\s*=\s*"([^"]*)";', limpo, re.M))
 
-for fn in re.findall(r'function (Tela_\w+)\(\w*\)\s*\{(.*?)\n\}', limpo, re.S):
-    nome, corpo = fn
+# Funcoes AUXILIARES que imprimem, com a faixa que cada uma ocupa a partir dos seus
+# argumentos. Elas existem porque uma tela nao imprime so com print: o painel de
+# diagnostico usa Print_Num, e a tela de dominio delega o nome ao Nome_Dominio. Sem este
+# registro a checagem ficaria CEGA exatamente para o que foi acrescentado por ultimo —
+# e uma auditoria cega no ponto novo e pior que nenhuma, porque da a impressao de cobrir.
+_LD = int(re.search(r'^define LARG_DIG\s*=\s*(\d+);', limpo, re.M).group(1))
+IMPRESSORES = {
+    # Print_Num(v, x, y, casas): 'casas' digitos de largura LARG_DIG, fonte 0
+    'Print_Num':    lambda a: (int(a[1]), int(a[2]), int(a[1]) + int(a[3]) * _LD - 1,
+                               int(a[2]) + ALT_FONTE[0] - 1),
+    # Selo_Marca(x, y): duas letras, fonte 0
+    'Selo_Marca':   lambda a: (int(a[0]), int(a[1]), int(a[0]) + 2 * _LD - 1,
+                               int(a[1]) + ALT_FONTE[0] - 1),
+    # Nome_Dominio(n): imprime MODE_S1..4, que o app substitui -> faixa ate a margem
+    'Nome_Dominio': lambda a: (12, 25, 127, 25 + ALT_FONTE[1] - 1),
+}
+DESENHOS = {'line_oled', 'rect_oled', 'image_oled', 'circle_oled', 'pixel_oled',
+            'print', 'cls_oled'}
+
+# QUAIS funcoes sao telas: as que o Update_OLED CHAMA, nao as que se chamam Tela_*.
+# A primeira versao desta checagem casava o nome e pegava o Tela_Manter e o
+# Tela_Redesenho, que sao o agendador de redesenho e nao desenham nada. Derivar do
+# Update_OLED tambem faz a lista se manter sozinha: tela nova chamada de la entra na
+# conferencia sem eu mexer aqui.
+_uo = re.search(r'function Update_OLED\(\)\s*\{(.*?)\n\}', limpo, re.S)
+assert _uo, 'Update_OLED nao encontrado'
+TELAS_FN = sorted(set(re.findall(r'\b(Tela_\w+)\(', _uo.group(1))))
+assert TELAS_FN, 'nenhuma funcao de tela encontrada no Update_OLED'
+
+for nome in TELAS_FN:
+    mfn = re.search(r'function ' + nome + r'\(\w*\)\s*\{(.*?)\n\}', limpo, re.S)
+    assert mfn, f'{nome} e chamada pelo Update_OLED e nao existe'
+    corpo = mfn.group(1)
+
+    # Nenhuma chamada desconhecida numa funcao de tela: se alguem acrescentar um
+    # impressor novo sem registra-lo acima, a publicacao para aqui em vez de publicar
+    # uma tela cuja faixa de texto ninguem conferiu.
+    for ch in set(re.findall(r'^\s*(\w+)\(', corpo, re.M)):
+        assert ch in DESENHOS or ch in IMPRESSORES, (
+            f'{nome} chama {ch}(), que nao esta em DESENHOS nem em IMPRESSORES do '
+            'embutir.py. Se ele imprime, registre a faixa que ocupa; se so desenha, '
+            'acrescente-o a DESENHOS. Tela nao conferida nao se publica.')
+
     faixas = []
     for x, y, tam, fundo, var in re.findall(
             r'print\((\d+),\s*(\d+),\s*(\d+),\s*([^,]+),\s*(\w+)\[0\]\)', corpo):
@@ -128,6 +169,14 @@ for fn in re.findall(r'function (Tela_\w+)\(\w*\)\s*\{(.*?)\n\}', limpo, re.S):
         x, y, tam = int(x), int(y), int(tam)
         x1 = 127 if var in DO_APP else min(127, x + len(valores.get(var, '')) * LARG_FONTE[tam])
         faixas.append((var, x, y, x1, y + ALT_FONTE[tam] - 1))
+    for imp, faz in IMPRESSORES.items():
+        for args in re.findall(imp + r'\(([^)]*)\)', corpo):
+            a = [t.strip() for t in args.split(',')]
+            try:
+                fx0, fy0, fx1, fy1 = faz(a)
+            except ValueError:
+                continue                  # argumento nao-literal: nao da para conferir
+            faixas.append((f'{imp}()', fx0, fy0, min(127, fx1), fy1))
 
     desenhos = []
     for a, b, c, d in re.findall(r'line_oled\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),', corpo):
@@ -150,6 +199,21 @@ for fn in re.findall(r'function (Tela_\w+)\(\w*\)\s*\{(.*?)\n\}', limpo, re.S):
             if dx0 <= fx1 and fx0 <= dx1 and dy0 <= fy1 and fy0 <= dy1:
                 print(f'  ERRO {nome}: {tipo}({dx0},{dy0})-({dx1},{dy1}) cai na faixa de '
                       f'{var} (x {fx0}..{fx1}, y {fy0}..{fy1}) — o print vai apagar')
+                sys.exit(1)
+
+    # TEXTO CONTRA TEXTO, e este caso faltava: a checagem comparava texto contra desenho
+    # e deixava passar dois print sobrepostos, que se apagam um ao outro. Achei o furo
+    # tentando quebrar a propria checagem — movi um Print_Num para cima da linha da
+    # versao e ela aprovou. Vale o registro: um teste que so confirma o que eu esperava
+    # nao testa nada; o que serve e o que tenta reprovar o que ja passou.
+    for i in range(len(faixas)):
+        for j in range(i + 1, len(faixas)):
+            a, ax0, ay0, ax1, ay1 = faixas[i]
+            b, bx0, by0, bx1, by1 = faixas[j]
+            if ax0 <= bx1 and bx0 <= ax1 and ay0 <= by1 and by0 <= ay1:
+                print(f'  ERRO {nome}: as faixas de {a} (x {ax0}..{ax1}, y {ay0}..{ay1}) '
+                      f'e {b} (x {bx0}..{bx1}, y {by0}..{by1}) se sobrepoem — um print '
+                      'apaga o outro')
                 sys.exit(1)
 
 # define declarado e nunca usado — nao gera aviso, mas mente sobre o que existe
