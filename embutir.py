@@ -123,7 +123,11 @@ valores = dict(re.findall(r'^const string\s+(\w+)\s*=\s*"([^"]*)";', limpo, re.M
 # diagnostico usa Print_Num, e a tela de dominio delega o nome ao Nome_Dominio. Sem este
 # registro a checagem ficaria CEGA exatamente para o que foi acrescentado por ultimo —
 # e uma auditoria cega no ponto novo e pior que nenhuma, porque da a impressao de cobrir.
-_LD = int(re.search(r'^define LARG_DIG\s*=\s*(\d+);', limpo, re.M).group(1))
+# O LARG_DIG so existe quando ha impressor de numeros no script. Ele entrou na 1.0d
+# junto com o painel de diagnostico e saiu na 1.0e junto com ele — o registro de
+# impressores fica, porque o proximo que aparecer ja nasce conferido.
+_m = re.search(r'^define LARG_DIG\s*=\s*(\d+);', limpo, re.M)
+_LD = int(_m.group(1)) if _m else 7
 IMPRESSORES = {
     # Print_Num(v, x, y, casas): 'casas' digitos de largura LARG_DIG, fonte 0
     'Print_Num':    lambda a: (int(a[1]), int(a[2]), int(a[1]) + int(a[3]) * _LD - 1,

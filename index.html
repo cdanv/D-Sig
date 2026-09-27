@@ -132,20 +132,10 @@ const image DS_TIMBRE[] = {
      0x00, 0x00, 0x3F, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3F,
      0xE0}
 };
-const string DS_D0 = "0"; const string DS_D1 = "1"; const string DS_D2 = "2";
-const string DS_D3 = "3"; const string DS_D4 = "4"; const string DS_D5 = "5";
-const string DS_D6 = "6"; const string DS_D7 = "7"; const string DS_D8 = "8";
-const string DS_D9 = "9";
-const string DS_BOOT  = "BOOT";
-const string DS_DE21  = "/21";
-const string DS_OK    = "OK";
-const string DS_NOK   = "--";
-const string DS_TSEG  = "T";
-const string DS_SEG   = "s";
-const string DS_PICO  = "P";
-const string DS_MS    = "ms";
+const string DS_N1 = "1"; const string DS_N2 = "2";
+const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0d";
+const string DS_VERSAO    = "D-Sig 1.0e";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -313,7 +303,6 @@ define TIME_TRI_DELETE   = 1000;
 define OLED_TIMEOUT      = 10000;
 define TIME_TROCA_LIMPA  = 500;
 define TIME_TOQUE        = 200;
-define LARG_DIG          = 7;
 define FB_ACESO_LONGO    = 200;
 define FB_ACESO_CURTO    = 100;
 define FB_APAGADO        = 100;
@@ -446,14 +435,6 @@ int Tri_Timer            = 0;
 int Flag_Share_Save      = FALSE;
 int Del_Slot             = 0;
 int Total_Inst           = 0;
-int Dg_Feitas            = 0;
-int Dg_Selado            = 0;
-int Vl_Ms                = 0;
-int Vl_Seg               = 0;
-int Vl_Pico              = 0;
-int Dg_V                 = 0;
-int Dg_X                 = 0;
-int Dg_I                 = 0;
 int Work_A               = 0;
 int Work_B               = 0;
 int Work_C               = 0;
@@ -650,11 +631,9 @@ function Boot_Persistir() {
     if(Boot_Inst <= 21) {
         Save_Instance(Boot_Inst);
         Boot_Inst = Boot_Inst + 1;
-        Dg_Feitas = Dg_Feitas + 1;
         return;
     }
     Marcar_Selo(1, Boot_Selo);
-    Dg_Selado = 1;
     Boot_Inst = 0;
 }
 init {
@@ -680,7 +659,6 @@ main {
     Menu_Status();
     Tela_Manter();
     Menu_Disponivel();
-    Relogio_Medir();
     Saidas_Manter();
 }
 function Cfg_Marcar_Sujo() {
@@ -4440,13 +4418,13 @@ function Tela_Identidade() {
 }
 function Tela_Dominio(n) {
     rect_oled(9, 4, 23, 15, Igual(n, 1), 1);
-    print(18, 7, 0, 1 - Igual(n, 1), DS_D1[0]);
+    print(18, 7, 0, 1 - Igual(n, 1), DS_N1[0]);
     rect_oled(38, 4, 23, 15, Igual(n, 2), 1);
-    print(47, 7, 0, 1 - Igual(n, 2), DS_D2[0]);
+    print(47, 7, 0, 1 - Igual(n, 2), DS_N2[0]);
     rect_oled(67, 4, 23, 15, Igual(n, 3), 1);
-    print(76, 7, 0, 1 - Igual(n, 3), DS_D3[0]);
+    print(76, 7, 0, 1 - Igual(n, 3), DS_N3[0]);
     rect_oled(96, 4, 23, 15, Igual(n, 4), 1);
-    print(105, 7, 0, 1 - Igual(n, 4), DS_D4[0]);
+    print(105, 7, 0, 1 - Igual(n, 4), DS_N4[0]);
     line_oled(4, 22, 123, 22, 1, 1);
     line_oled(4, 45, 123, 45, 1, 1);
     print(4, 48, 0, 1, DS_TITULO[0]);
@@ -4469,24 +4447,19 @@ function Nome_Dominio(n) {
     print(12, 25, 1, 1, MODE_S4[0]);
 }
 function Tela_Status() {
-    print(5, 2, 1, 1, MENU_TITLE[0]);
-    line_oled(4, 20, 123, 20, 1, 1);
-    line_oled(4, 44, 123, 44, 1, 1);
-    print(5, 22, 0, 1, DS_BOOT[0]);
-    Print_Num(Dg_Feitas, 40, 22, 2);
-    print(54, 22, 0, 1, DS_DE21[0]);
-    Selo_Marca(82, 22);
-    print(5, 33, 0, 1, DS_TSEG[0]);
-    Print_Num(Vl_Seg, 19, 33, 5);
-    print(54, 33, 0, 1, DS_SEG[0]);
-    print(68, 33, 0, 1, DS_PICO[0]);
-    Print_Num(Vl_Pico, 82, 33, 3);
-    print(103, 33, 0, 1, DS_MS[0]);
-    print(5, 46, 0, 1, DS_VERSAO[0]);
-}
-function Selo_Marca(x, y) {
-    if(Dg_Selado) { print(x, y, 0, 1, DS_OK[0]); return; }
-    print(x, y, 0, 1, DS_NOK[0]);
+    print(5, 10, 1, 1, MENU_TITLE[0]);
+    print(5, 36, 0, 1, DS_VERSAO[0]);
+    line_oled(4, 5, 123, 5, 1, 1);
+    line_oled(4, 31, 123, 31, 1, 1);
+    line_oled(4, 49, 123, 49, 1, 1);
+    line_oled(6, 56, 16, 56, 1, 1);
+    rect_oled(16, 54, 5, 5, 1, 1);
+    line_oled(25, 51, 33, 61, 1, 1);
+    line_oled(33, 51, 25, 61, 1, 1);
+    rect_oled(40, 53, 13, 7, 0, 1);
+    rect_oled(63, 53, 13, 7, 0, 1);
+    rect_oled(86, 53, 13, 7, 0, 1);
+    rect_oled(109, 53, 13, 7, 0, 1);
 }
 function Igual(a, b) {
     if(a == b) return 1;
@@ -4852,38 +4825,6 @@ function update_leds() {
 function colorled(a, b, c, d) {
     set_led(LED_1, a); set_led(LED_2, b);
     set_led(LED_3, c); set_led(LED_4, d);
-}
-function Relogio_Medir() {
-    Dg_V = get_rtime();
-    if(Dg_V > Vl_Pico) Vl_Pico = Dg_V;
-    Vl_Ms = Vl_Ms + Dg_V;
-    if(Vl_Ms < 1000) return;
-    Vl_Ms = Vl_Ms - 1000;
-    Vl_Seg = Vl_Seg + 1;
-}
-function Print_Num(v, x, y, casas) {
-    Dg_V = v;
-    if(Dg_V < 0) Dg_V = 0;
-    Dg_X = x + (casas - 1) * LARG_DIG;
-    Dg_I = 0;
-    while(Dg_I < casas) {
-        Print_Dig(Dg_V - ((Dg_V / 10) * 10), Dg_X, y);
-        Dg_V = Dg_V / 10;
-        Dg_X = Dg_X - LARG_DIG;
-        Dg_I = Dg_I + 1;
-    }
-}
-function Print_Dig(d, x, y) {
-    if(d == 0) { print(x, y, 0, 1, DS_D0[0]); return; }
-    if(d == 1) { print(x, y, 0, 1, DS_D1[0]); return; }
-    if(d == 2) { print(x, y, 0, 1, DS_D2[0]); return; }
-    if(d == 3) { print(x, y, 0, 1, DS_D3[0]); return; }
-    if(d == 4) { print(x, y, 0, 1, DS_D4[0]); return; }
-    if(d == 5) { print(x, y, 0, 1, DS_D5[0]); return; }
-    if(d == 6) { print(x, y, 0, 1, DS_D6[0]); return; }
-    if(d == 7) { print(x, y, 0, 1, DS_D7[0]); return; }
-    if(d == 8) { print(x, y, 0, 1, DS_D8[0]); return; }
-    print(x, y, 0, 1, DS_D9[0]);
 }
 function Saidas_Manter() {
     Tap_Manter();

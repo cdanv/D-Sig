@@ -341,82 +341,12 @@ mora agora, com o timbre em cima. Foram **duas âncoras a menos** na lista do `l
 
 ---
 
-## O painel de diagnóstico (OPTIONS)
-
-O menu de status virou painel na **1.0d**. Ele responde no vidro duas perguntas que
-antes custavam um backup, um zip e uma ida e volta:
-
-```
-Status_Menu
-─────────────────────────
-BOOT 21/21  OK
-T 00047 s   P  12 ms
-─────────────────────────
-D-Sig 1.0d
-```
-
-| campo | o que diz |
-|---|---|
-| `BOOT nn/21` | quantas instâncias a persistência diferida gravou **nesta ligação** |
-| `OK` / `--` | se o selo foi marcado, ou seja se ela **terminou** |
-| `T nnnnn s` | segundos desde o boot, somados de `get_rtime()` |
-| `P nnn ms` | a **maior volta** já vista |
-
-`BOOT 08/21 --` é a assinatura de um boot interrompido — foi exatamente o que apareceu
-num backup e exigiu abrir a `SPVAR_64` para descobrir. Agora aparece na tela.
-
-### Por que medir a volta e não o pulso do turbo
-
-Todo tempo deste script é um contador que perde `get_rtime()` por volta. O `Trb_Lat_Ms`
-devolve milissegundos e o motor desconta até zerar — **se o `get_rtime()` for fiel, todo
-valor configurado é honrado**, e não há o que medir pulso por pulso. O pulso é sintoma;
-a volta é a causa. E o `P` pega o modo de falha realista: uma volta que estica atrasa
-qualquer contagem, e nenhum cronômetro na mão veria isso.
-
-> **O limite, dito antes de alguém descobrir na prática:** medindo-se por dentro, o
-> script **não detecta um `get_rtime()` mentiroso**. Se o firmware disser 10 quando
-> passaram 12, a soma mente junto. O que fecha essa brecha é barato e é humano: o `T`
-> conta segundos, e um cronômetro de celular confere 60 s contra `T 00060`. Um erro de
-> 20% apareceria como 12 segundos de diferença em 60 — impossível de não ver.
-
-### O impressor de números
-
-Este script não tinha nenhum: todo texto do OLED era `const string` fixa, e não havia
-como mostrar um valor medido. O `Print_Num` imprime da direita para a esquerda, com
-zeros à esquerda — largura fixa mantém os dígitos alinhados entre atualizações, e um
-número que muda de largura faz a tela tremer.
-
-O resto da divisão é `(v - ((v / 10) * 10))`, não `(v % 10)`: o operador `%` não aparece
-em nenhum lugar deste script. A divisão inteira aparece; o módulo não, e um painel de
-diagnóstico não é lugar de estrear operador.
-
-### O que saiu para isto entrar
-
-O motivo do sinal cortado no rodapé. É a regra da arte aplicada contra o próprio
-desenho: *o motivo só ganha espaço onde carrega informação*. Duas linhas de diagnóstico
-carregam mais que uma ilustração de sinal interrompido.
-
-### A conferência acompanhou
-
-Uma tela não imprime só com `print` — o painel usa `Print_Num` e a tela de domínio
-delega o nome ao `Nome_Dominio`. O `embutir.py` mantém um registro dos **impressores
-auxiliares** com a faixa que cada um ocupa, e **recusa publicar uma tela que chame um
-impressor não registrado**. Sem isso a checagem ficaria cega exatamente no ponto
-acrescentado por último, o que é pior que não ter checagem: dá a impressão de cobrir.
-
-Ela também passou a comparar **texto contra texto**, e não só texto contra desenho.
-Esse furo apareceu tentando quebrar a própria checagem: movi um `Print_Num` para cima da
-linha da versão e ela aprovou. Vale o registro — *um teste que só confirma o que se
-espera não testa nada; o que serve é o que tenta reprovar o que já passou.*
-
----
-
 ## Versionamento e publicação
 
 A versão vive em **um lugar só**, no `D-Sig.fonte.gpc`:
 
 ```gpc
-const string DS_VERSAO    = "D-Sig 1.0d";
+const string DS_VERSAO    = "D-Sig 1.0e";
 ```
 
 O número é a versão do **script**; a letra é o **build**, e ela muda em
@@ -425,11 +355,28 @@ toda publicação. Dessa string saem, automaticamente:
 - o que aparece no **OLED**, no menu de status (OPTIONS);
 - o título e a tela de Informações do **app**, que lê a string do próprio
   template embutido;
-- o nome do cache do service worker (`dsig-1.0d`).
+- o nome do cache do service worker (`dsig-1.0e`).
 
-Assim os três nunca discordam. Se o OLED diz `1.0d` e o app diz `1.0e`,
+Assim os três nunca discordam. Se o OLED diz `1.0e` e o app diz `1.0f`,
 o Cronus está com uma versão anterior gravada — e a resposta é olhar a
 tela, não abrir arquivo.
+
+### A letra nunca anda para trás
+
+A **1.0e é idêntica à 1.0c**: a 1.0d acrescentou um painel de diagnóstico ao menu de
+status e ele foi removido. Mesmo assim a letra avançou, em vez de a 1.0c ser
+republicada — e a razão é a função da letra.
+
+**A letra não identifica o conteúdo. Identifica a publicação.**
+
+Republicar a 1.0c faria um Cronus com a 1.0d gravada mostrar `1.0d` no OLED enquanto o
+app mostra `1.0c` — letra **maior** no aparelho que no app. E este documento diz que
+letra maior no aparelho significa *app desatualizado*, que seria o contrário do que
+aconteceu. O selo passaria a mentir exatamente na pergunta que ele existe para
+responder: **qual build está gravada neste Cronus?**
+
+Reverter conteúdo é normal. Reverter a letra quebra o único instrumento que responde
+essa pergunta sem abrir arquivo.
 
 **Publicar:**
 
@@ -449,7 +396,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0d**; o `LAYOUT_VER` está em **5**, porque as
+O script está na **1.0e**; o `LAYOUT_VER` está em **5**, porque as
 posições dos campos nos SPVARs não mudam desde então. Incremente o
 `LAYOUT_VER` apenas quando um campo mudar de posição ou tamanho — e,
 ao fazer isso, atualize o app junto. App e script divergindo em
