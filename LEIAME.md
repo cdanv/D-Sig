@@ -170,6 +170,31 @@ A **SPVAR_64** não está livre: o bit 0 marca que a migração de layout já
 foi feita, e os bits 1–31 guardam o selo da configuração gerada pelo app.
 Cada um tem seu espaço para que um não apague o outro.
 
+### O `init` só lê e agenda
+
+Nem grava, nem desenha. As duas saídas foram pagas com problema real:
+
+| saiu do `init` | quando | quem faz agora |
+|---|---|---|
+| **gravar** na EEPROM | 1.0 | `Boot_Persistir`, primeira chamada do `main` |
+| **desenhar** no OLED | 1.0c | `Tela_Manter`, na primeira volta do `main` |
+
+Tirar o desenho foi de graça: o `Tela_Manter` compara `CurrentMode` com `LastMode`, e
+os dois nascem **diferentes de propósito** — `0` e `-1`. A primeira volta do `main` pinta
+a tela, ~10 ms depois do boot.
+
+> **Igualar os dois apaga a tela inicial do aparelho e mais nada quebra** — regressão
+> silenciosa, a única que este projeto não tolera. O `embutir.py` recusa publicar se
+> `CurrentMode` e `LastMode` nascerem iguais, se o redesenho sair do `Tela_Manter`, ou se
+> qualquer `set_pvar`, `print`, `line_oled`, `rect_oled` ou `image_oled` voltar ao `init`.
+> O `cls_oled` é a única exceção: limpar não é desenhar, e é ele que apaga o display do
+> firmware.
+
+**Efeito colateral, e é ganho:** ligado só ao PC, onde o `main` não roda, o OLED fica
+apagado. Antes mostrava a tela de identidade, desenhada pelo `init` — aparência que
+sugeria "o script está rodando" quando só o `init` havia rodado. Agora **tela acesa
+significa `main` rodando**, e isso é informação verdadeira.
+
 ### Gravação: nunca no `init`
 
 A EEPROM do Cronus é frágil — a documentação a descreve como *rated for
@@ -321,7 +346,7 @@ mora agora, com o timbre em cima. Foram **duas âncoras a menos** na lista do `l
 A versão vive em **um lugar só**, no `D-Sig.fonte.gpc`:
 
 ```gpc
-const string DS_VERSAO    = "D-Sig 1.0b";
+const string DS_VERSAO    = "D-Sig 1.0c";
 ```
 
 O número é a versão do **script**; a letra é o **build**, e ela muda em
@@ -330,9 +355,9 @@ toda publicação. Dessa string saem, automaticamente:
 - o que aparece no **OLED**, no menu de status (OPTIONS);
 - o título e a tela de Informações do **app**, que lê a string do próprio
   template embutido;
-- o nome do cache do service worker (`dsig-1.0b`).
+- o nome do cache do service worker (`dsig-1.0c`).
 
-Assim os três nunca discordam. Se o OLED diz `1.0b` e o app diz `1.0c`,
+Assim os três nunca discordam. Se o OLED diz `1.0c` e o app diz `1.0d`,
 o Cronus está com uma versão anterior gravada — e a resposta é olhar a
 tela, não abrir arquivo.
 
@@ -354,7 +379,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0b**; o `LAYOUT_VER` está em **5**, porque as
+O script está na **1.0c**; o `LAYOUT_VER` está em **5**, porque as
 posições dos campos nos SPVARs não mudam desde então. Incremente o
 `LAYOUT_VER` apenas quando um campo mudar de posição ou tamanho — e,
 ao fazer isso, atualize o app junto. App e script divergindo em

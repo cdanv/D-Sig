@@ -63,6 +63,42 @@ strs = re.findall(r'^const string\s+(\w+)\s*=', limpo, re.M)
 str_mortas = [v for v in strs if len(re.findall(r'\b' + v + r'\b', limpo)) < 2]
 assert not str_mortas, f'const string declarada e nunca usada: {str_mortas}'
 
+# --- 3e. o init SO LE E AGENDA -----------------------------------------------------
+# Duas coisas sairam do init, cada uma depois de um problema: GRAVAR saiu na 1.0 (era a
+# tempestade de set_pvar que travava o aparelho com a EEPROM zerada) e DESENHAR saiu na
+# 1.0c. Esta checagem existe para que nenhuma das duas volte por descuido — e "por
+# descuido" e o caso normal: acrescentar uma linha no init e a coisa mais natural do
+# mundo quando se quer que algo aconteca no boot.
+mi = re.search(r'\ninit \{(.*?)\n\}', limpo, re.S)
+assert mi, 'init nao encontrado'
+corpo_init = mi.group(1)
+PROIBIDO_NO_INIT = ['set_pvar(', 'Update_OLED(', 'image_oled(', 'line_oled(',
+                    'rect_oled(', 'print(', 'circle_oled(', 'pixel_oled(']
+no_init = [p for p in PROIBIDO_NO_INIT if p in corpo_init]
+assert not no_init, (f'o init voltou a gravar ou desenhar: {no_init}. '
+                     'Gravar e do Boot_Persistir (primeira chamada do main); desenhar e '
+                     'do Tela_Manter, na primeira volta. O cls_oled e a unica excecao.')
+
+# --- 3f. a tela inicial depende de dois valores parecerem arbitrarios ---------------
+# Com o init sem desenhar, quem pinta a tela do boot e o Tela_Manter, porque CurrentMode
+# (0) e LastMode (-1) nascem DIFERENTES. Igualar os dois — ou tirar o redesenho — deixa o
+# aparelho ligando com o OLED apagado, e mais nada quebra: a regressao seria silenciosa,
+# que e a unica que este projeto nao tolera.
+cm = re.search(r'^int CurrentMode\s*=\s*(-?\d+);', limpo, re.M)
+lm = re.search(r'^int LastMode\s*=\s*(-?\d+);', limpo, re.M)
+assert cm and lm, 'CurrentMode ou LastMode nao encontrados'
+assert int(cm.group(1)) != int(lm.group(1)), (
+    f'CurrentMode ({cm.group(1)}) e LastMode ({lm.group(1)}) ficaram IGUAIS: o aparelho '
+    'vai ligar com o OLED apagado, porque e a diferenca entre eles que faz a primeira '
+    'volta do main desenhar. Desde a 1.0c o init nao desenha mais.')
+mt = re.search(r'function Tela_Manter\(\)\s*\{(.*?)\n\}', limpo, re.S)
+assert mt, 'Tela_Manter nao encontrada'
+assert re.search(r'if\(CurrentMode != LastMode\)\s*\{\s*Update_OLED\(\);', mt.group(1)), \
+    ('o redesenho por mudanca de dominio saiu do Tela_Manter — e com o init sem '
+     'desenhar, ele e o UNICO que pinta a tela inicial.')
+assert 'Tela_Manter();' in re.search(r'\nmain \{(.*?)\n\}', limpo, re.S).group(1), \
+    'Tela_Manter deixou de ser chamada pelo main'
+
 # --- 3d. a ARTE nao pode cair onde o texto sera impresso --------------------------
 # ESTA CHECAGEM EXISTE POR UM ERRO MEU, e ele merece ficar registrado: eu tinha uma
 # conferencia que impedia desenho debaixo de texto, e ela aprovou 343 pixels de desenho

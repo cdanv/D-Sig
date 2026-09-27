@@ -2,7 +2,7 @@
 * D-Sig 1.0 — Sistema Universal de Roteamento de Sinais
 * -----------------------------------------------------------------------------------
 * DISPOSITIVO : Cronus Zen + PlayStation 5 (DualSense)   |   GPC 32-bit
-* VERSAO      : script 1.0b  |   LAYOUT DE BITS 5   |   app D-Sig (cache dsig-1.0b)
+* VERSAO      : script 1.0c  |   LAYOUT DE BITS 5   |   app D-Sig (cache dsig-1.0c)
 *   Os tres numeros andam separados de proposito. O SCRIPT e a versao deste arquivo. O
 *   LAYOUT e a posicao dos campos dentro dos SPVARs, e so muda quando um campo muda de
 *   lugar ou tamanho — mudar o layout sem mudar o app junto e o unico jeito de este
@@ -213,7 +213,7 @@ const string DS_TITULO    = "D-Sig";   // v3zz
 // conteudo diferente com a mesma letra, entao os dois nunca divergem em silencio.
 // Esta mesma string alimenta o nome do cache do service worker do app (dsig-1.0a), de
 // modo que o app e o script nunca ficam em versoes diferentes sem aviso.
-const string DS_VERSAO    = "D-Sig 1.0b";
+const string DS_VERSAO    = "D-Sig 1.0c";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -706,6 +706,9 @@ int Dom_Tmp              = 0;    // temporaria de Dom_Duplo: le uma vez, escreve
 int Dom_Disparado        = 0;    // MASCARA: bit do dominio que ja disparou NESTE aperto
                                  // (anti-repeticao do "segurar"; cai quando o par solta).
                                  // Substitui Flag_Hold_S3 e Flag_Hold_S4
+// CurrentMode e LastMode nascem DIFERENTES de proposito: e essa diferenca que faz a
+// primeira volta do main desenhar a tela inicial, desde que o init parou de desenhar
+// (1.0c). Igualar os dois deixa o aparelho ligando com o OLED apagado.
 int CurrentMode          = 0;
 int MenuLevel            = 0;
 int LastMode             = -1;
@@ -1216,7 +1219,11 @@ init {
     if(Cfg_Selo != 0) Config_Zeta();
     Count_Instances();
     Inicializar_Estado();
-    Update_OLED();
+    // NAO se desenha aqui. O main redesenha na primeira volta pelo Tela_Manter, que
+    // compara CurrentMode com LastMode — e os dois nascem diferentes de proposito
+    // (0 e -1) exatamente para que a primeira volta pinte a tela. Mexer no valor
+    // inicial de um dos dois apaga a tela inicial do aparelho, e o embutir.py recusa
+    // publicar se isso acontecer.
 }
 // =============================================================
 // SEÇÃO 6 — MAIN
