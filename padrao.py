@@ -70,12 +70,33 @@ def texto(im, x, y, s, esc=1, inv=False):
 # fonte 1 (17px), e este "D-Sig" tem 30px. Nao existe sequencia de linha e retangulo
 # que o desenhe por menos que os ~390 bytes que ele custa.
 TIMBRE_Y = 2
+FONTE_TIMBRE = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
+TAM_TIMBRE = 30
+LIMIAR = 128
 
 
 def timbre():
+    """O timbre DESENHADO no tamanho final, nao ampliado de uma fonte pequena.
+
+    A versao anterior era a fonte bitmap padrao do PIL ampliada 3x com NEAREST: cada
+    pixel virava um quadrado de 3x3, entao toda curva ganhava degrau de 3 px e todo
+    traco tinha 3 px de espessura por ACIDENTE, nao por decisao. Ampliar nao e desenhar
+    — a letra de 10 px foi projetada para 10 px.
+
+    Agora e uma tipografia de verdade rasterizada em 30 px e limiarizada em 128. A
+    escada que sobra e a que o desenhista da fonte previu para este tamanho.
+
+    Tentei antes desenhar as letras a mao, pixel por pixel, e ficou PIOR: o S virou um
+    5 e o g nao fechou. Desenhar tipo e trabalho de quem desenha tipo; usar uma fonte
+    feita e a decisao certa, nao a preguicosa.
+    """
+    f = ImageFont.truetype(FONTE_TIMBRE, TAM_TIMBRE)
+    t = Image.new('L', (240, 70), 0)
+    ImageDraw.Draw(t).text((8, 6), 'D-Sig', fill=255, font=f)
+    b = t.point(lambda v: 255 if v >= LIMIAR else 0).convert('1')
+    rec = b.crop(b.getbbox())
     im = Image.new('1', (L, A), PR)
-    w, _ = medir('D-Sig', 3)
-    texto(im, (L - w) // 2, TIMBRE_Y, 'D-Sig', esc=3)
+    im.paste(rec, ((L - rec.width) // 2, TIMBRE_Y))
     return im
 
 

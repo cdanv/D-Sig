@@ -341,12 +341,111 @@ mora agora, com o timbre em cima. Foram **duas âncoras a menos** na lista do `l
 
 ---
 
+## O relógio do firmware — medido, e é o problema aberto
+
+**Todas as durações saem 1,63× maiores que o configurado.** Medido por geometria nos PNGs
+do PLOT do Zen Studio: **16 medidas, fator médio 1,630, desvio padrão 0,030.**
+
+| configurado | medido | fator |
+|---|---|---|
+| 250 ms (passo TURBO) | 410 ms | 1,640 |
+| 150 ms (passo TURBO) | 245 ms | 1,633 |
+| 100 ms (passo TURBO) | 163 ms | 1,630 |
+| 50 ms (latência) | 81 ms | 1,620 |
+| 40 ms (latência) | 65 ms | 1,625 |
+
+**A contagem de voltas está correta.** 150 ms ÷ 10 ms = 15 voltas, e o medido dá 15,0
+voltas de 16,3 ms. O erro não está no script — está no relógio: **a volta real dura
+~16,3 ms, e o `get_rtime()` reporta os 10 ms nominais do `VM SPEED`.**
+
+### Como o eixo de tempo foi validado
+
+A hipótese alternativa — que a janela "1s" do PLOT mentisse — foi descartada por uma
+medida independente: **a rampa do traço mede 23 px.** O PLOT desenha reta entre amostras
+a 62 FPS, então numa janela de 1 s a rampa tem de medir 1475/62 = **23,8 px**; se a
+janela fosse 1,63 s, mediria 14,6 px. O eixo é confiável.
+
+### Por que o script não pode detectar isso sozinho
+
+Foi a razão declarada para remover o painel de diagnóstico da 1.0d: *medindo-se por
+dentro, o script não detecta um `get_rtime()` mentiroso — se o firmware disser 10 quando
+passaram 16, a soma mente junto.* **Era exatamente esse o caso.** Só uma referência
+externa acharia, e o PLOT foi essa referência.
+
+### O que falta
+
+Mexer no **VM SPEED** de 10 ms para ~16 ms e repetir a medição. Se o fator cair para
+~1,0, o `get_rtime()` devolve o valor do slider e a volta real é ~16,3 ms — e o ajuste é
+o slider, não o script. Enquanto isso não for feito, **todo tempo configurado no app sai
+63% mais longo no jogo.**
+
+---
+
+## PASSIVO engole os botões do GAMA
+
+O `Suprime_Gatilhos()` zera **todos** os botões de GAMA de um MOD passivo — BLOK, 2CLK,
+TOGGLE, HOLD e AFTER —, inclusive os marcados como **FINALIZA**, que só desligam. É a
+supressão da ENTRADA, e ela vale para o botão, não para o MOD: o MOD responde
+normalmente; o que não chega ao jogo é o botão.
+
+A saída do DELTA sobrevive: o `Aplicar_Acc()` roda **por último** no `Run_Pipeline()`,
+depois de toda supressão. Então um MOD pode escrever num botão que outro MOD passivo
+suprime, e a escrita vale.
+
+> Isto foi relatado como bug — *"no Mad Max o TRIANGLE não funciona"*. O `MOD_07`
+> estava em PASSIVO com o TRIANGLE no AFTER. O comportamento estava certo; faltava a
+> tela dizer. Desde a 1.0f o app mostra a observação, com o nome dos botões e dos
+> domínios afetados.
+
+---
+
+## Apagar um MOD: app e script com a mesma semântica
+
+Até a 1.0e o app fazia `j.mods[md] = modVazio()` — zerava o slot e ficava na tela. O
+script sempre fez outra coisa (`Ajustar_Refs`, `Compactar_Lista`, `Zerar_Posicao`), e a
+diferença foi **medida, não suposta**:
+
+| | app até a 1.0e | script, e app desde a 1.0f |
+|---|---|---|
+| a lista | deixava **buraco** | **compacta**: o MOD_11 vira MOD_10 |
+| as relações ZETA | mantinha os índices velhos | tira o apagado e **desce os de cima** |
+| a tela | ficava no editor, agora em branco | **volta para o jogo** |
+
+O buraco tinha consequência: gerando o script depois de apagar o MOD_10, os slots usados
+saíam `1..9, 11..17`. O `Count_Instances` conta 16, o `Print_Inst_Row` desenha as linhas
+1 a 16, a linha do slot vazio sai em branco e **o último MOD roda mas fica fora da
+lista** — inalcançável para editar ou apagar pelo OLED.
+
+E a tela que não mudava era o que fazia parecer que nada havia acontecido. Funcionava, e
+parecia não funcionar — foi assim que chegou como *"a função de deletar não está
+respondendo"*.
+
+---
+
+## O timbre
+
+Até a 1.0e era a fonte bitmap de 10 px do gerador **ampliada 3×** com NEAREST: cada pixel
+virava um quadrado de 3×3, então toda curva ganhava degrau de 3 px e todo traço tinha 3 px
+de espessura por acidente. **Ampliar não é desenhar** — a letra de 10 px foi projetada
+para 10 px.
+
+Desde a 1.0f é **DejaVu Sans Bold rasterizada em 30 px** e limiarizada em 128. A escada
+que sobra é a que o desenhista da fonte previu para este corpo. Custa **319 bytes contra
+300** — 19 bytes.
+
+> Antes disso eu tentei desenhar as letras à mão, pixel por pixel, com espessura constante
+> e cantos chanfrados. Ficou **pior** que o original: o S virou um 5 e o g não fechou a
+> tigela. Desenhar tipo é trabalho de quem desenha tipo; usar uma fonte feita não é a
+> saída preguiçosa, é a correta.
+
+---
+
 ## Versionamento e publicação
 
 A versão vive em **um lugar só**, no `D-Sig.fonte.gpc`:
 
 ```gpc
-const string DS_VERSAO    = "D-Sig 1.0e";
+const string DS_VERSAO    = "D-Sig 1.0f";
 ```
 
 O número é a versão do **script**; a letra é o **build**, e ela muda em
@@ -355,15 +454,15 @@ toda publicação. Dessa string saem, automaticamente:
 - o que aparece no **OLED**, no menu de status (OPTIONS);
 - o título e a tela de Informações do **app**, que lê a string do próprio
   template embutido;
-- o nome do cache do service worker (`dsig-1.0e`).
+- o nome do cache do service worker (`dsig-1.0f`).
 
-Assim os três nunca discordam. Se o OLED diz `1.0e` e o app diz `1.0f`,
+Assim os três nunca discordam. Se o OLED diz `1.0f` e o app diz `1.0g`,
 o Cronus está com uma versão anterior gravada — e a resposta é olhar a
 tela, não abrir arquivo.
 
 ### A letra nunca anda para trás
 
-A **1.0e é idêntica à 1.0c**: a 1.0d acrescentou um painel de diagnóstico ao menu de
+A **a 1.0e era idêntica à 1.0c**: a 1.0d acrescentou um painel de diagnóstico ao menu de
 status e ele foi removido. Mesmo assim a letra avançou, em vez de a 1.0c ser
 republicada — e a razão é a função da letra.
 
@@ -396,7 +495,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0e**; o `LAYOUT_VER` está em **5**, porque as
+O script está na **1.0f**; o `LAYOUT_VER` está em **5**, porque as
 posições dos campos nos SPVARs não mudam desde então. Incremente o
 `LAYOUT_VER` apenas quando um campo mudar de posição ou tamanho — e,
 ao fazer isso, atualize o app junto. App e script divergindo em
