@@ -36,7 +36,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0f";
+const string DS_VERSAO    = "D-Sig 1.0h";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -53,7 +53,6 @@ const string LBL_13 = "MOD_13"; const string LBL_14 = "MOD_14";
 const string LBL_15 = "MOD_15"; const string LBL_16 = "MOD_16";
 const string LBL_17 = "MOD_17"; const string LBL_18 = "MOD_18";
 const string LBL_19 = "MOD_19"; const string LBL_20 = "MOD_20";
-const string LBL_21 = "MOD_21";
 const string WZ_PERFIS    = "PL_HAB";
 const string WZ_FONTES    = "ALFA";
 const string WZ_COND      = "BETA";
@@ -184,8 +183,9 @@ const string BTN_SQU = "SQUARE"; const string BTN_TRI = "TRIANGLE";
 const string BTN_UP  = "UP";   const string BTN_DN  = "DOWN";
 const string BTN_LT  = "LEFT"; const string BTN_RT  = "RIGHT";
 const string BTN_TCH = "TOUCH"; const string BTN_SHR = "SHARE";
-define MAX_INST          = 21;
-define MAX_INST_EEP      = 21;
+define MAX_INST          = 20;
+define MAX_INST_EEP      = 20;
+define ZETA_NENHUM       = 21;
 define SPVARS_PER_INST   = 3;
 define VISIBLE_ROWS      = 2;
 define ITEM_X            = 5;
@@ -362,14 +362,14 @@ int Swp_T=0; int Swp_A=0; int Swp_B=0;
 int Cmb_Tmp=0; int Cmb_D1=0; int Cmb_D2=0; int Cmb_D3=0; int Cmb_D4=0; int Cmb_N=0;
 int Dly_01=0; int Dly_02=0; int Dly_03=0; int Dly_04=0; int Dly_05=0; int Dly_06=0; int Dly_07=0;
 int Dly_08=0; int Dly_09=0; int Dly_10=0; int Dly_11=0; int Dly_12=0; int Dly_13=0; int Dly_14=0;
-int Dly_15=0; int Dly_16=0; int Dly_17=0; int Dly_18=0; int Dly_19=0; int Dly_20=0; int Dly_21=0;
+int Dly_15=0; int Dly_16=0; int Dly_17=0; int Dly_18=0; int Dly_19=0; int Dly_20=0;
 int Dly_Arm=0;
 int Blk_01=0; int Blk_02=0; int Blk_03=0; int Blk_04=0; int Blk_05=0; int Blk_06=0; int Blk_07=0;
 int Blk_08=0; int Blk_09=0; int Blk_10=0; int Blk_11=0; int Blk_12=0; int Blk_13=0; int Blk_14=0;
-int Blk_15=0; int Blk_16=0; int Blk_17=0; int Blk_18=0; int Blk_19=0; int Blk_20=0; int Blk_21=0;
+int Blk_15=0; int Blk_16=0; int Blk_17=0; int Blk_18=0; int Blk_19=0; int Blk_20=0;
 int Fin_01=0; int Fin_02=0; int Fin_03=0; int Fin_04=0; int Fin_05=0; int Fin_06=0; int Fin_07=0;
 int Fin_08=0; int Fin_09=0; int Fin_10=0; int Fin_11=0; int Fin_12=0; int Fin_13=0; int Fin_14=0;
-int Fin_15=0; int Fin_16=0; int Fin_17=0; int Fin_18=0; int Fin_19=0; int Fin_20=0; int Fin_21=0;
+int Fin_15=0; int Fin_16=0; int Fin_17=0; int Fin_18=0; int Fin_19=0; int Fin_20=0;
 int Est_Tmp              = 0;
 int Pipe_Val             = 0;
 int Pipe_Raw             = 0;
@@ -398,13 +398,13 @@ int Resp_Off_Fonte  = 0;
 int GT_Relig_01=0; int GT_Relig_02=0; int GT_Relig_03=0; int GT_Relig_04=0; int GT_Relig_05=0; int GT_Relig_06=0;
 int GT_Relig_07=0; int GT_Relig_08=0; int GT_Relig_09=0; int GT_Relig_10=0; int GT_Relig_11=0; int GT_Relig_12=0;
 int GT_Relig_13=0; int GT_Relig_14=0; int GT_Relig_15=0; int GT_Relig_16=0; int GT_Relig_17=0; int GT_Relig_18=0;
-int GT_Relig_19=0; int GT_Relig_20=0; int GT_Relig_21=0;
+int GT_Relig_19=0; int GT_Relig_20=0;
 int Fa_01=0; int Fa_02=0; int Fa_03=0; int Fa_04=0; int Fa_05=0; int Fa_06=0; int Fa_07=0; int Fa_08=0;
 int Fa_09=0; int Fa_10=0; int Fa_11=0; int Fa_12=0; int Fa_13=0; int Fa_14=0; int Fa_15=0; int Fa_16=0;
-int Fa_17=0; int Fa_18=0; int Fa_19=0; int Fa_20=0; int Fa_21=0;
+int Fa_17=0; int Fa_18=0; int Fa_19=0; int Fa_20=0;
 int Dc_01=0; int Dc_02=0; int Dc_03=0; int Dc_04=0; int Dc_05=0; int Dc_06=0; int Dc_07=0; int Dc_08=0;
 int Dc_09=0; int Dc_10=0; int Dc_11=0; int Dc_12=0; int Dc_13=0; int Dc_14=0; int Dc_15=0; int Dc_16=0;
-int Dc_17=0; int Dc_18=0; int Dc_19=0; int Dc_20=0; int Dc_21=0;
+int Dc_17=0; int Dc_18=0; int Dc_19=0; int Dc_20=0;
 int Snap_A=0; int Snap_B=0; int Snap_C=0;
 int Snap_EX=0; int Snap_AS=0; int Snap_BL=0;
 int Cfg_Ram=0;
@@ -430,13 +430,12 @@ int DS_A_17=0; int DS_B_17=0; int DS_C_17=0;
 int DS_A_18=0; int DS_B_18=0; int DS_C_18=0;
 int DS_A_19=0; int DS_B_19=0; int DS_C_19=0;
 int DS_A_20=0; int DS_B_20=0; int DS_C_20=0;
-int DS_A_21=0; int DS_B_21=0; int DS_C_21=0;
 int Wz_S1 = FALSE; int Wz_S2 = FALSE;
 int Wz_S3 = FALSE; int Wz_S4 = FALSE;
 int DS_TrbSt_X_01=0; int DS_TrbSt_X_02=0; int DS_TrbSt_X_03=0; int DS_TrbSt_X_04=0; int DS_TrbSt_X_05=0; int DS_TrbSt_X_06=0; int DS_TrbSt_X_07=0; int DS_TrbSt_X_08=0; int DS_TrbSt_X_09=0; int DS_TrbSt_X_10=0; int DS_TrbSt_X_11=0; int DS_TrbSt_X_12=0; int DS_TrbSt_X_13=0; int DS_TrbSt_X_14=0; int DS_TrbSt_X_15=0; int DS_TrbSt_X_16=0;
-int DS_TrbSt_X_17=0; int DS_TrbSt_X_18=0; int DS_TrbSt_X_19=0; int DS_TrbSt_X_20=0; int DS_TrbSt_X_21=0;
+int DS_TrbSt_X_17=0; int DS_TrbSt_X_18=0; int DS_TrbSt_X_19=0; int DS_TrbSt_X_20=0;
 int Esx_01=0; int Esx_02=0; int Esx_03=0; int Esx_04=0; int Esx_05=0; int Esx_06=0; int Esx_07=0; int Esx_08=0; int Esx_09=0; int Esx_10=0; int Esx_11=0;
-int Esx_12=0; int Esx_13=0; int Esx_14=0; int Esx_15=0; int Esx_16=0; int Esx_17=0; int Esx_18=0; int Esx_19=0; int Esx_20=0; int Esx_21=0;
+int Esx_12=0; int Esx_13=0; int Esx_14=0; int Esx_15=0; int Esx_16=0; int Esx_17=0; int Esx_18=0; int Esx_19=0; int Esx_20=0;
 int Wz_Fonte_Tipo    = 0;
 int Wz_Fonte_Passivo = 0;
 int Wz_Cond_Mult     = 9;
@@ -473,17 +472,17 @@ int DS_F1_EXCL_01=0; int DS_F1_EXCL_02=0; int DS_F1_EXCL_03=0; int DS_F1_EXCL_04
 int DS_F1_EXCL_05=0; int DS_F1_EXCL_06=0; int DS_F1_EXCL_07=0; int DS_F1_EXCL_08=0;
 int DS_F1_EXCL_09=0; int DS_F1_EXCL_10=0; int DS_F1_EXCL_11=0; int DS_F1_EXCL_12=0;
 int DS_F1_EXCL_13=0; int DS_F1_EXCL_14=0; int DS_F1_EXCL_15=0; int DS_F1_EXCL_16=0;
-int DS_F1_EXCL_17=0; int DS_F1_EXCL_18=0; int DS_F1_EXCL_19=0; int DS_F1_EXCL_20=0; int DS_F1_EXCL_21=0;
+int DS_F1_EXCL_17=0; int DS_F1_EXCL_18=0; int DS_F1_EXCL_19=0; int DS_F1_EXCL_20=0;
 int DS_F1_ASSOC_01=0; int DS_F1_ASSOC_02=0; int DS_F1_ASSOC_03=0; int DS_F1_ASSOC_04=0;
 int DS_F1_ASSOC_05=0; int DS_F1_ASSOC_06=0; int DS_F1_ASSOC_07=0; int DS_F1_ASSOC_08=0;
 int DS_F1_ASSOC_09=0; int DS_F1_ASSOC_10=0; int DS_F1_ASSOC_11=0; int DS_F1_ASSOC_12=0;
 int DS_F1_ASSOC_13=0; int DS_F1_ASSOC_14=0; int DS_F1_ASSOC_15=0; int DS_F1_ASSOC_16=0;
-int DS_F1_ASSOC_17=0; int DS_F1_ASSOC_18=0; int DS_F1_ASSOC_19=0; int DS_F1_ASSOC_20=0; int DS_F1_ASSOC_21=0;
+int DS_F1_ASSOC_17=0; int DS_F1_ASSOC_18=0; int DS_F1_ASSOC_19=0; int DS_F1_ASSOC_20=0;
 int DS_F1_BLOQ_01=0; int DS_F1_BLOQ_02=0; int DS_F1_BLOQ_03=0; int DS_F1_BLOQ_04=0;
 int DS_F1_BLOQ_05=0; int DS_F1_BLOQ_06=0; int DS_F1_BLOQ_07=0; int DS_F1_BLOQ_08=0;
 int DS_F1_BLOQ_09=0; int DS_F1_BLOQ_10=0; int DS_F1_BLOQ_11=0; int DS_F1_BLOQ_12=0;
 int DS_F1_BLOQ_13=0; int DS_F1_BLOQ_14=0; int DS_F1_BLOQ_15=0; int DS_F1_BLOQ_16=0;
-int DS_F1_BLOQ_17=0; int DS_F1_BLOQ_18=0; int DS_F1_BLOQ_19=0; int DS_F1_BLOQ_20=0; int DS_F1_BLOQ_21=0;
+int DS_F1_BLOQ_17=0; int DS_F1_BLOQ_18=0; int DS_F1_BLOQ_19=0; int DS_F1_BLOQ_20=0;
 int Cfg_Selo = 0;
 int Boot_Inst = 0;
 int Boot_Selo = 0;
@@ -492,7 +491,10 @@ function Config_Inicial() {
     Work_A = Work_A;
 }
 function Config_Zeta() {
-    Work_A = Work_A;
+    Zeta_Limpar();
+    Zeta_Um(ZETA_NENHUM, 0, 0, 0);
+    Zeta_Fin(ZETA_NENHUM, 0);
+    Zeta_Blk(ZETA_NENHUM, 0);
 }
 define LAYOUT_VER = 5;
 define BIT_MIGRADO_V5 = 1;
@@ -502,6 +504,149 @@ function Selo_Cfg_Gravado() {
 function Migrado_V5() {
     return get_pvar(SPVAR_64, -2147483648, 2147483647, 0) & BIT_MIGRADO_V5;
 }
+define PERM_GUARDA = 10;
+define PERM_MASK63 = 0x7FFFFFF;
+define PERM_LIM7   = 1801088541;
+define PERM_LIM6   = 85766121;
+int Perm_W1 = 0;   int Perm_W2 = 0;   int Perm_W3 = 0;
+int Pc_V = 0;  int Pc_I = 0;
+int Pg_P = 0;
+int On_S = 0;
+int Mp_R = 0;  int Mp_I = 0;  int Mp_D = 0;
+int Pi_S = 0;
+int Pv_M = 0;  int Pv_S = 0;  int Pv_D = 0;
+int Pd_S = 0;  int Pd_V = 0;
+int Pt_T = 0;
+int Zl_S = 0;
+int Zt_D = 0;
+function Pot21(k) {
+    if(k == 0) return 1;
+    if(k == 1) return 21;
+    if(k == 2) return 441;
+    if(k == 3) return 9261;
+    if(k == 4) return 194481;
+    if(k == 5) return 4084101;
+    return 85766121;
+}
+function Perm_Carga(s) {
+    if(s <= 7)       { Pc_V = Perm_W1;               Pc_I = s - 1;  }
+    else if(s <= 14) { Pc_V = Perm_W2;               Pc_I = s - 8;  }
+    else             { Pc_V = Perm_W3 & PERM_MASK63; Pc_I = s - 15; }
+    Pc_V = Pc_V / Pot21(Pc_I);
+    return Pc_V - ((Pc_V / 21) * 21);
+}
+function Perm_Grava(s, d) {
+    Pg_P = (d - Perm_Carga(s)) * Pot21(Pc_I);
+    if(s <= 7)       Perm_W1 = Perm_W1 + Pg_P;
+    else if(s <= 14) Perm_W2 = Perm_W2 + Pg_P;
+    else             Perm_W3 = Perm_W3 + Pg_P;
+}
+function Perm_Onde(o) {
+    On_S = 1;
+    while(On_S <= 20) {
+        if(Perm_Carga(On_S) == o) return On_S;
+        On_S++;
+    }
+    return 0;
+}
+function Perm_Mapear(mask) {
+    Mp_R = 0;
+    Mp_I = 1;
+    while(Mp_I <= 20) {
+        if((mask >> (Mp_I - 1)) & 1) {
+            Mp_D = Perm_Onde(Mp_I);
+            if(Mp_D != 0) Mp_R = Mp_R | (1 << (Mp_D - 1));
+        }
+        Mp_I++;
+    }
+    return Mp_R;
+}
+function Perm_Identidade() {
+    Perm_W1 = 0; Perm_W2 = 0; Perm_W3 = 0;
+    Pi_S = 1;
+    while(Pi_S <= 20) { Perm_Grava(Pi_S, Pi_S); Pi_S++; }
+}
+function Perm_Selar() {
+    Perm_W3 = (Perm_W3 & PERM_MASK63) | (PERM_GUARDA << 27);
+}
+function Perm_Gravar() {
+    Perm_Selar();
+    Grava_Spv(SPVAR_61, Perm_W1);
+    Grava_Spv(SPVAR_62, Perm_W2);
+    Grava_Spv(SPVAR_63, Perm_W3);
+}
+function Perm_Valida() {
+    if(((Perm_W3 >> 27) & 0xF) != PERM_GUARDA) return FALSE;
+    if(Perm_W1 < 0 || Perm_W2 < 0 || Perm_W3 < 0) return FALSE;
+    if(Perm_W1 >= PERM_LIM7 || Perm_W2 >= PERM_LIM7) return FALSE;
+    if((Perm_W3 & PERM_MASK63) >= PERM_LIM6) return FALSE;
+    Pv_M = 0;
+    Pv_S = 1;
+    while(Pv_S <= 20) {
+        Pv_D = Perm_Carga(Pv_S);
+        if(Pv_D != 0) {
+            if((Pv_M >> (Pv_D - 1)) & 1) return FALSE;
+            Pv_M = Pv_M | (1 << (Pv_D - 1));
+        }
+        Pv_S++;
+    }
+    return TRUE;
+}
+function Perm_Carregar() {
+    Perm_W1 = get_pvar(SPVAR_61, -2147483648, 2147483647, 0);
+    Perm_W2 = get_pvar(SPVAR_62, -2147483648, 2147483647, 0);
+    Perm_W3 = get_pvar(SPVAR_63, -2147483648, 2147483647, 0);
+    if(Perm_Valida()) return;
+    Perm_Identidade();
+    Boot_Agendar(Selo_Cfg_Gravado(), FALSE);
+}
+function Perm_Del(s) {
+    Pd_S = s;
+    while(Pd_S <= 19) {
+        Pd_V = Perm_Carga(Pd_S + 1);
+        Perm_Grava(Pd_S, Pd_V);
+        Pd_S++;
+    }
+    Perm_Grava(20, 0);
+    Perm_Gravar();
+}
+function Perm_Troca(a, b) {
+    Pt_T = Perm_Carga(a);
+    Pd_V = Perm_Carga(b);
+    Perm_Grava(a, Pd_V);
+    Perm_Grava(b, Pt_T);
+    Perm_Gravar();
+}
+function Perm_Novo(s) {
+    Perm_Grava(s, 0);
+    Perm_Gravar();
+}
+function Zeta_Limpar() {
+    Zl_S = 1;
+    while(Zl_S <= 20) {
+        Set_F1_Excl(Zl_S, 0);
+        Set_F1_Assoc(Zl_S, 0);
+        Set_F1_Bloq(Zl_S, 0);
+        Set_Fin(Zl_S, 0);
+        Set_Blok(Zl_S, 0);
+        Zl_S++;
+    }
+}
+function Zeta_Um(orig, ex, asc, bl) {
+    Zt_D = Perm_Onde(orig);
+    if(Zt_D == 0) return;
+    Set_F1_Excl(Zt_D,  Perm_Mapear(ex));
+    Set_F1_Assoc(Zt_D, Perm_Mapear(asc));
+    Set_F1_Bloq(Zt_D,  Perm_Mapear(bl));
+}
+function Zeta_Fin(orig, v) {
+    Zt_D = Perm_Onde(orig);
+    if(Zt_D != 0) Set_Fin(Zt_D, v);
+}
+function Zeta_Blk(orig, v) {
+    Zt_D = Perm_Onde(orig);
+    if(Zt_D != 0) Set_Blok(Zt_D, v);
+}
 function Marcar_Selo(migrado, selo) {
     Work_A = (selo & 0x7FFFFFFF) << 1;
     if(migrado) Work_A = Work_A | BIT_MIGRADO_V5;
@@ -510,7 +655,7 @@ function Marcar_Selo(migrado, selo) {
 function Migrar_V5() {
     Boot_Mud = 0;
     Esp_I = 1;
-    while(Esp_I <= 21) {
+    while(Esp_I <= 20) {
         if(Get_Spvar_A(Esp_I) & 1) {
             Work_A = Get_Spvar_B(Esp_I) & (~(0x1F << 22));
             if(Work_A != Get_Spvar_B(Esp_I)) {
@@ -525,15 +670,16 @@ function Migrar_V5() {
 function Boot_Agendar(selo, com_instancias) {
     Boot_Selo = selo;
     if(com_instancias)        Boot_Inst = 1;
-    else if(Boot_Inst == 0)   Boot_Inst = 22;
+    else if(Boot_Inst == 0)   Boot_Inst = 21;
 }
 function Boot_Persistir() {
     if(Boot_Inst == 0) return;
-    if(Boot_Inst <= 21) {
+    if(Boot_Inst <= 20) {
         Save_Instance(Boot_Inst);
         Boot_Inst = Boot_Inst + 1;
         return;
     }
+    Perm_Gravar();
     Marcar_Selo(1, Boot_Selo);
     Boot_Inst = 0;
 }
@@ -541,9 +687,11 @@ init {
     cls_oled(0);
     Cfg_Selo = Cfg_Selo;
     Load_All();
+    Perm_Carregar();
     if(!Migrado_V5()) Migrar_V5();
     if(Cfg_Selo != 0 && Selo_Cfg_Gravado() != (Cfg_Selo & 0x7FFFFFFF)) {
         Config_Inicial();
+        Perm_Identidade();
         Boot_Agendar(Cfg_Selo, TRUE);
     }
     if(Cfg_Selo != 0) Config_Zeta();
@@ -1484,7 +1632,6 @@ function Get_GT_Relig(num) {
                 if(num == 19) return GT_Relig_19;
             } else {
                 if(num == 20) return GT_Relig_20;
-                if(num == 21) return GT_Relig_21;
             }
         }
     }
@@ -1529,7 +1676,6 @@ function Set_GT_Relig(num, v) {
                 if(num == 19) GT_Relig_19=v;
             } else {
                 if(num == 20) GT_Relig_20=v;
-                if(num == 21) GT_Relig_21=v;
             }
         }
     }
@@ -1640,7 +1786,6 @@ function Get_Dc(num) {
                 if(num == 19) return Dc_19;
             } else {
                 if(num == 20) return Dc_20;
-                if(num == 21) return Dc_21;
             }
         }
     }
@@ -1685,7 +1830,6 @@ function Set_Dc(num, v) {
                 if(num == 19) Dc_19=v;
             } else {
                 if(num == 20) Dc_20=v;
-                if(num == 21) Dc_21=v;
             }
         }
     }
@@ -2034,7 +2178,6 @@ function Get_Fin(n) {
                 if(n == 19) return Fin_19;
             } else {
                 if(n == 20) return Fin_20;
-                if(n == 21) return Fin_21;
             }
         }
     }
@@ -2047,7 +2190,7 @@ function Set_Fin(n, v) {
     if(n==10) Fin_10=v;   if(n==11) Fin_11=v;   if(n==12) Fin_12=v;
     if(n==13) Fin_13=v;   if(n==14) Fin_14=v;   if(n==15) Fin_15=v;
     if(n==16) Fin_16=v;   if(n==17) Fin_17=v;   if(n==18) Fin_18=v;
-    if(n==19) Fin_19=v;   if(n==20) Fin_20=v;   if(n==21) Fin_21=v;
+    if(n==19) Fin_19=v;   if(n==20) Fin_20=v;
 }
 function Get_Blok(n) {
     if(n <= 11) {
@@ -2088,7 +2231,6 @@ function Get_Blok(n) {
                 if(n == 19) return Blk_19;
             } else {
                 if(n == 20) return Blk_20;
-                if(n == 21) return Blk_21;
             }
         }
     }
@@ -2101,7 +2243,7 @@ function Set_Blok(n, v) {
     if(n==10) Blk_10=v;   if(n==11) Blk_11=v;   if(n==12) Blk_12=v;
     if(n==13) Blk_13=v;   if(n==14) Blk_14=v;   if(n==15) Blk_15=v;
     if(n==16) Blk_16=v;   if(n==17) Blk_17=v;   if(n==18) Blk_18=v;
-    if(n==19) Blk_19=v;   if(n==20) Blk_20=v;   if(n==21) Blk_21=v;
+    if(n==19) Blk_19=v;   if(n==20) Blk_20=v;
 }
 function BTN_FN_Bloqueia_v3(num) {
     Work_N = Get_Blok(num);
@@ -2147,7 +2289,6 @@ function Get_Dly(n) {
                 if(n == 19) return Dly_19;
             } else {
                 if(n == 20) return Dly_20;
-                if(n == 21) return Dly_21;
             }
         }
     }
@@ -2192,7 +2333,6 @@ function Set_Dly(n, v) {
                 if(n == 19) Dly_19=v;
             } else {
                 if(n == 20) Dly_20=v;
-                if(n == 21) Dly_21=v;
             }
         }
     }
@@ -2368,7 +2508,6 @@ function Get_Fa(num) {
                 if(num == 19) return Fa_19;
             } else {
                 if(num == 20) return Fa_20;
-                if(num == 21) return Fa_21;
             }
         }
     }
@@ -2413,7 +2552,6 @@ function Set_Fa(num, v) {
                 if(num == 19) Fa_19=v;
             } else {
                 if(num == 20) Fa_20=v;
-                if(num == 21) Fa_21=v;
             }
         }
     }
@@ -2421,7 +2559,7 @@ function Set_Fa(num, v) {
 function Inicializar_Estado() {
     Inst_Ativa = 0;
     Work_N = 1;
-    while(Work_N <= 21) {
+    while(Work_N <= 20) {
         if(Get_Fonte_Tipo(Work_N) != FONTE_NENHUMA) Inst_Ativa = Inst_Ativa | (1 << (Work_N - 1));
         Set_Dc(Work_N, 0);
         Set_Fa(Work_N, 0); Set_TrbSt_X(Work_N, 0);
@@ -2519,7 +2657,6 @@ function Get_Esx(n) {
                 if(n == 19) return Esx_19;
             } else {
                 if(n == 20) return Esx_20;
-                if(n == 21) return Esx_21;
             }
         }
     }
@@ -2564,7 +2701,6 @@ function Set_Esx(n, v) {
                 if(n == 19) Esx_19 = v;
             } else {
                 if(n == 20) Esx_20 = v;
-                if(n == 21) Esx_21 = v;
             }
         }
     }
@@ -2613,7 +2749,6 @@ function Get_TrbSt_X(n) {
                 if(n == 19) return DS_TrbSt_X_19;
             } else {
                 if(n == 20) return DS_TrbSt_X_20;
-                if(n == 21) return DS_TrbSt_X_21;
             }
         }
     }
@@ -2659,7 +2794,6 @@ function Set_TrbSt_X(n, v) {
                 if(n == 19) DS_TrbSt_X_19=v;
             } else {
                 if(n == 20) DS_TrbSt_X_20=v;
-                if(n == 21) DS_TrbSt_X_21=v;
             }
         }
     }
@@ -2808,7 +2942,6 @@ function Computar_Snapshot_v3() {
     if(Msk_Perf & 131072) Snap_Um_v3(18);
     if(Msk_Perf & 262144) Snap_Um_v3(19);
     if(Msk_Perf & 524288) Snap_Um_v3(20);
-    if(Msk_Perf & 1048576) Snap_Um_v3(21);
 }
 function Computar_Bloq_Passada() {
     if(Msk_Bloq & 1) Computar_Bloq_Instancia_v3(1);
@@ -2831,7 +2964,6 @@ function Computar_Bloq_Passada() {
     if(Msk_Bloq & 131072) Computar_Bloq_Instancia_v3(18);
     if(Msk_Bloq & 262144) Computar_Bloq_Instancia_v3(19);
     if(Msk_Bloq & 524288) Computar_Bloq_Instancia_v3(20);
-    if(Msk_Bloq & 1048576) Computar_Bloq_Instancia_v3(21);
 }
 function Computar_Mods_Bloq_v3() {
     Snap_Orig = Bloq_Snap_Resp;
@@ -2868,7 +3000,6 @@ function Computar_Mods_Excl_v3() {
     if(Msk_Excl & 131072) Computar_Excl_Instancia_v3(18);
     if(Msk_Excl & 262144) Computar_Excl_Instancia_v3(19);
     if(Msk_Excl & 524288) Computar_Excl_Instancia_v3(20);
-    if(Msk_Excl & 1048576) Computar_Excl_Instancia_v3(21);
     Excl_RespAnt = Bloq_Snap_Resp;
 }
 function Valor_Alvo_Assoc(num) {
@@ -2879,7 +3010,7 @@ function Valor_Alvo_Assoc(num) {
         Va_Visto = Va_Visto | Va_Msk;
         Va_Prox = 0;
         Esp_I = 1;
-        while(Esp_I <= 21) {
+        while(Esp_I <= 20) {
             if((Va_Msk >> (Esp_I - 1)) & 1) {
                 if(Get_Fonte_Tipo(Esp_I) != FONTE_NENHUMA) {
                     if(Zona_Ativa_Fonte(Esp_I)) return Cond_Aplicar_Fonte(Esp_I, Ler_Fonte(Esp_I));
@@ -2932,7 +3063,6 @@ function Adotar_Orfaos() {
     if(Msk_Orfao & 131072) Adotar_Orfao(18);
     if(Msk_Orfao & 262144) Adotar_Orfao(19);
     if(Msk_Orfao & 524288) Adotar_Orfao(20);
-    if(Msk_Orfao & 1048576) Adotar_Orfao(21);
 }
 function Computar_Mods_Assoc_v3() {
     Assoc_Mask = 0;
@@ -2956,7 +3086,6 @@ function Computar_Mods_Assoc_v3() {
     if(Msk_Assoc & 131072) Computar_Assoc_Instancia_v3(18);
     if(Msk_Assoc & 262144) Computar_Assoc_Instancia_v3(19);
     if(Msk_Assoc & 524288) Computar_Assoc_Instancia_v3(20);
-    if(Msk_Assoc & 1048576) Computar_Assoc_Instancia_v3(21);
 }
 function Recalc_Um(i) {
     Rc_A = Get_Spvar_A(i);
@@ -2998,7 +3127,6 @@ function Recalc_Mascaras() {
     Recalc_Um(18);
     Recalc_Um(19);
     Recalc_Um(20);
-    Recalc_Um(21);
     Cfg_Sujo = FALSE;
 }
 function Run_Pipeline() {
@@ -3030,7 +3158,6 @@ function Run_Pipeline() {
     if(Msk_Run & 131072) Run_Instance_v3(18);
     if(Msk_Run & 262144) Run_Instance_v3(19);
     if(Msk_Run & 524288) Run_Instance_v3(20);
-    if(Msk_Run & 1048576) Run_Instance_v3(21);
     Spv_N = -1;
     Aplicar_Acc();
 }
@@ -3110,6 +3237,7 @@ function Reset_Page() {
 }
 function Criar_Instancia() {
     Total_Inst++;
+    Perm_Novo(Total_Inst);
     Set_Spvar_A(Total_Inst, 1);
     Set_Spvar_B(Total_Inst, 0);
     Set_Spvar_C(Total_Inst, 0);
@@ -3146,7 +3274,7 @@ function Swap_Refs(pa, pb) {
     Swap_Ref_Slot(10, pa, pb); Swap_Ref_Slot(11, pa, pb); Swap_Ref_Slot(12, pa, pb);
     Swap_Ref_Slot(13, pa, pb); Swap_Ref_Slot(14, pa, pb); Swap_Ref_Slot(15, pa, pb);
     Swap_Ref_Slot(16, pa, pb); Swap_Ref_Slot(17, pa, pb); Swap_Ref_Slot(18, pa, pb);
-    Swap_Ref_Slot(19, pa, pb); Swap_Ref_Slot(20, pa, pb); Swap_Ref_Slot(21, pa, pb);
+    Swap_Ref_Slot(19, pa, pb); Swap_Ref_Slot(20, pa, pb);
 }
 function Swap_Ind(pa, pb) {
     Cfg_Ram   = Swap_Mask_Bits(Cfg_Ram,   pa, pb);
@@ -3164,11 +3292,13 @@ function Swap_Pos(a, b) {
     Swap_Ind(a - 1, b - 1);
     if(a <= MAX_INST_EEP) Save_Instance(a);
     if(b <= MAX_INST_EEP) Save_Instance(b);
+    Perm_Troca(a, b);
     Cfg_Mov = Cfg_Mov | (1 << (a - 1));
     Cfg_Mov = Cfg_Mov | (1 << (b - 1));
     Inicializar_Estado();
 }
 function Deletar_Instancia(num) {
+    Perm_Del(num);
     Ajustar_Refs(num);
     Compactar_Lista(num);
     Zerar_Posicao(Total_Inst);
@@ -3196,12 +3326,11 @@ function Ajustar_Refs(num) {
     Ajust_Ref_Slot(18, num);
     Ajust_Ref_Slot(19, num);
     Ajust_Ref_Slot(20, num);
-    Ajust_Ref_Slot(21, num);
 }
 function Shift_Mask_Del(mask, p) {
     Work_D = mask & ((1 << p) - 1);
     Work_E = mask & (~((1 << (p + 1)) - 1));
-    Work_E = (Work_E >> 1) & 0x1FFFFF;
+    Work_E = (Work_E >> 1) & 0xFFFFF;
     return Work_D | Work_E;
 }
 function Ajust_Ref_Slot(slot, num) {
@@ -3232,7 +3361,6 @@ function Compactar_Lista(num) {
     if(num <= 17 && Total_Inst > 17) Compact_Pos(17, 18);
     if(num <= 18 && Total_Inst > 18) Compact_Pos(18, 19);
     if(num <= 19 && Total_Inst > 19) Compact_Pos(19, 20);
-    if(num <= 20 && Total_Inst > 20) Compact_Pos(20, 21);
 }
 function Zero_F1_Behavior(pos) {
     Set_Cond_Mult(pos, 9);
@@ -3300,7 +3428,6 @@ function Get_F1_Excl(n) {
                 if(n == 19) return DS_F1_EXCL_19;
             } else {
                 if(n == 20) return DS_F1_EXCL_20;
-                if(n == 21) return DS_F1_EXCL_21;
             }
         }
     }
@@ -3319,7 +3446,6 @@ function Set_F1_Excl(n, v) {
     if(n==18) DS_F1_EXCL_18=v;
     if(n==19) DS_F1_EXCL_19=v;
     if(n==20) DS_F1_EXCL_20=v;
-    if(n==21) DS_F1_EXCL_21=v;
 }
 function Get_F1_Assoc(n) {
     if(n <= 11) {
@@ -3360,7 +3486,6 @@ function Get_F1_Assoc(n) {
                 if(n == 19) return DS_F1_ASSOC_19;
             } else {
                 if(n == 20) return DS_F1_ASSOC_20;
-                if(n == 21) return DS_F1_ASSOC_21;
             }
         }
     }
@@ -3379,7 +3504,6 @@ function Set_F1_Assoc(n, v) {
     if(n==18) DS_F1_ASSOC_18=v;
     if(n==19) DS_F1_ASSOC_19=v;
     if(n==20) DS_F1_ASSOC_20=v;
-    if(n==21) DS_F1_ASSOC_21=v;
 }
 function Get_F1_Bloq(n) {
     if(n <= 11) {
@@ -3420,7 +3544,6 @@ function Get_F1_Bloq(n) {
                 if(n == 19) return DS_F1_BLOQ_19;
             } else {
                 if(n == 20) return DS_F1_BLOQ_20;
-                if(n == 21) return DS_F1_BLOQ_21;
             }
         }
     }
@@ -3439,7 +3562,6 @@ function Set_F1_Bloq(n, v) {
     if(n==18) DS_F1_BLOQ_18=v;
     if(n==19) DS_F1_BLOQ_19=v;
     if(n==20) DS_F1_BLOQ_20=v;
-    if(n==21) DS_F1_BLOQ_21=v;
 }
 function Count_Instances() {
     Total_Inst = 0;
@@ -3447,7 +3569,7 @@ function Count_Instances() {
     Cfg_Salvo = 0;
     Cfg_Mov   = 0;
     Work_N = 1;
-    while(Work_N <= 21) {
+    while(Work_N <= 20) {
         if(Get_Spvar_A(Work_N) & 1) {
             Cfg_Salvo = Cfg_Salvo | (1 << (Work_N - 1));
             Total_Inst++;
@@ -3545,7 +3667,6 @@ function Get_Spvar_A(num) {
                 if(num == 19) return DS_A_19;
             } else {
                 if(num == 20) return DS_A_20;
-                if(num == 21) return DS_A_21;
             }
         }
     }
@@ -3573,7 +3694,6 @@ function Set_Spvar_A(num, val) {
     if(num==18) DS_A_18 = val;
     if(num==19) DS_A_19 = val;
     if(num==20) DS_A_20 = val;
-    if(num==21) DS_A_21 = val;
 }
 function Get_Spvar_B(num) {
     if(num == Spv_N) return Spv_B;
@@ -3615,7 +3735,6 @@ function Get_Spvar_B(num) {
                 if(num == 19) return DS_B_19;
             } else {
                 if(num == 20) return DS_B_20;
-                if(num == 21) return DS_B_21;
             }
         }
     }
@@ -3643,7 +3762,6 @@ function Set_Spvar_B(num, val) {
     if(num==18) DS_B_18 = val;
     if(num==19) DS_B_19 = val;
     if(num==20) DS_B_20 = val;
-    if(num==21) DS_B_21 = val;
 }
 function Get_Spvar_C(num) {
     if(num == Spv_N) return Spv_C;
@@ -3685,7 +3803,6 @@ function Get_Spvar_C(num) {
                 if(num == 19) return DS_C_19;
             } else {
                 if(num == 20) return DS_C_20;
-                if(num == 21) return DS_C_21;
             }
         }
     }
@@ -3713,7 +3830,6 @@ function Set_Spvar_C(num, val) {
     if(num==18) DS_C_18 = val;
     if(num==19) DS_C_19 = val;
     if(num==20) DS_C_20 = val;
-    if(num==21) DS_C_21 = val;
 }
 function Get_Fonte_Tipo(num) {
     if(num == Spv_N) { return (Spv_A >> SHIFT_FONTE_TIPO) & 0x1F; }
@@ -4041,9 +4157,6 @@ function Load_All() {
     DS_A_20 = get_pvar(SPVAR_58, -2147483648, 2147483647, 0);
     DS_B_20 = get_pvar(SPVAR_59, -2147483648, 2147483647, 0);
     DS_C_20 = get_pvar(SPVAR_60, -2147483648, 2147483647, 0);
-    DS_A_21 = get_pvar(SPVAR_61, -2147483648, 2147483647, 0);
-    DS_B_21 = get_pvar(SPVAR_62, -2147483648, 2147483647, 0);
-    DS_C_21 = get_pvar(SPVAR_63, -2147483648, 2147483647, 0);
 }
 function Grava_Spv(qual, valor) {
     if(get_pvar(qual, -2147483648, 2147483647, 0) == valor) return;
@@ -4070,7 +4183,6 @@ function Save_Instance(num) {
     if(num == 18) { Grava_Spv(SPVAR_52, DS_A_18); Grava_Spv(SPVAR_53, DS_B_18); Grava_Spv(SPVAR_54, DS_C_18); }
     if(num == 19) { Grava_Spv(SPVAR_55, DS_A_19); Grava_Spv(SPVAR_56, DS_B_19); Grava_Spv(SPVAR_57, DS_C_19); }
     if(num == 20) { Grava_Spv(SPVAR_58, DS_A_20); Grava_Spv(SPVAR_59, DS_B_20); Grava_Spv(SPVAR_60, DS_C_20); }
-    if(num == 21) { Grava_Spv(SPVAR_61, DS_A_21); Grava_Spv(SPVAR_62, DS_B_21); Grava_Spv(SPVAR_63, DS_C_21); }
     Cfg_Ram   = Cfg_Ram   & (~(1 << (num - 1)));
     Cfg_Salvo = Cfg_Salvo |  (1 << (num - 1));
 }
@@ -4398,7 +4510,6 @@ function Print_Inst_Label(num, x, y) {
     if(num == 18) print(x, y, 0, 1, LBL_18[0]);
     if(num == 19) print(x, y, 0, 1, LBL_19[0]);
     if(num == 20) print(x, y, 0, 1, LBL_20[0]);
-    if(num == 21) print(x, y, 0, 1, LBL_21[0]);
 }
 function Print_Cond_Row(idx, y, categoria) {
     if(idx == 0) {
@@ -4682,10 +4793,10 @@ function Print_Mult_Label(x, y, idx) {
 }
 function Reset_Perfil() {
     Inicializar_Estado();
-    Hp_Travado = 0x1FFFFF;
+    Hp_Travado = 0xFFFFF;
     Hp_Press   = 0;
-    Fz_Travado = 0x1FFFFF;
-    Ent_Trava  = 0x1FFFFF;
+    Fz_Travado = 0xFFFFF;
+    Ent_Trava  = 0xFFFFF;
     Tap_T     = 0;
     Vib_T     = 0;
     Fb_T      = 0;
