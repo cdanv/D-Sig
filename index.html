@@ -136,7 +136,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0h";
+const string DS_VERSAO    = "D-Sig 1.0i";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -5586,6 +5586,22 @@ function configGpc(j){
     var fin=finReal(mz);   // v7e: nunca gera flag para gatilho que nao existe
     if(fin)L.push('    Zeta_Fin('+o+', '+fin+');');
   }
+  // As tres ANCORAS. Sem elas o ZenStudio avisa "funcao nunca chamada e foi removida"
+  // para a Zeta_* que aquele jogo nao usar — e por tabela para a Perm_Onde e a
+  // Perm_Mapear, que so existem por causa delas.
+  //
+  // POR QUE O APP TEM DE EMITIR, e nao bastou poe-las no template: o app substitui a
+  // Config_Zeta INTEIRA. As ancoras que eu havia posto no template desapareciam em todo
+  // script gerado, e a auditoria de funcao orfa do embutir.py so olhava o avulso. Os
+  // quatro Builds do Daniel mostraram 1, 1, 0 e 5 avisos — exatamente os previstos por
+  // quais recursos cada jogo usa.
+  //
+  // ZETA_NENHUM = 21 e uma posicao original que NAO PODE EXISTIR: o digito da permutacao
+  // e base-21, logo vale 0..20, e Perm_Onde(21) devolve 0 sempre. As tres retornam na
+  // primeira linha. Custam ~37 bytes uma vez no boot, e nao ha condicional para errar.
+  L.push('    Zeta_Um(ZETA_NENHUM, 0, 0, 0);');
+  L.push('    Zeta_Fin(ZETA_NENHUM, 0);');
+  L.push('    Zeta_Blk(ZETA_NENHUM, 0);');
   L.push('}');
   return L.join('\n')}
 
