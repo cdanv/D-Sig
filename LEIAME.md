@@ -163,12 +163,21 @@ O Cronus comporta **5 scripts** ao mesmo tempo. A biblioteca do app
 
 ## Como a memória é usada
 
-Cada MOD ocupa **3 SPVARs** de 32 bits — 96 bits, todos em uso. Com 21
-MODs isso são 63 das 64 SPVARs.
+Cada MOD ocupa **3 SPVARs** de 32 bits — 96 bits, todos em uso. Com 20
+MODs isso são 60 das 64 SPVARs. As quatro restantes:
 
-A **SPVAR_64** não está livre: o bit 0 marca que a migração de layout já
-foi feita, e os bits 1–31 guardam o selo da configuração gerada pelo app.
-Cada um tem seu espaço para que um não apague o outro.
+| SPVAR | conteúdo |
+|---|---|
+| 61 | permutação, slots 1-7 (base-21) |
+| 62 | permutação, slots 8-14 (base-21) |
+| 63 | permutação, slots 15-20 + nibble de guarda (bits 27-30) |
+| 64 | migração (bit 0) + selo da configuração (bits 1-31) |
+
+**Nenhuma está livre.** O teto era 21 MODs até a 1.0i; caiu para 20 na
+1.0.10 porque as SPVARs 61-63 passaram a guardar a **permutação** — qual
+posição original da tabela do app cada slot ocupa hoje. Sem ela o ZETA
+sai errado depois de deletar ou reordenar MODs no aparelho. O preço foi
+um MOD, e a conta fechou exatamente: 60 + 3 + 1 = 64.
 
 ### O `init` só lê e agenda
 
@@ -203,7 +212,7 @@ regras, as duas nascidas de uma pane real:
 
 1. **O `init` não grava.** Ele só lê e **agenda**. Quem grava é o
    `Boot_Persistir`, na primeira linha do `main`: uma instância (3
-   SPVARs) por volta, e o selo no fim. As 21 levam ~210 ms.
+   SPVARs) por volta, e o selo mais a permutação no fim. As 20 levam ~200 ms.
 2. **Só se grava o que mudou.** Todo `set_pvar` passa pelo `Grava_Spv`,
    que lê antes e desiste se o valor já está lá. Leitura não desgasta.
 
@@ -228,7 +237,7 @@ gravação nenhuma, e era por isso que o hardreset parecia "resolver".
 | cenário | antes | depois |
 |---|---|---|
 | EEPROM zerada, avulso ou InLoco | 64 | **1** |
-| EEPROM zerada, app com 21 MODs | 128 | 64, em 21 voltas |
+| EEPROM zerada, app com 20 MODs | 128 | 63, em 20 voltas |
 | migração de layout antigo | 64 | **4** |
 | regerar script com 1 MOD alterado | 64 | **2** |
 | boot normal | 0 | 0 |
@@ -238,7 +247,7 @@ Precisando espaçar ainda mais, o passo a dividir é o `Boot_Persistir`:
 um SPVAR por volta em vez de três levaria 63 voltas (~630 ms) e exigiria
 um dispatch por SPVAR.
 
-O `Salvar_Tudo`, que gravava as 21 de uma vez, deixou de existir — era
+O `Salvar_Tudo`, que gravava as 20 de uma vez, deixou de existir — era
 ele que o `init` chamava nos dois pontos que causavam a pane.
 
 ## O que não é gravado na EEPROM
@@ -341,43 +350,64 @@ mora agora, com o timbre em cima. Foram **duas âncoras a menos** na lista do `l
 
 ---
 
-## O relógio do firmware — medido, e é o problema aberto
+## O relógio do firmware — medido, e RESOLVIDO
 
-**Todas as durações saem 1,63× maiores que o configurado.** Medido por geometria nos PNGs
-do PLOT do Zen Studio: **16 medidas, fator médio 1,630, desvio padrão 0,030.**
+**Os tempos estão corretos.** Com o `VM SPEED` em 10 ms, uma duração configurada em
+150 ms sai em **149,8 ms** e uma pausa de 50 ms sai em **50,1 ms**.
 
-| configurado | medido | fator |
-|---|---|---|
-| 250 ms (passo TURBO) | 410 ms | 1,640 |
-| 150 ms (passo TURBO) | 245 ms | 1,633 |
-| 100 ms (passo TURBO) | 163 ms | 1,630 |
-| 50 ms (latência) | 81 ms | 1,620 |
-| 40 ms (latência) | 65 ms | 1,625 |
+### O que parecia errado
 
-**A contagem de voltas está correta.** 150 ms ÷ 10 ms = 15 voltas, e o medido dá 15,0
-voltas de 16,3 ms. O erro não está no script — está no relógio: **a volta real dura
-~16,3 ms, e o `get_rtime()` reporta os 10 ms nominais do `VM SPEED`.**
+Em 27/09 as medidas davam **1,63× mais longo que o configurado**, de forma consistente:
+16 medidas, fator médio 1,630, desvio padrão 0,030. A conclusão registrada aqui era que
+o `get_rtime()` mentia, reportando os 10 ms nominais enquanto a volta durava 16,3 ms.
 
-### Como o eixo de tempo foi validado
+**Estava errada** — ou melhor, estava certa sobre aquela sessão e errada sobre o script.
 
-A hipótese alternativa — que a janela "1s" do PLOT mentisse — foi descartada por uma
-medida independente: **a rampa do traço mede 23 px.** O PLOT desenha reta entre amostras
-a 62 FPS, então numa janela de 1 s a rampa tem de medir 1475/62 = **23,8 px**; se a
-janela fosse 1,63 s, mediria 14,6 px. O eixo é confiável.
+### Como se descobriu
 
-### Por que o script não pode detectar isso sozinho
+Repetindo a medição em 01/10 com o `VM SPEED` em 10 ms e em 40 ms, e medindo a **largura
+da rampa** do traço, que é um intervalo de amostragem (o PLOT liga dois pontos com reta,
+e o botão é binário — a subida de 0 a 100 ocupa exatamente uma amostra):
 
-Foi a razão declarada para remover o painel de diagnóstico da 1.0d: *medindo-se por
-dentro, o script não detecta um `get_rtime()` mentiroso — se o firmware disser 10 quando
-passaram 16, a soma mente junto.* **Era exatamente esse o caso.** Só uma referência
-externa acharia, e o PLOT foi essa referência.
+| | rampa | amostras/s | ms por volta | pulso (150 ms) | pausa (50 ms) |
+|---|---|---|---|---|---|
+| captura de 27/09 | 22 px | 67 | **14,9** | 242,9 ms | 81,7 ms |
+| 01/10, VM SPEED 10 ms | 12,2 px | 102 | **9,8** | **149,8 ms** | **50,1 ms** |
+| 01/10, VM SPEED 40 ms | 43,6 px | 28,6 | **34,9** | 159,9 ms | 79,4 ms |
 
-### O que falta
+Na captura antiga o pulso mede **15,06 voltas** e a pausa **5,06** — exatamente as 15 e 5
+voltas que 150 e 50 ms pedem a 10 ms. **O script sempre contou certo.** O que variou foi
+a duração da volta: 16,1 ms naquela sessão, 10,0 ms depois.
 
-Mexer no **VM SPEED** de 10 ms para ~16 ms e repetir a medição. Se o fator cair para
-~1,0, o `get_rtime()` devolve o valor do slider e a volta real é ~16,3 ms — e o ajuste é
-o slider, não o script. Enquanto isso não for feito, **todo tempo configurado no app sai
-63% mais longo no jogo.**
+Com 40 ms o pulso sai em 160 ms e a pausa em 80 — que são **4 e 2 voltas de 40 ms**. É
+quantização, não erro: 150 ms só é alcançado na 4ª volta. E a razão dos períodos,
+240 ÷ 200 = 1,20, bate com a previsão da quantização, 1,20.
+
+### O que isso impediu
+
+A alternativa em cima da mesa era **compensar as tabelas `TLAT` e `TPASSO`** dividindo-as
+por 1,63. Com a VM a 10 ms isso produziria tempos 63% **curtos**. A medição serviu para
+impedir uma mudança, não para autorizar uma.
+
+### O que fica em aberto
+
+**Por que a VM rodou a 16,1 ms naquela sessão.** Não se sabe, e não é reproduzível. O
+script não mede a própria velocidade — foi a razão declarada para remover o painel de
+diagnóstico da 1.0d, e continua valendo: medindo-se por dentro, ele não detecta um
+`get_rtime()` mentiroso.
+
+**O sintoma, e como conferir:** se um dia os tempos saírem longos, a primeira coisa a
+olhar é a **largura da rampa no PLOT**, não o script. Rampa larga = volta longa.
+
+### Um erro de método que vale registrar
+
+O primeiro teste proposto era ler o **FPS do PLOT** com o `VM SPEED` em 40 ms, esperando
+que caísse de 62 para 25. Caiu — e **não provou nada**: 62 também é, aproximadamente, a
+taxa de atualização da tela do navegador, então as duas hipóteses previam 25. O que
+separou foi a rampa, que mostrou 102 amostras/s a 10 ms — número que a hipótese "o PLOT
+trava em 62" não produz.
+
+*Teste que confirma as duas hipóteses não é teste.*
 
 ---
 
@@ -396,6 +426,86 @@ suprime, e a escrita vale.
 > estava em PASSIVO com o TRIANGLE no AFTER. O comportamento estava certo; faltava a
 > tela dizer. Desde a 1.0f o app mostra a observação, com o nome dos botões e dos
 > domínios afetados.
+
+---
+
+## O ZETA e a permutação
+
+Até a 1.0i, deletar ou reordenar um MOD **no aparelho** acertava as relações ZETA em RAM
+e as perdia no desligamento seguinte. Medido no simulador: deletar o MOD_05 do Mad Max
+deixava **12 de 14 slots com ZETA errado** depois de religar, cada slot herdando a fiação
+do seu antecessor.
+
+### A causa
+
+O `Config_Zeta()` é gerado pelo app com a numeração **fixa** dos MODs e roda a **cada
+boot**:
+
+```gpc
+DS_F1_EXCL_07=8; DS_F1_ASSOC_07=0; DS_F1_BLOQ_07=0;
+```
+
+Enquanto só o app edita a lista, isso funciona. No instante em que o aparelho também pode
+deletar ou reordenar, reaplicar por posição está **errado por construção** — não é um
+descuido, é uma premissa que deixou de valer. O boot carimbava a fiação antiga sobre a
+lista já deslocada.
+
+As máscaras ZETA não cabem na EEPROM: são 3 × 20 bits por MOD, e as três palavras de cada
+MOD já estão com os 96 bits ocupados. Por isso elas sempre foram reaplicadas a cada boot.
+
+### O conserto
+
+Três palavras guardam **qual posição original cada slot ocupa hoje** (dígito 0 = MOD
+criado no aparelho, que não existe na tabela do app), e o app passou a declarar de quem é
+a relação em vez de escrever no slot:
+
+```gpc
+Zeta_Limpar();              // original deletado tem de deixar o slot limpo
+Zeta_Um(7, 8, 0, 0);        // "o original 7 tinha estas relações"
+Zeta_Fin(7, 10);
+```
+
+O script resolve o destino com `Perm_Onde(7)` e remapeia os bits da máscara pela mesma
+conta. **Cada original é escrito uma vez, no lugar certo, direto da constante do app** —
+nada é lido de volta, nada se atropela. Permutar as máscaras depois exigiria rascunho, e
+não há vetor para rascunho nesta linguagem.
+
+### Base-21, e por quê
+
+5 bits por dígito dariam 6 dígitos por palavra — 18 em três palavras, faltariam dois.
+Base-21 dá **7 por palavra**, porque 21⁷ = 1.801.088.541 ainda cabe em 31 bits. E 21
+valores são exatamente o necessário: 20 posições mais o zero. Base-22 estouraria com 7
+dígitos.
+
+O bit 31 fica **fora**: ligado, a palavra vira negativa e a divisão com sinal desmonta a
+base-21 errado. O nibble de guarda mora nos bits 27-30 da palavra 63, que só usa 27.
+
+### A migração é determinística
+
+O selo é `hash(JSON.stringify(j.mods) + j.nome)`, e `j.mods` passou de 21 para 20
+entradas — então o selo **muda para todos os jogos**, obrigatoriamente, e o
+`Config_Inicial()` escreve a permutação identidade no primeiro boot.
+
+O nibble de guarda é a segunda linha: protege o jogo de selo 0 (o InLoco) e o caso de
+voltar a uma versão de letra e subir a 1.0.10 de novo, quando as SPVARs 61-63 chegam com
+configuração do antigo MOD 21. Testado nos três estados — zeradas, com configuração de
+MOD e com lixo: nos três a identidade entra.
+
+### Três armadilhas evitadas de propósito
+
+1. **Contador de laço compartilhado.** A linguagem não tem variável local, então todo
+   contador é global. `Perm_Mapear` roda um `while` e chama `Perm_Onde`, que roda outro,
+   que chama `Perm_Carga`. Três níveis, três conjuntos de auxiliares distintos. Um nome
+   repetido ali é um laço que nunca termina.
+2. **Escrita no `init`.** O `Perm_Carregar()` não grava: quando a permutação é inválida
+   ele conserta a RAM e **agenda**, e quem grava é o `Boot_Persistir`, no `main` — o mesmo
+   caminho que a configuração do app já usava.
+3. **Função órfã no script GERADO.** As chamadas-âncora estavam no `Config_Zeta` do
+   template, mas o app substitui essa função **inteira** — elas sumiam em todo script
+   gerado, e a auditoria só olhava o avulso. Quatro Builds deram 1, 1, 0 e 5 avisos
+   GPC3005. Agora o **app** emite as âncoras, e o portão tem um molde de jogo **sem
+   nenhum MOD** — porque o Mad Max usa ZETA, FIN e BLOK ao mesmo tempo e por isso nunca
+   produz órfã. *Molde que não consegue reprovar não prova nada.*
 
 ---
 
@@ -445,37 +555,62 @@ que sobra é a que o desenhista da fonte previu para este corpo. Custa **319 byt
 A versão vive em **um lugar só**, no `D-Sig.fonte.gpc`:
 
 ```gpc
-const string DS_VERSAO    = "D-Sig 1.0f";
+const string DS_VERSAO    = "D-Sig 1.0.10";
 ```
 
-O número é a versão do **script**; a letra é o **build**, e ela muda em
-toda publicação. Dessa string saem, automaticamente:
+São três números: `maior.menor.publicação`. O último muda em **toda**
+publicação. Dessa string saem, automaticamente:
 
 - o que aparece no **OLED**, no menu de status (OPTIONS);
 - o título e a tela de Informações do **app**, que lê a string do próprio
   template embutido;
-- o nome do cache do service worker (`dsig-1.0f`).
+- o nome do cache do service worker (`dsig-1.0.10`).
 
-Assim os três nunca discordam. Se o OLED diz `1.0f` e o app diz `1.0g`,
-o Cronus está com uma versão anterior gravada — e a resposta é olhar a
-tela, não abrir arquivo.
+Assim os três nunca discordam. Se o OLED diz `1.0.10` e o app diz
+`1.0.11`, o Cronus está com uma versão anterior gravada — e a resposta é
+olhar a tela, não abrir arquivo.
 
-### A letra nunca anda para trás
+### De letra para número
 
-A **a 1.0e era idêntica à 1.0c**: a 1.0d acrescentou um painel de diagnóstico ao menu de
-status e ele foi removido. Mesmo assim a letra avançou, em vez de a 1.0c ser
-republicada — e a razão é a função da letra.
+As publicações 1.0a até 1.0i usavam letra. O problema não era estética:
+com letra, a regra "nunca anda para trás" **não era verificável** — o
+`embutir.py` só conseguia pegar *"mesma letra, conteúdo diferente"*. A
+regra estava escrita aqui como se valesse, e era intenção, não auditoria.
 
-**A letra não identifica o conteúdo. Identifica a publicação.**
+Com número a comparação é aritmética, e o `embutir.py` **exige** que a
+nova seja estritamente maior. A sequência fecha: `a`…`i` são 1 a 9, e a
+seguinte é a 10. O formato de letra ainda é lido para comparar com o
+histórico, e recusado para publicar.
+
+| `DS_VERSAO` | decisão |
+|---|---|
+| `D-Sig 1.0i` | recusa — formato aposentado, sugere `1.0.10` |
+| `D-Sig 1.0.8` | recusa — anterior ao publicado |
+| `D-Sig 1.0.9` com conteúdo novo | recusa — mesma versão, conteúdo diferente |
+| `D-Sig 1.0.9` com conteúdo idêntico | aceita — republicação sem mudança |
+| `D-Sig 1.0.10` | aceita → cache `dsig-1.0.10` |
+
+### A versão nunca anda para trás
+
+A **1.0e era idêntica à 1.0c**: a 1.0d acrescentou um painel de diagnóstico ao menu de
+status e ele foi removido. Mesmo assim a versão avançou, em vez de a 1.0c ser
+republicada — e a razão é a função dela.
+
+**A versão não identifica o conteúdo. Identifica a publicação.**
 
 Republicar a 1.0c faria um Cronus com a 1.0d gravada mostrar `1.0d` no OLED enquanto o
-app mostra `1.0c` — letra **maior** no aparelho que no app. E este documento diz que
-letra maior no aparelho significa *app desatualizado*, que seria o contrário do que
+app mostra `1.0c` — versão **maior** no aparelho que no app. E este documento diz que
+versão maior no aparelho significa *app desatualizado*, que seria o contrário do que
 aconteceu. O selo passaria a mentir exatamente na pergunta que ele existe para
 responder: **qual build está gravada neste Cronus?**
 
-Reverter conteúdo é normal. Reverter a letra quebra o único instrumento que responde
+Reverter conteúdo é normal. Reverter a versão quebra o único instrumento que responde
 essa pergunta sem abrir arquivo.
+
+O mesmo aconteceu entre a 1.0g e a 1.0h: a 1.0g foi a poda de 21 para 20 MODs, publicada
+sozinha para ser verificada isolada, e a 1.0h trouxe a permutação. Duas publicações para
+uma entrega — o preço de fazer em duas etapas, e valeu: se o portão tivesse reprovado
+depois da segunda, saber-se-ia na hora se o defeito estava na poda ou na lógica nova.
 
 **Publicar:**
 

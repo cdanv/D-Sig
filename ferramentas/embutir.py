@@ -270,15 +270,40 @@ sem_uso = [d for d in sem_uso if d not in DOC and not d.startswith(('DST_BIT_', 
 assert not sem_uso, f'define sem uso: {sem_uso}'
 
 # --- 3c. a VERSAO governa a publicacao ---------------------------------------
-# A letra do build tem de mudar em toda publicacao. Esta checagem existe porque
-# "nao sei se o app atualizou" e uma pergunta que nao deveria precisar de investigacao:
-# se o conteudo mudou e a letra nao, o publicado mentiria sobre si mesmo.
+# A versao tem de AVANCAR em toda publicacao. Isto existe porque "nao sei se o app
+# atualizou" e uma pergunta que nao deveria precisar de investigacao: se o conteudo mudou
+# e a versao nao, o publicado mentiria sobre si mesmo.
+#
+# DE LETRA PARA NUMERO (decisao do Daniel, 02/10): a 1.0a..1.0i eram letras, e com letra
+# a regra "nunca anda para trras" nao era verificavel — so dava para pegar "mesma letra,
+# conteudo diferente". Com numero da para EXIGIR que a nova seja estritamente maior, que
+# e a regra de verdade. A sequencia fecha: a..i sao 1 a 9, e a proxima e 1.0.10.
+#
+# O formato de letra continua sendo ACEITO para ler o historico em publicado.json, mas
+# recusado para publicar. Converter a letra em numero (a=1 .. z=26) deixa a comparacao
+# uniforme sem reescrever a historia.
+def _versao_num(v):
+    """('D-Sig 1.0.10') -> (1, 0, 10) | ('D-Sig 1.0i') -> (1, 0, 9) | None"""
+    m = re.match(r'D-Sig (\d+)\.(\d+)\.(\d+)$', v or '')
+    if m:
+        return tuple(int(x) for x in m.groups())
+    m = re.match(r'D-Sig (\d+)\.(\d+)([a-z])$', v or '')
+    if m:
+        return (int(m.group(1)), int(m.group(2)), ord(m.group(3)) - ord('a') + 1)
+    return None
+
+
 mv = re.search(r'const string DS_VERSAO\s*=\s*"([^"]+)";', limpo)
 assert mv, 'DS_VERSAO nao encontrada no script'
-VERSAO = mv.group(1)                       # ex.: "D-Sig 1.0a"
-mv2 = re.match(r'D-Sig (\d+\.\d+)([a-z])$', VERSAO)
-assert mv2, f'formato da versao invalido: {VERSAO!r} (esperado "D-Sig 1.0a")'
-CACHE = 'dsig-' + mv2.group(1) + mv2.group(2)
+VERSAO = mv.group(1)                       # ex.: "D-Sig 1.0.10"
+NUM = _versao_num(VERSAO)
+assert NUM, f'formato da versao invalido: {VERSAO!r} (esperado "D-Sig 1.0.10")'
+if not re.match(r'D-Sig \d+\.\d+\.\d+$', VERSAO):
+    print(f'  ERRO: a versao {VERSAO!r} usa o formato de LETRA, que foi aposentado.')
+    print(f'        A ultima com letra foi a 1.0i. Use numero: '
+          f'"D-Sig {NUM[0]}.{NUM[1]}.{NUM[2] + 1}".')
+    sys.exit(1)
+CACHE = 'dsig-%d.%d.%d' % NUM
 
 sha = hashlib.sha256(limpo.encode()).hexdigest()
 REG = 'publicado.json'
@@ -286,10 +311,16 @@ try:
     ant = json.load(open(REG))
 except Exception:
     ant = {}
-if ant.get('sha256') and ant['sha256'] != sha and ant.get('versao') == VERSAO:
-    print(f'  ERRO: o script mudou mas a versao continua {VERSAO}.')
-    print(f'        Incremente a letra do build em DS_VERSAO e rode de novo.')
-    sys.exit(1)
+ANT_NUM = _versao_num(ant.get('versao'))
+if ANT_NUM:
+    if NUM < ANT_NUM:
+        print(f'  ERRO: {VERSAO} e ANTERIOR a {ant["versao"]}, que ja foi publicada.')
+        print(f'        A versao identifica a publicacao e nunca anda para tras.')
+        sys.exit(1)
+    if NUM == ANT_NUM and ant.get('sha256') != sha:
+        print(f'  ERRO: o script mudou mas a versao continua {VERSAO}.')
+        print(f'        Incremente o numero em DS_VERSAO e rode de novo.')
+        sys.exit(1)
 
 # --- 3g. O PORTAO DE COMPORTAMENTO -------------------------------------------
 # Tudo acima audita ESTRUTURA e nao executa uma linha do script. Esta etapa roda o

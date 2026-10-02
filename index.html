@@ -16,6 +16,12 @@
   --txt:#e8eef5; --dim:#8fa3b8; --faint:#5a6b7d;
   --azul:#4a9eff; --verm:#ff5c5c; --verde:#4ade80; --rosa:#f472b6;
   --amber:#fbbf24;
+  /* GAMA — um matiz por alternativa. Calculados, nao escolhidos a olho:
+     >=40 graus de qualquer matiz reservado (ambar 45, azul 213, vermelho 0),
+     >=40 graus entre si, e todos com o contraste do --dim (6,68:1 no painel),
+     para os cinco rotulos pesarem igual. Ver p19_gama_cor.py. */
+  --g-2clk:#84ad4a;  --g-tog:#51b459;  --g-hold:#4cb198;
+  --g-after:#ac97d2; --g-blok:#cd8bc0;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--bg);color:var(--txt);
@@ -61,6 +67,13 @@ section>h2{font-size:17px;font-weight:700;color:var(--azul);margin:0 0 10px;
   position:sticky;top:53px;background:var(--bg);z-index:5}
 .fld{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
 .fld:last-child{border-bottom:none}
+/* Cada alternativa do GAMA e seus sub-campos numa caixa com barra lateral.
+   O primeiro .fld e a alternativa; os demais sao os sub-campos dela, e por
+   isso :not(:first-child) basta — nao precisa de classe nos sub-campos. */
+.gg{border-left:3px solid var(--gg);padding-left:11px;margin:0 0 7px}
+.gg .fld label{color:var(--gg)}
+.gg .fld:not(:first-child) label{opacity:.62}
+.gg .fld:last-child{border-bottom:none}
 .fld label{flex:none;width:104px;font-size:14px;color:var(--dim)}
 .fld .ctl{flex:1;display:flex;align-items:center;gap:8px;justify-content:flex-end}
 select,input[type=text]{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
@@ -136,7 +149,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0i";
+const string DS_VERSAO    = "D-Sig 1.0.10";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -5840,19 +5853,29 @@ function telaMod(A){
     A.appendChild(sb)}
 
   var sg=document.createElement('section');sg.innerHTML='<h2>GAMA</h2>';
-  sg.appendChild(fld('2CLK',sel(m.g2clk,BOTOES,function(v){m.g2clk=v;up()})));
-  if(m.g2clk)sg.appendChild(fld('· modo',sel(m.fin2clk,['ALTERNA','FINALIZA'],function(v){m.fin2clk=v;up()})));
-  sg.appendChild(fld('TOGGLE',sel(m.gTog,BOTOES,function(v){m.gTog=v;up()})));
-  if(m.gTog)sg.appendChild(fld('· modo',sel(m.finTog,['ALTERNA','FINALIZA'],function(v){m.finTog=v;up()})));
-  sg.appendChild(fld('HOLD',sel(m.gHold,BOTOES,function(v){m.gHold=v;up()})));
-  if(m.gHold){
-    sg.appendChild(fld('· tempo',sel(m.gHoldT,THOLD,function(v){m.gHoldT=v;up()})));
-    sg.appendChild(fld('· modo',sel(m.gHoldM,['APOS','ATE'],function(v){m.gHoldM=v;up()})));
-    sg.appendChild(fld('· liga/desl',sel(m.finHold,['ALTERNA','FINALIZA'],function(v){m.finHold=v;up()})))}
-  sg.appendChild(fld('AFTER',sel(m.gAfter,BOTOES,function(v){m.gAfter=v;up()})));
-  if(m.gAfter){sg.appendChild(fld('· atraso',sel(m.gAfterT,TAFTER,function(v){m.gAfterT=v;up()})));
-    sg.appendChild(fld('· modo',sel(m.finAfter,['ALTERNA','FINALIZA'],function(v){m.finAfter=v;up()})))}
-  sg.appendChild(fld('BLOK',sel(m.gBlok,BOTOES,function(v){m.gBlok=v;up()})));
+  // Cada alternativa vira um GRUPO com barra lateral no seu matiz; os sub-campos entram
+  // no mesmo grupo, no mesmo matiz com opacidade menor. E o que diz, sem ler, que o
+  // "· tempo" e do HOLD e nao do AFTER.
+  function gg(cor,campos){var d=document.createElement('div');d.className='gg';
+    d.style.setProperty('--gg','var(--g-'+cor+')');
+    campos.forEach(function(c){if(c)d.appendChild(c)});return d}
+  sg.appendChild(gg('2clk',[
+    fld('2CLK',sel(m.g2clk,BOTOES,function(v){m.g2clk=v;up()})),
+    m.g2clk&&fld('· modo',sel(m.fin2clk,['ALTERNA','FINALIZA'],function(v){m.fin2clk=v;up()}))]));
+  sg.appendChild(gg('tog',[
+    fld('TOGGLE',sel(m.gTog,BOTOES,function(v){m.gTog=v;up()})),
+    m.gTog&&fld('· modo',sel(m.finTog,['ALTERNA','FINALIZA'],function(v){m.finTog=v;up()}))]));
+  sg.appendChild(gg('hold',[
+    fld('HOLD',sel(m.gHold,BOTOES,function(v){m.gHold=v;up()})),
+    m.gHold&&fld('· tempo',sel(m.gHoldT,THOLD,function(v){m.gHoldT=v;up()})),
+    m.gHold&&fld('· modo',sel(m.gHoldM,['APOS','ATE'],function(v){m.gHoldM=v;up()})),
+    m.gHold&&fld('· liga/desl',sel(m.finHold,['ALTERNA','FINALIZA'],function(v){m.finHold=v;up()}))]));
+  sg.appendChild(gg('after',[
+    fld('AFTER',sel(m.gAfter,BOTOES,function(v){m.gAfter=v;up()})),
+    m.gAfter&&fld('· atraso',sel(m.gAfterT,TAFTER,function(v){m.gAfterT=v;up()})),
+    m.gAfter&&fld('· modo',sel(m.finAfter,['ALTERNA','FINALIZA'],function(v){m.finAfter=v;up()}))]));
+  sg.appendChild(gg('blok',[
+    fld('BLOK',sel(m.gBlok,BOTOES,function(v){m.gBlok=v;up()}))]));
   A.appendChild(sg);
 
   var sd=document.createElement('section');sd.innerHTML='<h2>DELTA</h2>';
