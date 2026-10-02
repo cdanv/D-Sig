@@ -47,6 +47,10 @@ SIM = _acha_sim()
 AQUI = os.path.dirname(os.path.abspath(__file__))
 REG = os.path.join(AQUI, 'sim_hash.json')
 CFG = os.path.join(AQUI, 'sim_cfg.json')
+# O molde VAZIO existe porque o Mad Max usa ZETA, FIN e BLOK ao mesmo tempo e por isso
+# NUNCA produz funcao orfa — era o unico dos quatro jogos do Daniel sem aviso GPC3005.
+# Molde que nao consegue reprovar nao prova nada.
+CFG_VAZIO = os.path.join(AQUI, 'sim_cfg_vazio.json')
 GERA = os.path.join(AQUI, 'sim_gera.js')
 
 # O MOD_11 "Coletar Item" do Mad Max: 2CLK no CROSS dispara TURBO no CROSS com
@@ -199,6 +203,31 @@ try:
         r = roda(['node', GERA, app_tmp, CFG, os.path.join(tmp, 'cfg.gpc')], cwd=AQUI)
         if passo('o app gera script a partir deste template', r.returncode == 0,
                  (r.stdout or r.stderr or '').strip().split('\n')[-1][:90]):
+            # --- a funcao orfa no GERADO, nao so no avulso -------------------
+            # O embutir.py audita orfa no D-Sig.gpc. Mas o app substitui a Config_Zeta
+            # INTEIRA, entao uma funcao ancorada no template pode ficar orfa no gerado —
+            # e foi o que aconteceu: os Builds do Daniel deram 1, 1, 0 e 5 avisos
+            # GPC3005 em quatro jogos, e o portao tinha deixado passar.
+            _g = open(os.path.join(tmp, 'cfg.gpc'), encoding='utf-8').read()
+            _orf = [_f for _f in re.findall(r'^function\s+(\w+)', _g, re.M)
+                    if len(re.findall(r'\b' + _f + r'\s*\(', _g)) < 2]
+            passo('o script gerado nao tem funcao orfa (GPC3005)',
+                  not _orf, ', '.join(_orf) if _orf else 'nenhuma')
+
+            # E o mesmo para um jogo SEM NENHUM MOD, onde o laco do Config_Zeta nao emite
+            # nada e tudo o que pende dele fica orfao.
+            _ov = os.path.join(tmp, 'vazio.gpc')
+            _rv = roda(['node', GERA, app_tmp, CFG_VAZIO, _ov], cwd=AQUI)
+            if _rv.returncode != 0:
+                passo('o app gera script para jogo sem MOD', False,
+                      (_rv.stdout or _rv.stderr or '').strip().split('\n')[-1][:80])
+            else:
+                _gv = open(_ov, encoding='utf-8').read()
+                _ofv = [_f for _f in re.findall(r'^function\s+(\w+)', _gv, re.M)
+                        if len(re.findall(r'\b' + _f + r'\s*\(', _gv)) < 2]
+                passo('jogo sem MOD tambem nao tem funcao orfa',
+                      not _ofv, ', '.join(_ofv) if _ofv else 'nenhuma')
+
             ok, res = constroi(os.path.join(tmp, 'cfg.gpc'), 'cfg', tmp)
             if passo('o gerado transpila e compila', ok, '' if ok else res):
                 r = roda([res['fuzz'], '60000', '7'], limite=180)
