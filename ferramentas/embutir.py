@@ -7,7 +7,9 @@ D-Sig.fonte.gpc  ->  D-Sig.gpc  ->  template dentro do index.html
 O QUE ELA GARANTE, falhando em vez de entregar algo errado:
   1. o D-Sig.gpc publicado e o template embutido no app tem o MESMO sha256;
   2. nenhum comentario sobra no que e publicado;
-  3. as 9 ancoras de texto que o app usa para injetar a configuracao continuam la;
+  3. as ancoras de texto que o app usa para injetar a configuracao continuam la
+     (quantas sao sai da lista ANCORAS do limpar.py, nao de um numero escrito aqui:
+      foram 7, depois 9, e hoje sao 11 — numero em prosa envelhece calado);
   4. as linhas de codigo do limpo sao IGUAIS, uma a uma, as do arquivo comentado.
 
 POR QUE DOIS ARQUIVOS: comentario em GPC nao custa byte nenhum no Zen — o compilador os
@@ -16,10 +18,34 @@ custam e PESO DE DOWNLOAD do app, porque o template viaja dentro do index.html. 
 divisao classica entre FONTE e PUBLICADO: o comentado e onde se trabalha e se aprende, o
 limpo e o que vai para o ar.
 """
-import re, hashlib, sys, json
+import re, hashlib, sys, json, os
+_B = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _B)                      # roda de qualquer cwd, nao so de dentro
 from limpar import limpar, ANCORAS
 
-FONTE, PUB, APP = 'D-Sig.fonte.gpc', 'D-Sig.gpc', 'index.html'
+# ONDE CADA COISA MORA. Dois layouts, um comando.
+#
+#   desenvolvimento (plano)        publico (o que o GitHub Pages serve na raiz)
+#   dsig/                          D-Sig/
+#     D-Sig.fonte.gpc                index.html      <- RAIZ
+#     index.html                     D-Sig.gpc
+#     D-Sig.gpc                      sw.js
+#     sw.js                          ferramentas/
+#     embutir.py                       D-Sig.fonte.gpc   <- BANCADA
+#                                      embutir.py
+#
+# BANCADA e a pasta deste arquivo. RAIZ e a de cima SE ela tiver o index.html — e esse
+# teste que distingue os dois layouts sem precisar de configuracao nem de palpite.
+# Antes disto os nomes eram puros ('index.html') e valiam o cwd: o `cd ferramentas &&
+# python3 embutir.py` que a documentacao promete morria na primeira linha.
+BANCADA = _B
+_acima = os.path.dirname(BANCADA)
+RAIZ = _acima if os.path.isfile(os.path.join(_acima, 'index.html')) else BANCADA
+
+FONTE = os.path.join(BANCADA, 'D-Sig.fonte.gpc')
+PUB   = os.path.join(RAIZ,    'D-Sig.gpc')
+APP   = os.path.join(RAIZ,    'index.html')
+SW    = os.path.join(RAIZ,    'sw.js')
 
 bruto = open(FONTE, encoding='utf-8').read()
 limpo = limpar(bruto)
@@ -306,7 +332,7 @@ if not re.match(r'D-Sig \d+\.\d+\.\d+$', VERSAO):
 CACHE = 'dsig-%d.%d.%d' % NUM
 
 sha = hashlib.sha256(limpo.encode()).hexdigest()
-REG = 'publicado.json'
+REG = os.path.join(BANCADA, 'publicado.json')
 try:
     ant = json.load(open(REG))
 except Exception:
@@ -368,11 +394,11 @@ h2 = hashlib.sha256(tpl.encode()).hexdigest()
 # --- 5. o cache do service worker acompanha a versao -------------------------
 # Antes o numero do cache era incrementado a mao, e esquecer disso faz o navegador
 # continuar servindo o app anterior — que foi exatamente a duvida de hoje.
-sw = open('sw.js', encoding='utf-8').read()
+sw = open(SW, encoding='utf-8').read()
 atual = re.search(r"const CACHE = '([^']+)';", sw)
 assert atual, 'CACHE nao encontrado no sw.js'
 if atual.group(1) != CACHE:
-    open('sw.js', 'w', encoding='utf-8').write(
+    open(SW, 'w', encoding='utf-8').write(
         sw.replace(f"const CACHE = '{atual.group(1)}';", f"const CACHE = '{CACHE}';"))
     print(f'  sw.js    : {atual.group(1)} -> {CACHE}')
 else:

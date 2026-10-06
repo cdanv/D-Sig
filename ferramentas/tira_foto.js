@@ -31,17 +31,19 @@ const path = require('path');
   const achou = await pag.evaluate(([nome, md]) => {
     const i = window.D.jogos.findIndex(j => j.nome === nome);
     if (i < 0) return null;
-    window.tela = 'mod'; window.jg = i; window.md = Number(md) - 1;
+    window.tela = Number(md) > 0 ? 'mod' : 'jogo';
+    window.jg = i; window.md = Math.max(0, Number(md) - 1);
     window.render();
-    return window.D.jogos[i].mods[Number(md) - 1].nota || '(sem nota)';
+    return Number(md) > 0 ? (window.D.jogos[i].mods[Number(md)-1].nota || '(sem nota)') : 'tela do jogo';
   }, [JOGO, MOD]);
-  if (!achou) { console.error('jogo nao encontrado: ' + JOGO); await browser.close(); process.exit(1); }
+  if (achou === null) { console.error('jogo nao encontrado: ' + JOGO); await browser.close(); process.exit(1); }
 
   // Acha a <section> cujo <h2> diz GAMA e fotografa só ela.
-  const alvo = await pag.evaluateHandle(() => {
+  const SEC = process.env.SECAO || 'GAMA';
+  const alvo = await pag.evaluateHandle((sec) => {
     const ss = [...document.querySelectorAll('section')];
-    return ss.find(s => s.querySelector('h2') && s.querySelector('h2').textContent.trim() === 'GAMA') || null;
-  });
+    return ss.find(s => s.querySelector('h2') && s.querySelector('h2').textContent.trim() === sec) || null;
+  }, SEC);
   const el = alvo.asElement();
   if (!el) { console.error('secao GAMA nao encontrada na tela'); await browser.close(); process.exit(1); }
   await el.screenshot({ path: SAI });

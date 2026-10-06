@@ -1,31 +1,53 @@
-# D-Sig
+# D-Sig — diário de engenharia
 
-Roteador de sinais para Cronus Zen (PS5), com aplicativo web para
-catalogar as configurações e gerar o script pronto.
+Este arquivo é para **quem vai mexer no código**: a arquitetura, o layout de
+bits, as medições feitas no aparelho, e cada decisão com o motivo e o que ela
+substituiu. É longo de propósito — e é o lugar onde o *porquê* mora.
 
-- **`index.html`** — o app. Contém o D-Sig embutido.
-- **`D-Sig.gpc`** — o script avulso, limpo, pronto para o ZenStudio.
-- **`D-Sig.fonte.gpc`** — o mesmo script comentado. É o arquivo que se
-  edita, e onde está explicado o *porquê* de cada decisão.
+Quem só quer usar o D-Sig deve ler o [`README.md`](README.md).
 
-O que o **GitHub Pages** precisa servir são `index.html`, `manifest.json`,
-`sw.js` e os três ícones. O resto fica no repositório sem atrapalhar, e é
-onde convém guardá-lo — o `.gpc` avulso só tem valor se estiver ao lado do
-`index.html` de que ele é cópia.
+### O repositório
 
-### As ferramentas
+```
+index.html          o app. Contém o D-Sig embutido como template
+D-Sig.gpc           o script avulso, sem comentários, pronto para o Zen Studio
+manifest.json       \
+sw.js                >  o que o GitHub Pages precisa servir, junto do index.html
+icone-*.png         /
+README.md           a porta de entrada
+LEIAME.md           este arquivo
+ferramentas/        nada disto vai ao ar; é a bancada
+  sim/              o simulador (7 arquivos)
+  oled/             a arte do OLED
+```
+
+### A bancada
 
 | arquivo | o que faz |
 |---|---|
-| `embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
-| `limpar.py` | o removedor de comentários e a lista das 7 âncoras que o app usa |
-| `publicado.json` | o SHA-256 da última publicação. É com ele que o `embutir.py` recusa publicar conteúdo novo sob a mesma letra de build |
-| `oled/padrao.py` | **a fonte única da arte do OLED.** Dele saem os PNGs de revisão, o `timbre.png` e o código das telas |
-| `oled/png2gpc.py` | PNG de 1 bit → `const image` do GPC, no formato que o compilador exige |
+| `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado. É o único arquivo que se edita à mão** |
+| `ferramentas/embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
+| `ferramentas/limpar.py` | o removedor de comentários e a lista das 11 âncoras que o app usa |
+| `ferramentas/testa_sim.py` | o portão de comportamento: 17 verificações que **executam** o script |
+| `ferramentas/gera_molde.py` | **gera o molde sintético do portão** e declara os 34 itens de cobertura que ele tem de sustentar |
+| `ferramentas/testa_tabelas.py` | confere tabela por tabela entre o app e o script, por valor |
+| `ferramentas/testa_a11y.js` | nome acessível e alvo de toque, no Chromium de verdade |
+| `ferramentas/testa_dom.js` | o nome dos domínios, pelas duas vias do app |
+| `ferramentas/tira_foto.js` | renderiza o app e fotografa uma seção, para revisão visual |
+| `ferramentas/publicado.json` | o SHA-256 da última publicação. É com ele que o `embutir.py` recusa republicar conteúdo novo sob a mesma versão |
+| `ferramentas/oled/padrao.py` | **a fonte única da arte do OLED.** Dele saem os PNGs de revisão, o `timbre.png` e o código das telas |
+| `ferramentas/oled/png2gpc.py` | PNG de 1 bit → `const image` do GPC, no formato que o compilador exige |
+| `ferramentas/sim/` | **o simulador.** Sete arquivos: `gpc2c.py` (transpilador GPC→C), `gpcrt.h` (runtime das primitivas) e os cinco cenários em C — `harness`, `fuzz`, `tri`, `zeta`, `mig` |
+| `ferramentas/empacotar.py` | monta o repositório no layout público **e roda o `embutir.py` de dentro da cópia**, reprovando se ele não publicar o mesmo SHA-256 |
 
 A cadeia da arte é reproduzível a partir do repositório: `python3 oled/padrao.py`
 grava o `timbre.png`, e o `oled/png2gpc.py` devolve deste os mesmos 300 bytes
 que estão no `const image DS_TIMBRE` do publicado.
+
+O portão precisa de `python3`, `gcc` e `npm i -g jsdom playwright`. Faltando o
+playwright, a verificação de acessibilidade **reprova em voz alta** em vez de
+pular em silêncio — teste que pula sem avisar é lido como teste que passou, e foi
+exatamente assim que o simulador ficou três versões dormindo sem ninguém notar.
 
 > **D-Sig é o nome final do projeto.** A 1.0 é a v7o reestruturada e
 > auditada — mesmo comportamento, verificado saída por saída no
@@ -51,7 +73,7 @@ em vez de entregar algo errado se:
 - as linhas de código do limpo não forem iguais, uma a uma, às do
   comentado;
 - sobrar qualquer comentário no que vai ser publicado;
-- faltar uma das 7 âncoras de texto que o app usa para injetar a
+- faltar uma das 11 âncoras de texto que o app usa para injetar a
   configuração;
 - o `.gpc` e o template embutido não tiverem o mesmo SHA-256.
 
@@ -630,8 +652,153 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0f**; o `LAYOUT_VER` está em **5**, porque as
-posições dos campos nos SPVARs não mudam desde então. Incremente o
-`LAYOUT_VER` apenas quando um campo mudar de posição ou tamanho — e,
-ao fazer isso, atualize o app junto. App e script divergindo em
-silêncio é o único jeito deste sistema falhar sem dar sinal.
+O script está na **1.0.12**; o `LAYOUT_VER` está em **6** desde que as
+SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
+permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
+posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
+script divergindo em silêncio é o único jeito deste sistema falhar sem
+dar sinal.
+
+### 1.0.10 — validada em hardware (06/10/2026)
+
+Compilada nos quatro scripts com **0 erros e 0 avisos**, e aprovada no
+Cronus: deletar e reordenar MODs no aparelho sobrevivem ao
+desligamento, que era o último defeito conhecido.
+
+| | binário | % do limite |
+|---|---|---|
+| InLoco | 52.032 | 79,42% |
+| Cities Skylines | 52.336 | 79,88% |
+| Football-FIFA-eFoot | 52.400 | 79,98% |
+| Mad Max | 52.656 | 80,37% |
+
+`Variable slots` 481/1024 (47,16%) e `peak stack` 512/1024 (50,00%) em
+todos — são as globais, que não dependem do jogo.
+
+### 1.0.11 — o nome dos domínios (06/10/2026)
+
+Os quatro domínios eram `D1`..`D4` no OLED, e nada mais. Quem usa dois ou três
+contextos no mesmo jogo não lembra qual é qual — "a pé" e "no veículo" não cabem
+num rótulo que diz `D2`.
+
+O app ganhou um campo de nome por domínio, de **9 caracteres** (o que cabe na
+linha do OLED ao lado do rótulo), saneado igual ao nome do jogo: sem `"`, sem `\`
+e sem `//`, que quebrariam a `const string` gerada.
+
+O que isto revelou, e é o motivo de a mudança valer o parágrafo: o gerador tem
+**duas vias** — o `scriptCompleto()`, do botão de baixar, e o `codigo()`, do
+"colar à mão". A segunda ainda emitia `GAME_NAME_3` e `GAME_NAME_4`, que **não
+existem no script desde a 1.0b**, e emitia os `MODE_S` como `"D1".."D4"`,
+divergindo da primeira. Quem seguisse a instrução colava duas linhas sem destino.
+Duas vias para o mesmo dado é defeito esperando a hora; o portão passou a conferir
+as duas (`testa_dom.js`).
+
+### 1.0.12 — a auditoria (06/10/2026)
+
+Uma varredura do app e do script inteiros, antes de ir a público. Oito defeitos,
+três deles com consequência real:
+
+1. **`THR_OUT = 100` gravava uma janela diferente da escolhida.** O empacotamento
+   é `a*R+b`, e o operando limitado pelo rádix é o **b**. Com `THR_IN = 5` e
+   `THR_OUT = 100`, `5*20+20 = 120` transbordava o campo e o aparelho lia
+   `THR_IN = 30, THR_OUT = OFF`. O app mostrava uma coisa e o Cronus fazia outra —
+   a forma de falha mais cara que este projeto tem.
+2. **A seta de descer no MOD_20 corrompia a biblioteca.** `trocaMod(19,20)`
+   lançava exceção no meio da troca e deixava `mods.length = 21` com
+   `mods[19] = undefined`.
+3. **O importador do backup não passava por nenhuma das sete normalizações** que
+   o carregamento normal aplica. Um JSON de uma versão anterior entrava cru.
+
+Cada um foi **reproduzido antes de consertar** — rodando o código, não lendo —
+e reprovado de novo depois do conserto.
+
+Entrou também o que a auditoria achou de acessibilidade, que num app usado no
+celular com o controle na outra mão não é conformidade e sim configuração errada
+gravada no Cronus: o botão de voltar e as setas de reordenar tinham ~29x33 px
+contra os 44 px da diretriz; o `<select>` da cor do LED e o `<textarea>` do backup
+não tinham nome acessível nenhum; e as cores de domínio na lista de jogos eram o
+**único** canal da informação — invisíveis a leitor de tela e indistinguíveis em
+várias formas de daltonismo.
+
+Duas coisas que a auditoria ensinou sobre os próprios testes:
+
+- **O molde que não consegue reprovar não prova nada.** A verificação de função
+  órfã passava num script sabotado, porque o jogo do molde (Mad Max) é justamente
+  o que usa todos os recursos. Precisou de um molde de **jogo vazio** para
+  conseguir reprovar.
+- **O nome acessível é calculado na árvore de acessibilidade, não no texto-fonte.**
+  Meu verificador aceitava o `textContent` de um `<select>` como nome — e o
+  `textContent` de um `<select>` são as suas *opções*. Tirar o `aria-label` da cor
+  do LED passava. Só a sabotagem mostrou.
+
+O portão foi de 12 para **15 verificações** — e para 16 com a verificação de que o README não contradiz o código, que entrou junto da documentação pública.
+
+### O molde do portão virou sintético (06/10/2026)
+
+O molde era o **Mad Max**, tirado da biblioteca do Daniel. Funcionava, e indo a público
+trazia dois problemas. O menor é que configuração de jogo dele não é projeto — e o GitHub
+Pages serve tudo o que está no repositório como arquivo publicamente legível.
+
+O maior é que **ninguém sabia por que cada MOD daquele estava ali**. Molde herdado de um
+jogo real cobre o que aquele jogo precisava, não o que o portão precisa verificar. A
+cobertura era coincidência — e coincidência não se mantém: bastava o Daniel reconfigurar
+o Mad Max para o portão passar a verificar outra coisa, sem avisar.
+
+O `gera_molde.py` troca o dado achado por um dado **projetado**. Cada um dos 20 MODs tem
+escrito ao lado o motivo de existir, e no fim o script **conta a cobertura** — 34 itens —
+e reprova se perder um. As quatro sabotagens que fiz nele (alterar o TURBO medido, tirar o
+BLOK, tirar o PASSIVO, zerar TURBO_MODO e CICLOS) reprovaram todas, nomeando o item.
+
+O MOD_11 é declarado **intocável**: `tmp=[4,4,4,5]`, `lat=5`, 2CLK no CROSS. É o único
+número do projeto medido no PLOT do Device Monitor com o Cronus na mão (149,8/50,1 ms
+contra 150/50 configurados). Mexer nele cega a única ponte entre o simulador e o aparelho.
+
+**Três defeitos que a troca de molde revelou**, e é por isso que ela valeu:
+
+1. **O `testa_a11y.js` procurava o jogo por nome** — `findIndex(x => x.nome === 'Mad Max')`
+   — e o MOD por índice fixo (`md = 6`). Trocar o molde o derrubou com
+   `Cannot read properties of undefined`. Teste que depende do **nome do dado** não testa
+   o app, testa o dado. Agora pega o primeiro jogo e, dentro dele, o MOD com mais campos
+   de GAMA preenchidos, e reprova se o melhor tiver menos de dois.
+2. **O teste de deletar aprovava vazio.** "Nenhum slot divergiu" é verdade também quando
+   nenhum slot tem relação: um molde sem ZETA passava sem exercitar uma linha da
+   permutação. O teste de *reordenar* já tinha essa guarda (`len(mexeu) >= 2`); o de
+   deletar não, e a diferença só ficou visível ao trocar de molde. Provado com um molde
+   sem nenhuma relação, que agora reprova nos dois.
+3. **O tripwire do hash distinguiu certo**, e isso é notícia boa: o hash do **avulso**
+   ficou inalterado e só o do **configurado** mudou. Ou seja, o script não mudou; o molde
+   mudou. Era exatamente o que tinha de acontecer, e a linha de base nova foi registrada
+   de propósito.
+
+A verificação 17 fecha o círculo: o portão **regenera o molde e compara** com o
+`sim_cfg.json`. Molde editado à mão mantém a aparência e perde a cobertura em silêncio —
+provado tirando um `gHoldM`, mudança mínima e plausível, que reprovou.
+
+O `sim_cfg_vazio.json` continua existindo e continua sendo necessário: **ele** é o molde
+que *consegue* reprovar na verificação de função órfã. O sintético nunca reprovaria ali,
+porque usa todos os recursos — e molde que não consegue reprovar não prova nada.
+
+### O que continua em aberto, e não impede nada
+
+1. **Por que a VM rodou a 16,1 ms numa sessão de 27/09.** Não se sabe,
+   não é reproduzível, e o script não mede a própria velocidade. O
+   sintoma e como conferir estão na seção do relógio.
+2. **O app não absorve o que se faz no aparelho.** O `.znbk` carrega as
+   SPVARs e o `decodifica.py` prova que sabe lê-las; um importador
+   tornaria "regrave pelo app" em "traga o que você fez". É
+   funcionalidade que não existe, não defeito.
+3. **O teto de 20 MODs.** A EEPROM fecha em 64 de 64 palavras. Os 5 bits
+   do selo (encurtar o hash de 29 para 24 bits) são a **única reserva**
+   de memória persistente que resta — e ficam reservados de propósito,
+   porque foi fechar a EEPROM sem ninguém decidir que fecharia que
+   deixou o ZETA sem casa em primeiro lugar.
+
+### Antes de mexer em qualquer coisa
+
+```
+python3 ferramentas/embutir.py
+```
+
+Ele audita a estrutura **e** roda o portão de comportamento: 17
+verificações, cada uma conferida contra uma sabotagem deliberada. Se
+fechar, não publicou nada.

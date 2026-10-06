@@ -10,8 +10,8 @@ porque nenhuma etapa o chamava. Tres versoes foram publicadas sobre uma rede des
 O QUE ELE GARANTE, falhando em vez de deixar publicar:
   1. o .gpc avulso transpila, compila e sobrevive a 60.000 voltas de fuzz;
   2. o script GERADO PELO APP, a partir do template que esta sendo publicado, idem;
-  3. o TURBO do MOD_11 do Mad Max sai 150/50/150/50/150/50/250 ms — os mesmos numeros
-     que o PLOT do Device Monitor mediu no hardware;
+  3. o TURBO do MOD_11 do molde sai 150/50/150/50/150/50/250 ms — os mesmos numeros
+     que o PLOT do Device Monitor mediu no hardware (149,8/50,1 ms);
   4. o DELETAR? da lista exige 1000 ms de TRIANGLE, nem mais nem menos.
 
 O 3 e o 4 sao os unicos numeros deste projeto que foram medidos em hardware E em
@@ -47,24 +47,38 @@ SIM = _acha_sim()
 AQUI = os.path.dirname(os.path.abspath(__file__))
 REG = os.path.join(AQUI, 'sim_hash.json')
 CFG = os.path.join(AQUI, 'sim_cfg.json')
-# O molde VAZIO existe porque o Mad Max usa ZETA, FIN e BLOK ao mesmo tempo e por isso
-# NUNCA produz funcao orfa — era o unico dos quatro jogos do Daniel sem aviso GPC3005.
-# Molde que nao consegue reprovar nao prova nada.
+# OS DOIS MOLDES, e por que sao dois.
+#
+# O sim_cfg.json e SINTETICO: sai do gera_molde.py, que declara 34 itens de cobertura e
+# reprova se perder um. Ele usa ZETA, FIN e BLOK ao mesmo tempo, entao NUNCA produz funcao
+# orfa — logo nao consegue reprovar na verificacao de funcao orfa, e molde que nao consegue
+# reprovar nao prova nada. Por isso o molde VAZIO existe: ELE e o que reprova ali.
+#
+# (Era o Mad Max da biblioteca do Daniel. Trocar revelou tres defeitos nos testes; esta
+#  no LEIAME, em "O molde do portao virou sintetico".)
 CFG_VAZIO = os.path.join(AQUI, 'sim_cfg_vazio.json')
 GERA = os.path.join(AQUI, 'sim_gera.js')
+DOM = os.path.join(AQUI, 'testa_dom.js')
+TAB = os.path.join(AQUI, 'testa_tabelas.py')
+A11Y = os.path.join(AQUI, 'testa_a11y.js')
 
-# O MOD_11 "Coletar Item" do Mad Max: 2CLK no CROSS dispara TURBO no CROSS com
-# tmp=[4,4,4,5] (150,150,150,250 ms) e lat=5 (50 ms). CROSS e o indice 6 no gpcrt.h.
+# O MOD_11 do molde: 2CLK no CROSS dispara TURBO no CROSS com tmp=[4,4,4,5]
+# (150,150,150,250 ms) e lat=5 (50 ms). CROSS e o indice 6 no gpcrt.h.
+# O gera_molde.py declara esse MOD como INTOCAVEL: e o unico numero do projeto medido no
+# aparelho, e mexer nele cega a ponte entre o simulador e o Cronus.
 CROSS = 6
 TURBO_ESPERADO = [150, 50, 150, 50, 150, 50, 250]
 TRI_ESPERADO = 1000
 
-# O slot que o teste do ZETA deleta. O MOD_05 do Mad Max fica no meio e tem 12 MODs
-# depois dele com relacoes — e o pior caso disponivel na configuracao congelada.
+# O slot que o teste do ZETA deleta. O MOD_05 do molde fica no meio, carrega EXCL e ASSOC
+# proprios, e tem MODs com relacao acima e abaixo dele — o gera_molde.py garante isso em
+# "ZETA antes do slot 5" e "ZETA depois do slot 5". Deletar um slot sem relacao nenhuma
+# nao remaneja nada e aprova vazio.
 ZETA_SLOT = 5
 
-# Mover o MOD do slot 3 para o 9 com L2+BAIXO: atravessa a faixa onde moram as
-# relacoes do Mad Max, entao mexe em varios slots de uma vez.
+# Mover o MOD do slot 3 para o 9 com L2+BAIXO: atravessa a faixa 3..9, onde o molde
+# concentra relacoes de proposito ("ZETA na faixa 3..9"), entao mexe em varios slots de
+# uma vez em vez de passear por cima de slots vazios.
 ZETA_TROCA = (3, 9)
 
 # A CHAVE DO BUG CONHECIDO. Enquanto False, o teste do ZETA DEVE reprovar: ele documenta
@@ -101,24 +115,51 @@ def passo_xfail(nome, ok, detalhe=''):
     return ok
 
 
-def acha_jsdom():
-    """O jsdom nao esta instalado em dsig/. Em vez de depender implicitamente de um
-    node_modules de outro diretorio — que foi como o simulador ficou orfao em primeiro
-    lugar — o portao procura, declara onde achou, e FALHA COM NOME se nao achar."""
-    for base in (AQUI, os.path.join(AQUI, '..', 'teste'), os.path.join(AQUI, '..')):
+def acha_node(pacote):
+    """Procura um node_modules que contenha o pacote. Em vez de depender implicitamente
+    de um diretorio alheio — que foi como o simulador ficou orfao — o portao procura,
+    declara onde achou, e diz o nome do que falta.
+
+    O jsdom e o playwright podem morar em lugares DIFERENTES: foi o que fez a conferencia
+    de acessibilidade ser 'pulada' em silencio na primeira vez. Os dois caminhos entram
+    no NODE_PATH."""
+    cands = [AQUI, os.path.join(AQUI, '..', 'teste'), os.path.join(AQUI, '..')]
+    g = _npm_global()
+    if g:
+        cands.append(os.path.dirname(g))
+    for base in cands:
         nm = os.path.abspath(os.path.join(base, 'node_modules'))
-        if os.path.isdir(os.path.join(nm, 'jsdom')):
+        if os.path.isdir(os.path.join(nm, pacote)):
             return nm
     return None
 
 
-JSDOM = acha_jsdom()
+_NPMG = []
+
+
+def _npm_global():
+    """Onde o npm instala pacotes globais. Perguntado a ele, nao adivinhado por HOME —
+    o HOME deste processo pode nao ser o de quem instalou."""
+    if _NPMG:
+        return _NPMG[0]
+    try:
+        r = subprocess.run(['npm', 'root', '-g'], capture_output=True, text=True, timeout=30)
+        p = r.stdout.strip()
+        _NPMG.append(p if r.returncode == 0 and os.path.isdir(p) else None)
+    except Exception:
+        _NPMG.append(None)
+    return _NPMG[0]
+
+
+JSDOM = acha_node('jsdom')
+PLAYW = acha_node('playwright')
+NODEP = os.pathsep.join([p for p in (JSDOM, PLAYW) if p])
 
 
 def roda(cmd, entrada=None, cwd=None, limite=180):
     env = dict(os.environ)
-    if JSDOM:
-        env['NODE_PATH'] = JSDOM
+    if NODEP:
+        env['NODE_PATH'] = NODEP
     try:
         return subprocess.run(cmd, input=entrada, capture_output=True, text=True,
                               cwd=cwd or SIM, timeout=limite, env=env)
@@ -166,17 +207,60 @@ def mede_turbo(exe):
 # ---------------------------------------------------------------------------
 GPC = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.join(AQUI, 'D-Sig.gpc')
 APP = os.path.abspath(sys.argv[2]) if len(sys.argv) > 2 else os.path.join(AQUI, 'index.html')
-VERSAO = sys.argv[3] if len(sys.argv) > 3 else '?'
+
+
+def _versao_do_gpc(p):
+    """A versao sai do PROPRIO script quando o embutir.py nao a passa.
+
+    Era '?' nesse caso, e o '?' ia para o sim_hash.json como se fosse uma versao: ele
+    virava o '_ultimo', e a rodada seguinte comparava 'inalterado desde a ?'. Uma rodada
+    a mao apagava a linha de base do tripwire — o vigia perdia a memoria por ser
+    consultado. O DS_VERSAO esta no arquivo que estamos testando; e so ler.
+    """
+    try:
+        m = re.search(r'DS_VERSAO\s*=\s*"([^"]+)"', open(p, encoding='utf-8').read())
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    return '?'
+
+
+VERSAO = sys.argv[3] if len(sys.argv) > 3 else _versao_do_gpc(GPC)
 
 print(f'  simulador: {SIM}')
 if JSDOM:
     print(f'  jsdom    : {JSDOM}')
+    if PLAYW:
+        print(f'  playwright: {PLAYW}')
 else:
     passo('jsdom disponivel para rodar o app', False,
           'instale com: npm i jsdom  (em dsig/ ou em teste/)')
 tmp = tempfile.mkdtemp(prefix='dsig_sim_')
 hashes = {}
 try:
+    # --- 0. o MOLDE e o que o gerador diz que e ------------------------------
+    # O sim_cfg.json nao e mais um jogo copiado da biblioteca: ele sai do gera_molde.py,
+    # que declara 34 itens de cobertura e reprova se perder um. Essa garantia so vale se
+    # o arquivo FOR a saida do gerador — um molde editado a mao mantem a aparencia e
+    # perde a cobertura em silencio, que e o defeito do simulador dormindo outra vez.
+    # Entao o portao regenera e compara.
+    _gm = os.path.join(AQUI, 'gera_molde.py')
+    if os.path.exists(_gm):
+        _novo = os.path.join(tmp, 'molde.json')
+        _rg = roda([sys.executable, _gm, _novo], cwd=AQUI, limite=120)
+        if _rg.returncode != 0:
+            passo('o molde do portao bate com o gera_molde.py', False,
+                  (_rg.stdout or _rg.stderr or '').strip().split('\n')[-1][:120])
+        else:
+            _a = json.load(open(_novo, encoding='utf-8'))
+            _b = json.load(open(CFG, encoding='utf-8'))
+            _cob = [l for l in (_rg.stdout or '').split('\n') if 'cobertura' in l]
+            passo('o molde do portao bate com o gera_molde.py', _a == _b,
+                  (_cob[0].strip() if _a == _b and _cob else
+                   'o sim_cfg.json divergiu do gerador: rode '
+                   '`python3 gera_molde.py sim_cfg.json`'))
+
     # --- 1. o avulso ---------------------------------------------------------
     ok, res = constroi(GPC, 'avulso', tmp)
     if passo('avulso transpila e compila', ok, '' if ok else res):
@@ -227,6 +311,51 @@ try:
                         if len(re.findall(r'\b' + _f + r'\s*\(', _gv)) < 2]
                 passo('jogo sem MOD tambem nao tem funcao orfa',
                       not _ofv, ', '.join(_ofv) if _ofv else 'nenhuma')
+
+            # --- os nomes de dominio, pelas DUAS vias do app ------------------
+            # O codigo(j) e o scriptCompleto(j) sao duas vias para o mesmo dado, e e
+            # onde a divergencia mora. Ja discordavam quando o recurso entrou.
+            _rd = roda(['node', DOM, app_tmp, CFG], cwd=AQUI)
+            passo('os nomes de dominio batem nas duas vias do app',
+                  _rd.returncode == 0,
+                  (_rd.stdout or _rd.stderr or '').strip().split('\n')[-1][:90])
+
+            # --- as TABELAS, valor por valor ---------------------------------
+            # O app grava um INDICE e o script traduz em milissegundos. Se as tabelas
+            # discordarem, o app mostra "150ms", o Cronus aplica outra coisa, e NENHUM
+            # teste de comportamento pega: o script faz o que a tabela DELE manda.
+            _rt = roda([sys.executable, TAB, GPC, app_tmp], cwd=AQUI, limite=240)
+            passo('as tabelas batem entre o app e o script',
+                  _rt.returncode == 0,
+                  (_rt.stdout or '').strip().split('\n')[-1].strip()[:100])
+
+            # --- nome acessivel e alvo de toque, no navegador -----------------
+            # O app e usado no celular com o controle na outra mao. Nome acessivel se
+            # calcula na arvore, nao no fonte, entao isto roda no Chromium.
+            _ch = None
+            for _c in ('/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+                       '/opt/pw-browsers/chromium/chrome-linux/chrome'):
+                if os.path.exists(_c):
+                    _ch = _c
+                    break
+            if _ch:
+                os.environ['CHROMIUM'] = _ch
+            _cfgv = CFG if os.path.exists(CFG) else CFG_VAZIO
+            _ra = roda(['node', A11Y, app_tmp, _cfgv], cwd=AQUI, limite=240)
+            _falta = (_ra.returncode != 0 and
+                      ('playwright' in (_ra.stderr or '').lower() or not PLAYW))
+            if _falta and os.environ.get('DSIG_SEM_A11Y') == '1':
+                print('  [--  ] acessibilidade: pulada por DSIG_SEM_A11Y=1')
+            elif _falta:
+                passo('nome acessivel e alvo de toque no app', False,
+                      'playwright ausente — instale com: npm i -g playwright, ou declare '
+                      'DSIG_SEM_A11Y=1 para publicar sem esta conferencia')
+            else:
+                _linhas = [l for l in (_ra.stdout or '').split('\n') if 'FALHOU' in l]
+                passo('nome acessivel e alvo de toque no app',
+                      _ra.returncode == 0,
+                      '; '.join(l.strip()[:60] for l in _linhas[:2]) if _linhas
+                      else '8 conferencias em 4 telas')
 
             ok, res = constroi(os.path.join(tmp, 'cfg.gpc'), 'cfg', tmp)
             if passo('o gerado transpila e compila', ok, '' if ok else res):
@@ -280,11 +409,21 @@ try:
                     ruins = [s for s in slots
                              if dep.get(s, (0, 0, 0)) != reb.get(s, (0, 0, 0))]
                     nome = f'o ZETA sobrevive a deletar o slot {ZETA_SLOT} e religar'
+                    # GUARDA CONTRA APROVACAO VAZIA. "nenhum slot divergiu" e verdade
+                    # tambem quando nenhum slot tem relacao: um molde sem ZETA passaria
+                    # aqui sem exercitar uma linha da permutacao. O teste de reordenar ja
+                    # tinha essa guarda (len(mexeu)>=2); este nao, e a diferenca so ficou
+                    # visivel ao trocar de molde. Dez e o piso: o molde sintetico entrega
+                    # 13 e o anterior entregava 12.
+                    bastante = len(slots) >= 10
                     det = ('igual nos %d slots' % len(slots) if not ruins
                            else '%d de %d slots divergem: %s' % (len(ruins), len(slots),
                                                                  ','.join(map(str, ruins))))
+                    if not bastante:
+                        det += (' — SO %d slots com relacao: o molde nao exercita a '
+                                'permutacao o bastante para este teste valer' % len(slots))
                     if ZETA_CONSERTADO:
-                        passo(nome, not ruins, det)
+                        passo(nome, (not ruins) and bastante, det)
                     else:
                         passo_xfail(nome, not ruins, det)
 
@@ -331,6 +470,32 @@ try:
                       _mok, '; '.join(_mdet) if _mdet else 'zeradas, com config e com lixo')
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
+
+# --- a DOCUMENTACAO contra o codigo -----------------------------------------
+# Escrevendo o README para o publico eu afirmei "firmware 2.3.2 ou mais novo". Nao existe
+# essa medida em lugar nenhum do projeto — eu inventei um numero porque a frase pedia um,
+# e nada teria pego, porque documentacao nao compila. Aqui ela passa a compilar: toda
+# afirmacao verificavel do README e procurada no codigo.
+#
+# Roda POR ULTIMO de proposito: uma das afirmacoes e quantas verificacoes o portao tem, e
+# o portao so sabe isso quando acaba. len(notas)+1 conta esta mesma.
+try:
+    import testa_doc
+    # A RAIZ e onde o README e os arquivos servidos moram: a pasta de cima quando a
+    # bancada esta em ferramentas/, a propria quando o layout e plano. Mesmo teste que o
+    # embutir.py usa. Procurar o README ao lado da bancada era o mesmo defeito de
+    # caminho, e apareceu na primeira prova do pacote: "README.md nao existe".
+    _acima = os.path.dirname(AQUI)
+    _RAIZ = _acima if os.path.isfile(os.path.join(_acima, 'index.html')) else AQUI
+    _rm = os.path.join(_RAIZ, 'README.md')
+    if os.path.exists(_rm):
+        _dok, _dmal, _dbem = testa_doc.confere(_rm, GPC, APP, len(notas) + 1, _RAIZ)
+        passo('o README nao contradiz o codigo', _dok,
+              f'{len(_dbem)} afirmacoes conferidas' if _dok else '; '.join(_dmal)[:160])
+    else:
+        passo('o README nao contradiz o codigo', False, 'README.md nao existe')
+except Exception as _e:
+    passo('o README nao contradiz o codigo', False, f'{type(_e).__name__}: {_e}')
 
 # --- o tripwire -------------------------------------------------------------
 if hashes and not falhas:

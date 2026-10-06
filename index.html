@@ -38,7 +38,13 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   padding:9px 14px;font-size:14px;color:var(--txt)}
 .btn:active{background:var(--line)}
 .btn.pri{background:var(--azul);border-color:var(--azul);color:#04101f;font-weight:600}
-.btn.sm{padding:6px 10px;font-size:13px;border-radius:8px}
+.btn.sm{padding:6px 10px;font-size:13px;border-radius:8px;min-height:36px}
+/* O app e usado no celular com o controle na outra mao. O #volta e a navegacao
+   principal e tinha ~29x33 px; as setas de reordenar, ~30x29 encostadas. A
+   diretriz de toque e 44 px — 44 de largura e 40 de altura e o que cabe sem
+   quebrar a linha. Alvo pequeno aqui e configuracao errada gravada no Cronus. */
+#volta{min-width:44px;min-height:40px;font-size:20px;line-height:1}
+.btn.seta{min-width:44px;min-height:40px}
 .wrap{padding:16px;max-width:760px;margin:0 auto}
 .slot{display:flex;align-items:center;gap:14px;background:var(--panel);
   border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;width:100%;text-align:left}
@@ -74,6 +80,11 @@ section>h2{font-size:17px;font-weight:700;color:var(--azul);margin:0 0 10px;
 .gg .fld label{color:var(--gg)}
 .gg .fld:not(:first-child) label{opacity:.62}
 .gg .fld:last-child{border-bottom:none}
+/* Grupo de dominio: a barra lateral e a COR REAL do LED, entao ela pre-visualiza
+   o brilho. Nao colore o rotulo — cor fraca como texto fica ilegivel. */
+.gd{border-left:3px solid var(--gd);padding-left:11px;margin:0 0 7px}
+.gd .fld:not(:first-child) label{opacity:.72}
+.gd .fld:last-child{border-bottom:none}
 .fld label{flex:none;width:104px;font-size:14px;color:var(--dim)}
 .fld .ctl{flex:1;display:flex;align-items:center;gap:8px;justify-content:flex-end}
 select,input[type=text]{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
@@ -107,7 +118,6 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 <header>
   <button class="btn sm" id="volta" style="display:none" aria-label="Voltar">‹</button>
   <h1 id="titulo">D-Sig<span class="sub" id="subtitulo"></span></h1>
-  <button class="btn sm" id="acao" style="display:none"></button>
 </header>
 <div class="wrap" id="app"></div>
 
@@ -149,7 +159,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.10";
+const string DS_VERSAO    = "D-Sig 1.0.12";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -1084,7 +1094,7 @@ function Mnu_Beta() {
     }
     if(event_press(PS5_RIGHT)) {
         if(Wz_SubCursor == 0) { Wz_Cond_Mult++; if(Wz_Cond_Mult > 18) Wz_Cond_Mult = 18; }
-        else if(Wz_SubCursor == 1) { Wz_Cond_ThrIn++; if(Wz_Cond_ThrIn > 19) Wz_Cond_ThrIn = 19; }
+        else if(Wz_SubCursor == 1) { Wz_Cond_ThrIn++; if(Wz_Cond_ThrIn > 20) Wz_Cond_ThrIn = 20; }
         else if(Wz_SubCursor == 2) { Wz_Cond_ThrOut++; if(Wz_Cond_ThrOut > 19) Wz_Cond_ThrOut = 19; }
         else if(Wz_SubCursor == 3) { Wz_Cond_Dir++; if(Wz_Cond_Dir > 2) Wz_Cond_Dir = 0; }
         Update_OLED();
@@ -5040,11 +5050,21 @@ function ler(){try{
   // de uma versao para a outra e feita por Exportar / importar, que e o backup de
   // qualquer jeito — o Cronus nao devolve o script depois de gravado.
   var d=temLS?JSON.parse(localStorage.getItem('dsig')||'null'):mem.d;
-  if(d&&d.jogos){
+  if(d&&d.jogos) normaliza(d);
+  return d}catch(e){return null}}
+
+// A normalizacao vive aqui, FORA do ler(), porque a importacao precisa da mesma. Ela
+// fazia apenas uma das sete, e um backup sem 'cores' deixava a tela em branco e a
+// biblioteca vazia no recarregamento seguinte.
+function normaliza(d){
+  {
     // a primeira versao guardava 5 posicoes fixas, com null nas vazias. A lista agora e
     // aberta, entao os nulls sao descartados e o que faltava ganha valor padrao.
     d.jogos=d.jogos.filter(function(x){return x&&x.mods});
     d.jogos.forEach(function(x){if(x.noZen===undefined)x.noZen=false;
+      // v1.0.11: nome por dominio. Vazio = o padrao do template (Dominio_N).
+      if(!Array.isArray(x.dom))x.dom=['','','',''];
+      while(x.dom.length<4)x.dom.push('');
       x.mods.forEach(function(mm){
         if(mm.nota===undefined)mm.nota='';
         // v5: o GAMA BLOK saiu e o DELAY entrou; o AFTER passou de 63 para 8 valores.
@@ -5065,9 +5085,11 @@ function ler(){try{
       // referencia ZETA a um MOD que nao existe mais nao pode sobreviver a carga
       x.mods.forEach(function(mm){['excl','assoc','bloq'].forEach(function(r){
         if(mm[r]) mm[r]=mm[r].filter(function(t){return t<NMOD})})});
-      x.cores=x.cores.map(function(v){return v>=CORES.length?0:v})});
+      if(!Array.isArray(x.cores))x.cores=[3,6,9,12];
+      while(x.cores.length<4)x.cores.push(0);
+      x.cores=x.cores.map(function(v){return(typeof v==='number'&&v>=0&&v<CORES.length)?v:0})});
   }
-  return d}catch(e){return null}}
+  return d}
 function grava(d){if(temLS){try{localStorage.setItem('dsig',JSON.stringify(d))}catch(e){}}mem.d=d}
 
 // ---------- vocabulário do sistema ----------
@@ -5086,7 +5108,6 @@ var TDELAY=['OFF','300ms','700ms','1.2s'];
 var TAFTER=['50ms','100ms','150ms','200ms','300ms','500ms','1.0s','2.0s'];
 var TLAT=['---','10ms','20ms','30ms','40ms','50ms','60ms','80ms','100ms','120ms',
   '150ms','200ms','250ms','350ms','500ms','750ms'];
-var TLATMS=[0,10,20,30,40,50,60,80,100,120,150,200,250,350,500,750];   // TLAT em ms
 var THOLD=(function(){var v=[],i;
   for(i=0;i<=25;i++)v.push(((50+i*10)/1000).toFixed(2)+'s');
   for(i=26;i<=39;i++)v.push(((350+(i-26)*50)/1000).toFixed(2)+'s');
@@ -5109,8 +5130,16 @@ var NMOD=20;
 function modVazio(){return{nota:'',d1:0,d2:0,d3:0,d4:0,fonte:0,passivo:0,mult:9,tin:1,tout:0,dir:1,
   delay:0,gBlok:0,fin2clk:0,finTog:0,finHold:0,finAfter:0,g2clk:0,gTog:0,gHold:0,gHoldT:25,gHoldM:0,gAfter:0,gAfterT:5,
   tipo:0,dst:[0,0,0,0],tmp:[3,3,3,3],lat:4,modo:0,ciclos:0,excl:[],assoc:[],bloq:[]}}
+// O nome do dominio vai para um const string e e impresso em print(12,25,1,1,...).
+// Fonte 1 tem 12 px por caractere; de x=12 a x=127 sao 116 px, logo 9 caracteres.
+// Aspas e barra invertida quebrariam o const string e gerariam .gpc que nao
+// compila — mesmo tratamento que o nome do jogo recebe.
+var MAXDOM=9;
+function limpaDom(t){return String(t||'').replace(/["\\]/g,' ')
+  .replace(/\/\//g,'/').slice(0,MAXDOM)}
+function nomeDom(j,i){return limpaDom(j.dom&&j.dom[i])||('Dominio_'+(i+1))}
 function jogoVazio(){var m=[],i;for(i=0;i<NMOD;i++)m.push(modVazio());
-  return{nome:'',cores:[3,6,9,12],noZen:false,mods:m}}
+  return{nome:'',cores:[3,6,9,12],dom:['','','',''],noZen:false,mods:m}}
 function base(){return{jogos:[],ordem:'manual'}}
 
 var D=ler()||base(), tela='cat', jg=0, md=0, modo='';
@@ -5173,7 +5202,10 @@ function resumoLista(m){
   var P=[], x, g=[], z=[], mm=function(v){return String(v+1).padStart(2,'0')};
   if(FONTES[m.fonte]!=='---'){
     x=FONTES[m.fonte]; var cf=catFonte(m.fonte);
-    if(cf==='eixo'||cf==='touch')x+=' '+['NEG','ABS','POS'][m.dir];
+    // Sem 'touch': o script filtra direcao dentro de if(Work_C == CAT_EIXO), logo
+    // TOUCH_X e TOUCH_Y ignoram o DIR. O editor ja nao oferecia o campo para touch, e o
+    // resumo de dentro do MOD ja nao mencionava — so esta lista afirmava a restricao.
+    if(cf==='eixo')x+=' '+['NEG','ABS','POS'][m.dir];
     if(cf!=='botao'){x+=' ≥'+THR[m.tin]+(m.tout?' ≤'+THR[m.tout]:'');if(m.mult!==9)x+=' '+MULT[m.mult]}
     if(m.passivo)x+=' PASSIVO';   // v7n: mesma palavra do campo e do OLED
     P.push(['ALFA',x]);
@@ -5424,11 +5456,16 @@ function alertas(j,i){
 
 // ---------- gerador de código ----------
 function codigo(j){
-  var L=[],n=j.nome||'SEM NOME';
+  // O mesmo saneamento do scriptCompleto. Esta via nao tinha, e um nome com aspas
+  // gerava const string quebrado aqui e correto no download — duas vias, um dado.
+  var L=[],n=(j.nome||'SEM NOME').replace(/["\\]/g,' ').replace(/\/\//g,'/');
   L.push('// ---- cole na SEÇÃO 1 (strings do OLED) ----');
+  // v1.0.11: o GAME_NAME_3 e o _4 saiam daqui e NAO EXISTEM no script desde a 1.0b —
+  // quem seguisse a instrucao colava duas linhas sem destino. E o MODE_S saia como
+  // "D1".."D4", divergindo do scriptCompleto, que nem tocava nas ancoras.
   L.push('const string GAME_NAME_1  = "'+n.slice(0,10)+'";');
-  for(var i=2;i<=4;i++)L.push('const string GAME_NAME_'+i+'  = "'+(i===2?n.slice(10,20):'')+'";');
-  for(i=1;i<=4;i++)L.push('const string MODE_S'+i+'      = "D'+i+'";');
+  L.push('const string GAME_NAME_2  = "'+n.slice(10,20)+'";');
+  for(var i=1;i<=4;i++)L.push('const string MODE_S'+i+'      = "'+nomeDom(j,i-1)+'";');
   L.push('');
   L.push('// ---- substitua a função update_leds() ----');
   L.push('function update_leds() {');
@@ -5535,6 +5572,11 @@ function scriptCompleto(j){
   // GAME_NAME_3 e 4 sairam do script na 1.0b. Sempre recebiam "" aqui, porque o nome
   // ja e cortado em 20 caracteres acima — reservavam y 35..59 da tela inicial para nao
   // mostrar nada, e e nesse espaco que o nome do jogo mora agora, com o timbre em cima.
+  // v1.0.11: os nomes de dominio. Antes esta funcao NAO tocava nas ancoras e o codigo()
+  // emitia "D1".."D4" — os dois caminhos do app geravam telas diferentes.
+  for(i=1;i<=4;i++)
+    t=t.replace('const string MODE_S'+i+'      = "Dominio_'+i+'";',
+                'const string MODE_S'+i+'      = "'+nomeDom(j,i-1)+'";');
   // update_leds com as cores dos dominios
   var ul=['function update_leds() {','    if(CurrentMode == 0) colorled(0,0,0,0);'];
   for(i=0;i<4;i++){var cr=CORES[j.cores[i]];
@@ -5562,9 +5604,17 @@ function configGpc(j){
   var L=[],i,n;
   L.push('// ================= CONFIG INICIAL — gerada pelo app D-Sig =================');
   L.push('// jogo: '+(j.nome||'sem nome'));
-  L.push('// Substitua no script o define CFG_SELO e a função Config_Inicial() inteira.');
+  // A instrucao dizia "substitua o define CFG_SELO", que NAO EXISTE no script — ha
+  // 'int Cfg_Selo = 0;'. Quem seguisse adicionava um define que ninguem le e deixava o
+  // selo em zero; com ele em zero o init nao aplica configuracao e nao monta o ZETA.
+  // E nao mencionava a Config_Zeta, que este bloco tambem emite: colada como instruido,
+  // ela saia DUPLICADA e o ZenStudio recusava.
+  L.push('// Substitua no script, nesta ordem:');
+  L.push('//   1. a linha  int Cfg_Selo = 0;');
+  L.push('//   2. a função Config_Inicial() inteira');
+  L.push('//   3. a função Config_Zeta() inteira');
   L.push('// ============================================================================');
-  L.push('define CFG_SELO = '+selo(j)+';');
+  L.push('int Cfg_Selo = '+selo(j)+';');
   L.push('function Config_Inicial() {');
   for(i=0;i<NMOD;i++){
     var m=j.mods[i], usado=nomeMod(j,i);
@@ -5631,12 +5681,21 @@ function sel(v,arr,cb){var s=document.createElement('select');
 // Aqui o rotulo do campo vira o nome acessivel do controle, inclusive quando o controle
 // e um grupo de botoes.
 var _fldId=0;
-function fld(rot,ctl){var d=document.createElement('div');d.className='fld';
+// O 3o argumento e o NOME ACESSIVEL, quando o rotulo visivel nao basta sozinho. Dois
+// casos: sub-campo do GAMA, onde "· tempo" nao diz de qual alternativa e; e controle que
+// vai dentro de um <div> (a cor do LED), que caia no caminho do grupo e ficava sem nome
+// proprio — o leitor de tela anunciava so o valor.
+function fld(rot,ctl,nomeAcc){var d=document.createElement('div');d.className='fld';
   _fldId++;var id='f'+_fldId;
   d.innerHTML='<label id="'+id+'">'+rot+'</label>';
   var c=document.createElement('div');c.className='ctl';
-  if(ctl.tagName==='SELECT'||ctl.tagName==='INPUT')ctl.setAttribute('aria-labelledby',id);
+  var nat=(ctl.tagName==='SELECT'||ctl.tagName==='INPUT'||ctl.tagName==='TEXTAREA');
+  if(nat)ctl.setAttribute('aria-labelledby',id);
   else { c.setAttribute('role','group'); c.setAttribute('aria-labelledby',id); }
+  if(nomeAcc){
+    var alvo=nat?ctl:(ctl.querySelector('select,input,textarea,button')||c);
+    alvo.setAttribute('aria-label',nomeAcc);
+  }
   c.appendChild(ctl);d.appendChild(c);return d}
 function chk(v,cb){var b=document.createElement('button');b.className='btn sm';
   b.textContent=v?'sim':'não';b.style.minWidth='58px';
@@ -5646,7 +5705,6 @@ function chk(v,cb){var b=document.createElement('button');b.className='btn sm';
 function render(){
   var A=$('app');A.innerHTML='';
   $('volta').style.display=tela==='cat'?'none':'block';
-  $('acao').style.display='none';
   if(tela==='cat')telaCat(A);
   else if(tela==='jogo')telaJogo(A);
   else if(tela==='mod')telaMod(A);
@@ -5679,7 +5737,13 @@ function telaCat(A){
   vis.forEach(function(o,pos){
     var j=o.j, i=o.i;
     var b=document.createElement('button');b.className='slot';b.style.marginBottom='0';
-    var leds=j.cores.map(function(x){return'<i class="led" style="background:'+CORES[x][5]+'"></i>'}).join('');
+    // Eram quadradinhos sem texto: informacao invisivel a leitor de tela e
+  // indistinguivel em varias formas de daltonismo — azul fraco x branco fraco, verde
+  // medio x ciano medio. O nome da cor entra no title e no aria-label.
+  var leds=j.cores.map(function(x,k){
+    var nm='D'+(k+1)+': '+CORES[x][0];
+    return'<i class="led" style="background:'+CORES[x][5]+'" title="'+h(nm)+
+      '" role="img" aria-label="'+h(nm)+'"></i>'}).join('');
     var nm=0;j.mods.forEach(function(mm,k){if(nomeMod(j,k))nm++});
     b.innerHTML='<span class="nm'+(j.nome?'':' vaz')+'">'+h(j.nome||'sem nome')+
       '<s style="display:block;font-size:12px;color:var(--dim);text-decoration:none">'+nm+' MODs'+
@@ -5693,7 +5757,7 @@ function telaCat(A){
       var mv=document.createElement('div');mv.style.display='flex';mv.style.flexDirection='column';
       mv.style.gap='2px';mv.style.flex='none';
       [['↑',-1],['↓',1]].forEach(function(s){
-        var bt=document.createElement('button');bt.className='btn sm';bt.textContent=s[0];
+        var bt=document.createElement('button');bt.className='btn sm seta';bt.textContent=s[0];
         bt.style.padding='0 9px';bt.style.fontSize='12px';bt.style.lineHeight='1';bt.style.flex='1';
         bt.setAttribute('aria-label',(s[1]<0?'Subir ':'Descer ')+(j.nome||'jogo sem nome'));
         var alvo=i+s[1];
@@ -5735,12 +5799,23 @@ function telaJogo(A){
     if(v&&n>=5&&!j.noZen){alert('O Cronus comporta 5 scripts D-Sig. Desmarque outro antes.');return}
     j.noZen=v;grava(D);render()})));
   [0,1,2,3].forEach(function(i){
+    // Nome e cor do dominio no mesmo grupo, com a barra lateral na cor dele.
+    var g=document.createElement('div');g.className='gd';
+    g.style.setProperty('--gd',CORES[j.cores[i]][5]);
+    var dn=document.createElement('input');dn.type='text';dn.maxLength=MAXDOM;
+    dn.value=j.dom[i]||'';dn.placeholder='Dominio_'+(i+1);
+    dn.oninput=function(){j.dom[i]=limpaDom(dn.value);
+      if(dn.value!==j.dom[i])dn.value=j.dom[i];grava(D)};
+    g.appendChild(fld('Domínio D'+(i+1),dn));
     var box=document.createElement('div');box.className='cor';
     var am=document.createElement('span');am.className='amostra';am.style.background=CORES[j.cores[i]][5];
     var sl=sel(j.cores[i],CORES.map(function(c){return c[0]}),function(v){
-      j.cores[i]=v;am.style.background=CORES[v][5];grava(D)});
+      j.cores[i]=v;am.style.background=CORES[v][5];
+      g.style.setProperty('--gd',CORES[v][5]);grava(D)});
     box.appendChild(am);box.appendChild(sl);
-    s1.appendChild(fld('Domínio D'+(i+1),box))});
+    // O <select> vai dentro do box junto da amostra, entao precisa de nome proprio.
+    g.appendChild(fld('· cor do LED',box,'Cor do LED do domínio D'+(i+1)));
+    s1.appendChild(g)});
   A.appendChild(s1);
   var r=document.createElement('div');r.className='row';
   var bc=document.createElement('button');bc.className='btn pri';bc.textContent='Gerar código';
@@ -5772,14 +5847,21 @@ function telaJogo(A){
     var mv=document.createElement('div');mv.style.display='flex';mv.style.flexDirection='column';
     mv.style.gap='2px';mv.style.flex='none';
     [['↑',-1],['↓',1]].forEach(function(o){
-      var s=document.createElement('button');s.className='btn sm';s.textContent=o[0];
+      var s=document.createElement('button');s.className='btn sm seta';s.textContent=o[0];
       s.style.padding='0 9px';s.style.fontSize='12px';s.style.lineHeight='1';s.style.flex='1';
       var alvo=i+o[1];
-      if(alvo<0||alvo>20){s.style.opacity='.2'}
+      // Era 'alvo>20' escrito a mao, com NMOD=20 e indices 0..19: a seta para baixo
+      // do ultimo MOD chamava trocaMod(j,19,20), o array crescia para 21 com o slot 19
+      // undefined, a tela congelava e a proxima edicao PERSISTIA o estrago.
+      s.setAttribute('aria-label',(o[1]<0?'Subir ':'Descer ')+'MOD_'+String(i+1).padStart(2,'0'));
+      if(alvo<0||alvo>=NMOD){s.disabled=true;s.style.opacity='.3'}
       else s.onclick=function(ev){ev.stopPropagation();
         trocaMod(j,i,alvo);grava(D);render()};
       mv.appendChild(s)});
-    lin.appendChild(mv);
+    // As setas existiam FORA do modo: o botao 'Reordenar MODs' so mudava o titulo e o
+    // proprio rotulo. Num app onde a ordem decide o desempate do bloqueio mutuo, um
+    // toque acidental reordenava e gravava. A tela de jogos ja condicionava; esta, nao.
+    if(modo==='mover')lin.appendChild(mv);
     lista.appendChild(lin)});
   s2.appendChild(lista);A.appendChild(s2);
   var r3=document.createElement('div');r3.className='row';
@@ -5848,7 +5930,11 @@ function telaMod(A){
     var sb=document.createElement('section');sb.innerHTML='<h2>BETA</h2>';
     sb.appendChild(fld('MULT',sel(m.mult,MULT,function(v){m.mult=v;up()})));
     sb.appendChild(fld('THR_IN',sel(m.tin,THR,function(v){m.tin=v;up()})));
-    sb.appendChild(fld('THR_OUT',sel(m.tout,['OFF'].concat(THR.slice(1)),function(v){m.tout=v;up()})));
+    // O THR_OUT para em "95", nao em "100": o empacotamento e base 20 (tin*20+tout) e
+    // tout=20 transborda para o digito do THR_IN — pedido 25..100 virava "acima de 30,
+    // sem teto" no aparelho, sem erro e sem aviso. Janela que fecha em 100 nao fecha, e
+    // para isso existe o OFF. O THR_IN continua chegando a 100: 20*20+19 = 419 cabe.
+    sb.appendChild(fld('THR_OUT',sel(m.tout,['OFF'].concat(THR.slice(1,20)),function(v){m.tout=v;up()})));
     if(cat==='eixo')sb.appendChild(fld('DIR',sel(m.dir,['NEG','ABS','POS'],function(v){m.dir=v;up()})));
     A.appendChild(sb)}
 
@@ -5856,9 +5942,20 @@ function telaMod(A){
   // Cada alternativa vira um GRUPO com barra lateral no seu matiz; os sub-campos entram
   // no mesmo grupo, no mesmo matiz com opacidade menor. E o que diz, sem ler, que o
   // "· tempo" e do HOLD e nao do AFTER.
+  // O agrupamento era transmitido SO pelo matiz da barra. "· tempo" e "· modo" sao
+  // ambiguos sozinhos, e quem usa leitor de tela ou nao distingue os matizes ficava sem
+  // a informacao. O nome acessivel de cada sub-campo passa a dizer de quem ele e —
+  // "HOLD · tempo" — sem mudar nada do que se ve.
   function gg(cor,campos){var d=document.createElement('div');d.className='gg';
     d.style.setProperty('--gg','var(--g-'+cor+')');
-    campos.forEach(function(c){if(c)d.appendChild(c)});return d}
+    var pai=null;
+    campos.forEach(function(c){if(!c)return;
+      var lb=c.querySelector('label'), ct=c.querySelector('select,input,button');
+      if(!pai){ pai=lb?lb.textContent:''; }
+      else if(lb&&ct&&!ct.getAttribute('aria-label'))
+        ct.setAttribute('aria-label',pai+' '+lb.textContent);
+      d.appendChild(c)});
+    return d}
   sg.appendChild(gg('2clk',[
     fld('2CLK',sel(m.g2clk,BOTOES,function(v){m.g2clk=v;up()})),
     m.g2clk&&fld('· modo',sel(m.fin2clk,['ALTERNA','FINALIZA'],function(v){m.fin2clk=v;up()}))]));
@@ -5961,7 +6058,8 @@ function telaCod(A){
   $('volta').onclick=function(){tela='jogo';render()};
   var p=document.createElement('p');p.className='hint';p.style.margin='0 0 14px';
   p.innerHTML='Duas partes. A <b>identidade</b> vai nas strings e no update_leds(); '+
-    'a <b>configuração</b> substitui o CFG_SELO e a função Config_Inicial().';
+    'a <b>configuração</b> substitui a linha <code>int Cfg_Selo</code> e as funções '+
+    '<code>Config_Inicial()</code> e <code>Config_Zeta()</code>.';
   A.appendChild(p);
   function bloco(tit,txt){
     var hh=document.createElement('h2');hh.style.cssText=
@@ -6092,7 +6190,7 @@ function telaInfo(A){
     ['ATIVO / PASSIVO sem ALFA','Com a entrada em ---, o campo continua valendo: em PASSIVO, os '+
      'botões do GAMA acionam o MOD mas não chegam ao jogo. Em ATIVO, chegam.'],
     ['Ordem dos MODs','A posição na lista decide o desempate do bloqueio mútuo e a propagação em '+
-     'cadeia — o pipeline avalia do MOD_01 ao MOD_21. Reordenar muda esse desempate.']]);
+     'cadeia — o pipeline avalia do MOD_01 ao MOD_20. Reordenar muda esse desempate.']]);
 
   bloco('Limites', [
     ['Tempos e carga','Todos os tempos contam as voltas do Cronus (10ms cada). Se o script pesar mais '+
@@ -6105,17 +6203,28 @@ function telaInfo(A){
 function telaDados(A){
   $('titulo').innerHTML='Exportar / importar';
   $('volta').onclick=function(){tela='cat';render()};
-  var t=document.createElement('textarea');t.value=JSON.stringify(D);A.appendChild(t);
+  var t=document.createElement('textarea');t.value=JSON.stringify(D);
+  // Unico lugar onde a biblioteca inteira e copiada ou colada, e estava sem rotulo.
+  t.setAttribute('aria-label','Backup da biblioteca, em JSON');
+  t.setAttribute('spellcheck','false');A.appendChild(t);
   var r=document.createElement('div');r.className='row';
   var b1=document.createElement('button');b1.className='btn pri';b1.textContent='Copiar tudo';
   b1.onclick=function(){t.select();navigator.clipboard.writeText(t.value).then(function(){
     b1.textContent='Copiado';setTimeout(function(){b1.textContent='Copiar tudo'},1400)})};
   var b2=document.createElement('button');b2.className='btn';b2.textContent='Importar do campo';
-  b2.onclick=function(){try{var n=JSON.parse(t.value);
-    if(!n.jogos)throw 0;
-    n.jogos=n.jogos.filter(function(x){return x&&x.mods});
-    n.jogos.forEach(function(x){if(x.noZen===undefined)x.noZen=false});
-    D=n;grava(D);tela='cat';render()}catch(e){alert('Texto inválido.')}};
+  b2.onclick=function(){var n;
+    try{n=JSON.parse(t.value)}catch(e){alert('Texto inválido: não é JSON.');return}
+    if(!n||!Array.isArray(n.jogos)){alert('Texto inválido: não parece um backup do D-Sig.');return}
+    try{
+      // A MESMA normalizacao da carga. Antes esta via fazia uma das sete, e backup de
+      // versao antiga entrava corrompido — inclusive com 21 MODs, perdendo o MOD 21 sem
+      // aviso e mudando o selo sozinho no recarregamento seguinte.
+      PERDIDOS=[];
+      normaliza(n);
+      D=n;grava(D);
+      if(PERDIDOS.length)alert('O MOD 21 destes jogos foi removido: '+PERDIDOS.join(', '));
+      tela='cat';render();
+    }catch(e){alert('O backup foi lido, mas tem algo que eu não soube tratar:\n'+e.message)}};
   r.appendChild(b1);r.appendChild(b2);A.appendChild(r);
   var p=document.createElement('p');p.className='hint';
   p.textContent='Guarde este texto como backup. Para levar a outro aparelho, cole lá e toque em importar.';

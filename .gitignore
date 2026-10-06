@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+# compilados do simulador: o portao os gera em pasta temporaria, mas um
+# experimento rodado a mao na bancada deixa o executavel aqui.
+*.o
+*.bin
+*.gcov
+*.gcno
+*.gcda
+# a biblioteca de jogos e pessoal: ela nao entra no repositorio.
+biblioteca.json

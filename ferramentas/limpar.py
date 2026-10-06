@@ -17,6 +17,12 @@ ANCORAS = [
     # y 35..59 da tela inicial para nao mostrar nada. O timbre ficou com esse espaco.
     'const string GAME_NAME_1  = "-TITULO-";',
     'const string GAME_NAME_2  = "-TITULO-";',
+    # v1.0.11: os nomes de dominio deixaram de ser fixos. Entram na lista porque o app
+    # agora os substitui, e substituicao por texto exato exige que o texto exato exista.
+    'const string MODE_S1      = "Dominio_1";',
+    'const string MODE_S2      = "Dominio_2";',
+    'const string MODE_S3      = "Dominio_3";',
+    'const string MODE_S4      = "Dominio_4";',
     'function update_leds() {',
     'CurrentMode == 4',
     'int Cfg_Selo = 0;',
