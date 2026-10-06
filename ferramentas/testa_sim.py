@@ -229,13 +229,59 @@ def _versao_do_gpc(p):
 VERSAO = sys.argv[3] if len(sys.argv) > 3 else _versao_do_gpc(GPC)
 
 print(f'  simulador: {SIM}')
-if JSDOM:
-    print(f'  jsdom    : {JSDOM}')
-    if PLAYW:
-        print(f'  playwright: {PLAYW}')
+
+# AS DEPENDENCIAS SE CONFEREM ANTES, E O PORTAO PARA AQUI SE FALTAR UMA.
+#
+# Antes disto a falta do jsdom era registrada como uma reprovacao e o portao SEGUIA —
+# e duas verificacoes depois estourava com `FileNotFoundError: 'node'`, um traceback de
+# dez linhas no lugar de "instale o Node". A seguranca funcionava (nada era publicado),
+# mas a mensagem nao dizia o que fazer. Apareceu na primeira vez que o portao rodou
+# numa maquina que nao a minha, e e o mesmo defeito que eu vinha consertando na
+# documentacao: a ferramenta sabia o problema e nao contava.
+#
+# E CONFERIR A VERSAO, NAO SO A EXISTENCIA. O apt do Ubuntu 24.04 entrega Node 18, e o
+# jsdom e o playwright atuais exigem 20+. Instalado nao e o mesmo que utilizavel: a
+# primeira versao desta guarda achou os tres e liberou o portao, que entao reprovou com
+# "Node.js v18.19.1" numa verificacao de comportamento — como se o SCRIPT tivesse
+# defeito, quando o defeito era do ambiente. Guarda que confere presenca e nao
+# capacidade empurra o erro para a frente e o disfarca.
+NODE_MIN = 20
+_falta = []
+_node = shutil.which('node')
+if not _node:
+    _falta.append('node 20+    -> nao instalado (veja a nota abaixo)')
 else:
-    passo('jsdom disponivel para rodar o app', False,
-          'instale com: npm i jsdom  (em dsig/ ou em teste/)')
+    try:
+        _v = subprocess.run([_node, '--version'], capture_output=True, text=True,
+                            timeout=20).stdout.strip().lstrip('v')
+        _maior = int(_v.split('.')[0])
+        if _maior < NODE_MIN:
+            _falta.append(f'node 20+    -> voce tem a {_v}; o jsdom e o playwright '
+                          f'exigem {NODE_MIN}+')
+    except Exception as _e:
+        _falta.append(f'node 20+    -> nao consegui ler a versao ({type(_e).__name__})')
+if not shutil.which('gcc'):
+    _falta.append('gcc         -> sudo apt install build-essential')
+if not JSDOM:
+    _falta.append('jsdom       -> sudo npm i -g jsdom')
+if not PLAYW:
+    _falta.append('playwright  -> sudo npm i -g playwright && npx playwright install chromium')
+if _falta:
+    print('\n  O portao precisa destas ferramentas, e elas nao estao instaladas:\n')
+    for _f in _falta:
+        print(f'    {_f}')
+    print('\n  O Node do apt do Ubuntu 24.04 e a 18, velha demais. O caminho que nao')
+    print('  mexe no sistema e o nvm, que instala por usuario e sem sudo:')
+    print('    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash')
+    print('    exec $SHELL -l && nvm install 22')
+    print('    npm i -g jsdom playwright && npx playwright install chromium')
+    print('\n  (o `npx playwright install` vai SEM sudo: ele baixa o Chromium para o seu')
+    print('   ~/.cache, que e onde o teste procura. Com sudo iria para a pasta do root.)')
+    print('\n  => PORTAO FECHADO: dependencia ausente. Nada foi publicado.')
+    sys.exit(1)
+
+print(f'  jsdom    : {JSDOM}')
+print(f'  playwright: {PLAYW}')
 tmp = tempfile.mkdtemp(prefix='dsig_sim_')
 hashes = {}
 try:
@@ -489,7 +535,13 @@ try:
     _RAIZ = _acima if os.path.isfile(os.path.join(_acima, 'index.html')) else AQUI
     _rm = os.path.join(_RAIZ, 'README.md')
     if os.path.exists(_rm):
-        _dok, _dmal, _dbem = testa_doc.confere(_rm, GPC, APP, len(notas) + 1, _RAIZ)
+        # A CONTAGEM DE VERIFICACOES SO VALE NUMA RODADA COMPLETA. Numa rodada que
+        # abortou antes, len(notas) e o que chegou a rodar, nao o que o portao tem —
+        # e comparar com o README produzia "o README diz 17, o codigo diz 5", um alarme
+        # falso que competia com a falha de verdade pela atencao de quem le. Teste que
+        # grita quando outro teste quebrou atrapalha o diagnostico em vez de ajudar.
+        _nv = (len(notas) + 1) if not falhas else None
+        _dok, _dmal, _dbem = testa_doc.confere(_rm, GPC, APP, _nv, _RAIZ)
         passo('o README nao contradiz o codigo', _dok,
               f'{len(_dbem)} afirmacoes conferidas' if _dok else '; '.join(_dmal)[:160])
     else:
