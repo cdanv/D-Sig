@@ -40,7 +40,7 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/oled/padrao.py` | **a fonte única da arte do OLED.** Dele saem os PNGs de revisão, o `timbre.png` e o código das telas |
 | `ferramentas/oled/png2gpc.py` | PNG de 1 bit → `const image` do GPC, no formato que o compilador exige |
 | `ferramentas/sim/` | **o simulador.** Sete arquivos: `gpc2c.py` (transpilador GPC→C), `gpcrt.h` (runtime das primitivas) e os cinco cenários em C — `harness`, `fuzz`, `tri`, `zeta`, `mig` |
-| `ferramentas/empacotar.py` | monta o repositório no layout público **e roda o `embutir.py` de dentro da cópia**, reprovando se ele não publicar o mesmo SHA-256 |
+| `ferramentas/empacotar.py` | monta o repositório no layout público **e roda o `embutir.py` de dentro da cópia**, reprovando se ele não publicar o mesmo SHA-256. Roda tanto da bancada de desenvolvimento quanto de um clone: `python3 ferramentas/empacotar.py [destino]`. Recusa destino cujo apagamento levaria o projeto junto (`.`, `..`, `ferramentas`) |
 
 A cadeia da arte é reproduzível a partir do repositório: `python3 oled/padrao.py`
 grava o `timbre.png`, e o `oled/png2gpc.py` devolve deste os mesmos 300 bytes

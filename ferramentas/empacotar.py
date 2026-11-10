@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Monta o repositorio no layout publico e PROVA que ele funciona de la.
 
+    python3 ferramentas/empacotar.py [destino]
+
+Roda dos dois layouts (ver ORIGEM, abaixo). Sem destino: ./repo na bancada de
+desenvolvimento, ou <clone>-pacote/repo ao lado de um clone. O destino e APAGADO e
+refeito; o zip sai na pasta de cima dele.
+
 Nao basta copiar arquivos no lugar certo. O que faz esta ferramenta valer e a ultima
 etapa: ela entra na copia e roda `python3 ferramentas/embutir.py` — o comando que o
 README promete — e reprova se ele nao publicar o mesmo SHA-256 de origem. Pacote que
@@ -32,9 +38,34 @@ import sys
 import zipfile
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
-OLED = os.path.abspath(os.path.join(AQUI, '..', 'oled'))
-SIM = os.path.abspath(os.path.join(AQUI, '..', 'sim'))
-ICONES = os.path.abspath(os.path.join(AQUI, 'pacote'))
+
+# DE ONDE COPIAR. Dois layouts, o mesmo teste do embutir.py: a pasta de cima tem o
+# index.html? Entao isto e um clone do repositorio publico e cada coisa ja esta no lugar
+# em que vai ficar. Senao e a bancada de desenvolvimento, plana, com sim/ e oled/ ao lado.
+#
+#   desenvolvimento                  publico (um clone do GitHub)
+#   dsig/                            D-Sig/              <- ORIGEM (raiz e icones)
+#     index.html, D-Sig.gpc ...        index.html ...
+#     pacote/icone-*.png               icone-*.png
+#     empacotar.py      <- AQUI        ferramentas/      <- AQUI
+#   sim/                                 sim/
+#   oled/                                oled/
+#
+# Antes disto so o layout de desenvolvimento existia aqui, e num clone o empacotador
+# reprovava antes de comecar, com 19 "arquivos prometidos e ausentes" — o pacote nao
+# podia ser refeito a partir do proprio repositorio que ele gera.
+_acima = os.path.dirname(AQUI)
+PUBLICO = os.path.isfile(os.path.join(_acima, 'index.html'))
+if PUBLICO:
+    ORIGEM = _acima
+    ICONES = _acima
+    SIM = os.path.join(AQUI, 'sim')
+    OLED = os.path.join(AQUI, 'oled')
+else:
+    ORIGEM = AQUI
+    ICONES = os.path.join(AQUI, 'pacote')
+    SIM = os.path.join(_acima, 'sim')
+    OLED = os.path.join(_acima, 'oled')
 
 # O SIMULADOR. Sete arquivos — o resto da pasta ../sim e rascunho de meses (binarios,
 # .gcov, dezenas de .gpc intermediarios) e nao e projeto.
@@ -78,7 +109,7 @@ def monta(dest):
         else:
             faltou.append(f'sim/{f}')
     for f in RAIZ:
-        o = os.path.join(AQUI, f)
+        o = os.path.join(ORIGEM, f)
         if os.path.isfile(o):
             shutil.copy2(o, os.path.join(dest, f))
         else:
@@ -105,9 +136,28 @@ def monta(dest):
 
 
 def main():
-    dest = sys.argv[1] if len(sys.argv) > 1 else os.path.join(AQUI, 'repo')
+    # Sem argumento: no desenvolvimento, ./repo como sempre. Num clone, FORA dele — dentro
+    # seria uma copia do repositorio no meio do repositorio, e o git a veria.
+    if len(sys.argv) > 1:
+        dest = sys.argv[1]
+    elif PUBLICO:
+        dest = os.path.join(os.path.dirname(ORIGEM), os.path.basename(ORIGEM) + '-pacote', 'repo')
+    else:
+        dest = os.path.join(AQUI, 'repo')
+    dest = os.path.abspath(dest)
+    # O destino e APAGADO antes de montar. Destino que e ou contem uma pasta de onde se
+    # copia (`.`, `..`, `ferramentas`, a pasta de cima) apagaria o proprio projeto antes
+    # da primeira copia. Recusado antes de qualquer rmtree. Destino DENTRO da origem e
+    # permitido: e o ./repo de sempre no desenvolvimento.
+    for o in (ORIGEM, AQUI, SIM, OLED, ICONES):
+        o = os.path.abspath(o)
+        if os.path.commonpath([dest, o]) == dest:
+            print(f'  ERRO: apagar o destino {dest} apagaria {o}, de onde o pacote e copiado.')
+            print('        Escolha uma pasta que nao contenha o projeto.')
+            return 1
     if os.path.isdir(dest):
         shutil.rmtree(dest)
+    print(f'  layout : {"publico (clone do repositorio)" if PUBLICO else "desenvolvimento"}')
     print(f'  destino: {dest}')
     faltou = monta(dest)
     if faltou:
@@ -122,7 +172,7 @@ def main():
     print(f'  de fora : {", ".join(FORA)}  (configuracao pessoal)')
 
     # --- A PROVA: o comando do README roda, de dentro do pacote --------------
-    antes = sha(os.path.join(AQUI, 'D-Sig.gpc'))
+    antes = sha(os.path.join(ORIGEM, 'D-Sig.gpc'))
     print('\n  --- rodando `python3 ferramentas/embutir.py` DENTRO do pacote ---')
     r = subprocess.run([sys.executable, os.path.join('ferramentas', 'embutir.py')],
                        cwd=dest, capture_output=True, text=True, timeout=2400)
