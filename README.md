@@ -88,7 +88,7 @@ combate e exploração.
 | | |
 |---|---|
 | MODs por script | **20** |
-| Scripts D-Sig no Cronus | **5** |
+| Scripts D-Sig no Cronus | **4** com folga; o 5º só se forem dos menores (256 KB no total, ~51 KB cada) |
 | Destinos por MOD | **4** |
 | Domínios | **4** |
 | Nome do jogo no OLED | 20 caracteres |
