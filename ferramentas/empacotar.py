@@ -56,6 +56,7 @@ BANCADA = [
     'embutir.py', 'limpar.py', 'empacotar.py', 'verificar_gpc.py',
     'testa_sim.py', 'testa_tabelas.py', 'testa_doc.py',
     'testa_a11y.js', 'testa_dom.js', 'tira_foto.js',
+    'decodifica.py', 'testa_importa.js',
     'sim_gera.js', 'gera_molde.py', 'sim_cfg.json', 'sim_cfg_vazio.json',
     'publicado.json', 'sim_hash.json',
 ]

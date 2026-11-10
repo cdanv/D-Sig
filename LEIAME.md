@@ -28,11 +28,13 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado. É o único arquivo que se edita à mão** |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
 | `ferramentas/limpar.py` | o removedor de comentários e a lista das 11 âncoras que o app usa |
-| `ferramentas/testa_sim.py` | o portão de comportamento: 17 verificações que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão de comportamento: 18 verificações que **executam** o script |
 | `ferramentas/gera_molde.py` | **gera o molde sintético do portão** e declara os 34 itens de cobertura que ele tem de sustentar |
 | `ferramentas/testa_tabelas.py` | confere tabela por tabela entre o app e o script, por valor |
 | `ferramentas/testa_a11y.js` | nome acessível e alvo de toque, no Chromium de verdade |
 | `ferramentas/testa_dom.js` | o nome dos domínios, pelas duas vias do app |
+| `ferramentas/decodifica.py` | lê um backup `.znbk` do Zen Studio e mostra os MODs de cada slot. `--confere script.gpc` diz qual slot guarda exatamente o `Config_Inicial` daquele script |
+| `ferramentas/testa_importa.js` | o lado app da verificação do importador: gera MODs pelo `spvars()` e importa o `.znbk` que o portão monta |
 | `ferramentas/tira_foto.js` | renderiza o app e fotografa uma seção, para revisão visual |
 | `ferramentas/publicado.json` | o SHA-256 da última publicação. É com ele que o `embutir.py` recusa republicar conteúdo novo sob a mesma versão |
 | `ferramentas/oled/padrao.py` | **a fonte única da arte do OLED.** Dele saem os PNGs de revisão, o `timbre.png` e o código das telas |
@@ -120,9 +122,16 @@ Instalado, abre em janela própria e funciona offline.
 Ficam no navegador que abriu o app, **por aparelho**. Celular e
 computador têm catálogos separados.
 
-**Exportar é o seu único backup**: o Cronus não devolve o script
+**Exportar é o seu único backup completo**: o Cronus não devolve o script
 depois de gravado. Use **Exportar / importar** de vez em quando, e
 para levar o catálogo de um aparelho para outro.
+
+**O que você ajustou no aparelho volta pelo backup do Zen Studio.** Na mesma
+tela, **Importar backup do Cronus (.znbk)** cria um jogo novo para cada slot
+com MODs do D-Sig, lidos da EEPROM daquele slot, na ordem em que o OLED os
+mostra. Não vêm junto, porque não estão na EEPROM: nome dos domínios, cores,
+anotações, ZETA, GAMA BLOK e FINALIZA. Um slot cujo script ainda não rodou no
+aparelho tem as 64 SPVARs zeradas e é pulado, com o motivo.
 
 ---
 
@@ -652,7 +661,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.12**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.13**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -778,16 +787,42 @@ O `sim_cfg_vazio.json` continua existindo e continua sendo necessário: **ele** 
 que *consegue* reprovar na verificação de função órfã. O sintético nunca reprovaria ali,
 porque usa todos os recursos — e molde que não consegue reprovar não prova nada.
 
+### 1.0.13 — o importador do backup do Cronus (10/11/2026)
+
+O que se ajusta no aparelho agora volta para o app. **Exportar / importar →
+Importar backup do Cronus (.znbk)** lê o arquivo que o Zen Studio salva e cria
+um jogo por slot. **O script não mudou** — só o `DS_VERSAO`, para o cache do
+app trocar e o importador chegar a quem já o tem instalado.
+
+O formato, lido de backups reais: o `.znbk` é um ZIP. O `manifest.json` diz qual
+script está em cada slot, e `slot-N/spvars.json` traz as 64 SPVARs **daquele
+slot** (`index` 0 é a `SPVAR_1`). Cada slot do Cronus tem as suas; por isso um
+jogo por slot, e não um por backup. O app lê o ZIP pelo diretório central e
+descomprime com o `DecompressionStream` do navegador, sem biblioteca.
+
+A prova em hardware: no backup de 10/11, as 9 SPVARs dos 3 MODs do slot do
+GPs e Rally são **idênticas** ao `Config_Inicial` do script gravado, e a
+SPVAR_64 guarda o mesmo `Cfg_Selo`. Os outros slots vieram **zerados** — o
+script nunca chegou a rodar o `Boot_Persistir` ali. Slot zerado é pulado com o
+motivo, não importado como jogo vazio.
+
+São agora três leituras do mesmo mapa de bits: `spvars()` codifica, `deSpvars()`
+decodifica no app, e o `decodifica.py` (que tinha se perdido e foi reescrito)
+decodifica na bancada. A verificação 18 do portão exige que as três concordem
+campo a campo, em 80 MODs que cobrem a faixa de todo campo, passando por um
+`.znbk` montado pelo Python. Sabotagem: trocar a ordem do trio de botões no
+`deSpvars()` reprovou nela.
+
+Achado de passagem: o comentário do pack de THR dizia `20 x 20 = 400`. O
+`THR_IN` vai até 20 (100%), então o campo vai a 419. O script sempre leu certo;
+o comentário foi corrigido, e o decodificador aceita a faixa inteira.
+
 ### O que continua em aberto, e não impede nada
 
 1. **Por que a VM rodou a 16,1 ms numa sessão de 27/09.** Não se sabe,
    não é reproduzível, e o script não mede a própria velocidade. O
    sintoma e como conferir estão na seção do relógio.
-2. **O app não absorve o que se faz no aparelho.** O `.znbk` carrega as
-   SPVARs e o `decodifica.py` prova que sabe lê-las; um importador
-   tornaria "regrave pelo app" em "traga o que você fez". É
-   funcionalidade que não existe, não defeito.
-3. **O teto de 20 MODs.** A EEPROM fecha em 64 de 64 palavras. Os 5 bits
+2. **O teto de 20 MODs.** A EEPROM fecha em 64 de 64 palavras. Os 5 bits
    do selo (encurtar o hash de 29 para 24 bits) são a **única reserva**
    de memória persistente que resta — e ficam reservados de propósito,
    porque foi fechar a EEPROM sem ninguém decidir que fecharia que

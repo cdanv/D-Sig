@@ -517,6 +517,64 @@ try:
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
+# --- o IMPORTADOR de backup do Cronus (.znbk -> SPVARs -> MODs) --------------
+# Tres leituras do mesmo mapa de bits: spvars() codifica, deSpvars() decodifica no app,
+# decodifica.py decodifica na bancada. Um erro em qualquer uma nao da erro de compilacao,
+# da configuracao trocada em silencio. Aqui as tres tem de concordar, e o caminho inteiro
+# e o de verdade: o app gera, o Python embrulha num .znbk (zip com deflate, como o Zen
+# Studio), o app abre o arquivo e importa. 80 MODs cobrindo a faixa de todo campo, mais
+# um slot zerado e um de outro script, que tem de ser PULADOS e nao importados.
+def _importador():
+    import zipfile
+    sys.path.insert(0, AQUI)
+    import decodifica
+    js = os.path.join(AQUI, 'testa_importa.js')
+    d = tempfile.mkdtemp(prefix='dsig_znbk_')
+    try:
+        r = roda(['node', js, 'gera', APP, '20261110'], cwd=AQUI)
+        if r.returncode != 0:
+            return False, (r.stderr or r.stdout).strip().split('\n')[-1][:120]
+        g = json.loads(r.stdout)
+        zp = os.path.join(d, 'teste.znbk')
+        with zipfile.ZipFile(zp, 'w', zipfile.ZIP_DEFLATED) as z:
+            z.writestr('manifest.json', json.dumps({'format_version': 3, 'slots': [
+                {'index': i, 'content_name': s['nome']} for i, s in enumerate(g['slots'])]}))
+            for i, s in enumerate(g['slots']):
+                z.writestr(f'slot-{i}/spvars.json', json.dumps(
+                    [{'index': k, 'value': v} for k, v in enumerate(s['sv'])]))
+            z.writestr('signature', b'\0' * 32)
+        r = roda(['node', js, 'le', APP, zp], cwd=AQUI)
+        if r.returncode != 0:
+            return False, 'o app nao leu o .znbk: ' + (r.stderr or '').strip().split('\n')[-1][:100]
+        imp = json.loads(r.stdout)
+        if len(imp['jogos']) != 4 or len(imp['pulos']) != 2:
+            return False, f'{len(imp["jogos"])} jogos e {len(imp["pulos"])} pulos; esperava 4 e 2'
+        campos = [k for k in g['mods'][0][0] if k not in ('nota', 'excl', 'assoc', 'bloq')]
+        n = 0
+        for k, jogo in enumerate(imp['jogos']):
+            py, err = decodifica.mods(g['slots'][k]['sv'])
+            if err:
+                return False, f'decodifica.py recusou o slot {k + 1}: {err}'
+            for i, orig in enumerate(g['mods'][k]):
+                app_m = jogo['mods'][i]
+                for c in campos:
+                    if app_m[c] != orig[c]:
+                        return False, f'app: slot {k + 1} MOD {i + 1} {c} = {app_m[c]}, era {orig[c]}'
+                    if c in py.get(i + 1, {}) and py[i + 1][c] != orig[c]:
+                        return False, f'decodifica.py: slot {k + 1} MOD {i + 1} {c} = {py[i + 1][c]}, era {orig[c]}'
+                if len(py) and (i + 1) not in py:
+                    return False, f'decodifica.py perdeu o MOD {i + 1} do slot {k + 1}'
+                n += 1
+        return True, f'{n} MODs: app e decodifica.py devolvem o que o app gravou; zerado e alheio pulados'
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+try:
+    passo('o importador .znbk desfaz o spvars() campo a campo', *_importador())
+except Exception as _e:
+    passo('o importador .znbk desfaz o spvars() campo a campo', False, f'{type(_e).__name__}: {_e}')
+
 # --- a DOCUMENTACAO contra o codigo -----------------------------------------
 # Escrevendo o README para o publico eu afirmei "firmware 2.3.2 ou mais novo". Nao existe
 # essa medida em lugar nenhum do projeto — eu inventei um numero porque a frase pedia um,

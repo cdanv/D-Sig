@@ -16,7 +16,9 @@ const path = require('path');
   const html = fs.readFileSync(APP, 'utf8');
   const lib = fs.readFileSync(LIB, 'utf8');
 
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+  // Mesma regra do testa_a11y.js: CHROMIUM se dado, senao o do proprio playwright.
+  // O caminho fixo em /opt/pw-browsers so existia na maquina onde isto nasceu.
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
   const pag = await browser.newPage({ viewport: { width: 460, height: 1400 },
                                       deviceScaleFactor: 2 });
   // A biblioteca entra ANTES de qualquer script da página rodar, senão o app abre vazio.
