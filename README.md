@@ -101,8 +101,9 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.15.** Validada em hardware: compila com 0 erros e 0 avisos nos quatro
-scripts de referência, e os ajustes feitos no aparelho sobrevivem ao desligamento.
+**Versão 1.0.16.** Validada em hardware: compila com 0 erros e 0 avisos no compilador do
+Zen Studio nos seis scripts de jogo e no pior caso (20 MODs com tudo no máximo, 53.216
+bytes, 81% do limite), e os ajustes feitos no aparelho sobrevivem ao desligamento.
 
 Cada publicação passa por um portão de **19 verificações** que executam o script num
 simulador — entre elas os tempos do TURBO, que foram medidos no PLOT do Device Monitor com

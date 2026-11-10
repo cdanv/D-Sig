@@ -159,7 +159,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.15";
+const string DS_VERSAO    = "D-Sig 1.0.16";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -5128,7 +5128,7 @@ var CORES=[
 // quando caiu para 20 para liberar as SPVARs 61-63 para a permutacao do ZETA.
 var NMOD=20;
 // v1.0.14: quantos D-Sig cabem no Cronus. O limite e de MEMORIA, nao de slots (sao 8):
-// 256 KB de bytecode, e cada D-Sig compila entre ~52.300 e ~52.700 bytes conforme os
+// 256 KB de bytecode, e cada D-Sig compila entre ~52.000 e ~53.200 bytes conforme os
 // MODs. Quatro somam ~205 KB e cabem sempre; um quinto so cabe se os cinco somarem ate
 // 256 KB — com os jogos de 10/11/2026, o Cities caberia e o Mad Max nao. Ate a 1.0.13 o
 // app afirmava "5 scripts", o que so vale para os menores. Medido no Zen Studio.
@@ -6322,7 +6322,7 @@ function telaInfo(A){
      'o trabalho por volta pela metade ou mais.'],
     ['20 MODs','96 bits cada, ocupando 60 das 64 SPVARs. Das 4 restantes, 3 guardam a permutação que mantém o ZETA correto ao deletar ou reordenar MODs no aparelho, e 1 guarda migração + selo.'],
     ['4 scripts no Cronus, às vezes 5',ZEN_TXT+' A biblioteca aqui é ilimitada.'],
-    ['Sem backup no Cronus','Não há como extrair um script depois de gravado. Este app é o seu único registro — exporte de vez em quando.']]);
+    ['Backup','O Cronus não devolve o script depois de gravado, mas os MODs voltam pelo backup .znbk do Zen Studio (Exportar / importar). Nomes, cores, anotações e ZETA não ficam no aparelho: só este app os guarda — exporte de vez em quando.']]);
 }
 function telaDados(A){
   $('titulo').innerHTML='Exportar / importar';

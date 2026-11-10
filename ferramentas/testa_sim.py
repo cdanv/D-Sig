@@ -345,20 +345,6 @@ try:
             passo('o script gerado nao tem funcao orfa (GPC3005)',
                   not _orf, ', '.join(_orf) if _orf else 'nenhuma')
 
-            # --- a ESTRUTURA do avulso e do gerado ---------------------------
-            # else orfao, bloco mal aninhado, chamada para funcao que nao existe: o que a
-            # contagem de chaves do embutir.py nao pega e so o Zen Studio acusava. O
-            # verificar_gpc.py existia desde antes da 1.0.12, mas FORA do portao — e
-            # envelheceu calado: nao conhecia line_oled nem image_oled e reprovava todo
-            # script, sem ninguem ver. A bateria de 10/11 achou. Dentro do portao, uma
-            # nativa nova no script reprova aqui no dia em que entra.
-            _rv = roda([sys.executable, VERIF, GPC, os.path.join(tmp, 'cfg.gpc')], cwd=AQUI)
-            _vm = [l.strip() for l in (_rv.stdout or '').split('\n')
-                   if l.strip().startswith('linha')]
-            passo('a estrutura do avulso e do gerado (verificar_gpc.py)', _rv.returncode == 0,
-                  'sem else orfao, chaves equilibradas, sem chamada perdida'
-                  if _rv.returncode == 0 else '; '.join(_vm)[:150] or (_rv.stderr or '')[:150])
-
             # E o mesmo para um jogo SEM NENHUM MOD, onde o laco do Config_Zeta nao emite
             # nada e tudo o que pende dele fica orfao.
             _ov = os.path.join(tmp, 'vazio.gpc')
@@ -372,6 +358,26 @@ try:
                         if len(re.findall(r'\b' + _f + r'\s*\(', _gv)) < 2]
                 passo('jogo sem MOD tambem nao tem funcao orfa',
                       not _ofv, ', '.join(_ofv) if _ofv else 'nenhuma')
+
+            # --- a ESTRUTURA do avulso, do gerado e do vazio ----------------
+            # else orfao, bloco mal aninhado, chamada para funcao que nao existe: o que a
+            # contagem de chaves do embutir.py nao pega e so o Zen Studio acusava. O
+            # verificar_gpc.py existia desde antes da 1.0.12, mas FORA do portao — e
+            # envelheceu calado: nao conhecia line_oled nem image_oled e reprovava todo
+            # script, sem ninguem ver. A bateria de 10/11 achou. Dentro do portao, uma
+            # nativa nova no script reprova aqui no dia em que entra.
+            # O VAZIO entra de proposito: o nome dele, "VAZIO (molde do portao)", e partido
+            # pelo app em duas const string com um parentese sozinho em cada. O verificador
+            # contava parentese dentro de string e reprovava — a auditoria de 10/11 achou,
+            # e o portao nao via porque esta verificacao rodava antes de o vazio existir.
+            _vf = [GPC, os.path.join(tmp, 'cfg.gpc')] + ([_ov] if os.path.exists(_ov) else [])
+            _rv = roda([sys.executable, VERIF] + _vf, cwd=AQUI)
+            _vm = [l.strip() for l in (_rv.stdout or '').split('\n')
+                   if l.strip().startswith('linha')]
+            passo('a estrutura do avulso, do gerado e do vazio (verificar_gpc.py)', _rv.returncode == 0,
+                  'sem else orfao, chaves equilibradas, sem chamada perdida'
+                  if _rv.returncode == 0 else '; '.join(_vm)[:150] or (_rv.stderr or '')[:150])
+
 
             # --- os nomes de dominio, pelas DUAS vias do app ------------------
             # O codigo(j) e o scriptCompleto(j) sao duas vias para o mesmo dado, e e
