@@ -28,11 +28,12 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado. É o único arquivo que se edita à mão** |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
 | `ferramentas/limpar.py` | o removedor de comentários e a lista das 11 âncoras que o app usa |
-| `ferramentas/testa_sim.py` | o portão de comportamento: 18 verificações que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão de comportamento: 19 verificações que **executam** o script |
 | `ferramentas/gera_molde.py` | **gera o molde sintético do portão** e declara os 34 itens de cobertura que ele tem de sustentar |
 | `ferramentas/testa_tabelas.py` | confere tabela por tabela entre o app e o script, por valor |
 | `ferramentas/testa_a11y.js` | nome acessível e alvo de toque, no Chromium de verdade |
 | `ferramentas/testa_dom.js` | o nome dos domínios, pelas duas vias do app |
+| `ferramentas/verificar_gpc.py` | o verificador estrutural: `else` órfão, bloco mal aninhado e chamada para função que não existe — o que a contagem de chaves não pega e só o Zen Studio acusava. Roda no portão, sobre o avulso e o gerado |
 | `ferramentas/decodifica.py` | lê um backup `.znbk` do Zen Studio e mostra os MODs de cada slot. `--confere script.gpc` diz qual slot guarda exatamente o `Config_Inicial` daquele script |
 | `ferramentas/testa_importa.js` | o lado app da verificação do importador: gera MODs pelo `spvars()` e importa o `.znbk` que o portão monta |
 | `ferramentas/tira_foto.js` | renderiza o app e fotografa uma seção, para revisão visual |
@@ -857,6 +858,11 @@ as mesmas 60 SPVARs do backup. Achou quatro defeitos, nenhum no script:
 A verificação 18 passou a incluir um slot corrompido e um sem arquivo —
 provado contra o app de antes da correção, que reprovou nela.
 
+Logo depois o `verificar_gpc.py` **entrou no portão**, como verificação 19,
+sobre o avulso e o script gerado pelo app. Envelheceu por estar de fora;
+dentro, uma nativa nova no script reprova no dia em que entra. Sabotagem:
+o verificador sem `line_oled` e `image_oled` reprovou nela, apontando as duas.
+
 ### O que continua em aberto, e não impede nada
 
 1. **Por que a VM rodou a 16,1 ms numa sessão de 27/09.** Não se sabe,
@@ -874,6 +880,6 @@ provado contra o app de antes da correção, que reprovou nela.
 python3 ferramentas/embutir.py
 ```
 
-Ele audita a estrutura **e** roda o portão de comportamento: 18
+Ele audita a estrutura **e** roda o portão de comportamento: 19
 verificações, cada uma conferida contra uma sabotagem deliberada. Se
 fechar, não publicou nada.

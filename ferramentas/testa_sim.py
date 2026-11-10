@@ -61,6 +61,7 @@ GERA = os.path.join(AQUI, 'sim_gera.js')
 DOM = os.path.join(AQUI, 'testa_dom.js')
 TAB = os.path.join(AQUI, 'testa_tabelas.py')
 A11Y = os.path.join(AQUI, 'testa_a11y.js')
+VERIF = os.path.join(AQUI, 'verificar_gpc.py')
 
 # O MOD_11 do molde: 2CLK no CROSS dispara TURBO no CROSS com tmp=[4,4,4,5]
 # (150,150,150,250 ms) e lat=5 (50 ms). CROSS e o indice 6 no gpcrt.h.
@@ -343,6 +344,20 @@ try:
                     if len(re.findall(r'\b' + _f + r'\s*\(', _g)) < 2]
             passo('o script gerado nao tem funcao orfa (GPC3005)',
                   not _orf, ', '.join(_orf) if _orf else 'nenhuma')
+
+            # --- a ESTRUTURA do avulso e do gerado ---------------------------
+            # else orfao, bloco mal aninhado, chamada para funcao que nao existe: o que a
+            # contagem de chaves do embutir.py nao pega e so o Zen Studio acusava. O
+            # verificar_gpc.py existia desde antes da 1.0.12, mas FORA do portao — e
+            # envelheceu calado: nao conhecia line_oled nem image_oled e reprovava todo
+            # script, sem ninguem ver. A bateria de 10/11 achou. Dentro do portao, uma
+            # nativa nova no script reprova aqui no dia em que entra.
+            _rv = roda([sys.executable, VERIF, GPC, os.path.join(tmp, 'cfg.gpc')], cwd=AQUI)
+            _vm = [l.strip() for l in (_rv.stdout or '').split('\n')
+                   if l.strip().startswith('linha')]
+            passo('a estrutura do avulso e do gerado (verificar_gpc.py)', _rv.returncode == 0,
+                  'sem else orfao, chaves equilibradas, sem chamada perdida'
+                  if _rv.returncode == 0 else '; '.join(_vm)[:150] or (_rv.stderr or '')[:150])
 
             # E o mesmo para um jogo SEM NENHUM MOD, onde o laco do Config_Zeta nao emite
             # nada e tudo o que pende dele fica orfao.
