@@ -48,7 +48,7 @@ SIMFILES = ['gpc2c.py', 'gpcrt.h', 'harness.c', 'fuzz.c', 'tri.c', 'zeta.c', 'mi
 
 RAIZ = [
     'index.html', 'D-Sig.gpc', 'manifest.json', 'sw.js',
-    'README.md', 'LEIAME.md',
+    'README.md', 'LEIAME.md', 'LICENSE',
 ]
 ICO = ['icone-192.png', 'icone-512.png', 'icone-maskable.png']
 BANCADA = [
