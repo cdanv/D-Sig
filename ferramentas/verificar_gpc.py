@@ -42,6 +42,9 @@ def checa(path):
     fn = set(re.findall(r'^function\s+(\w+)', bruto, re.M))
     gpc = {'if','while','return','set_val','get_ival','get_ptime','event_press',
            'event_release','abs','combo_run','set_pvar','get_pvar','cls_oled','rect_oled',
+           # nativas de desenho que o script usa desde antes da 1.0.12; sem elas o
+           # verificador reprovava todo arquivo e, fora do portao, ninguem via
+           'line_oled','image_oled',
            'set_led','set_rumble','reset_rumble','wait','get_rtime','print','main','init',
            'function','combo','else','for','update_leds','colorled'}
     for x in sorted(set(re.findall(r'\b([A-Za-z_]\w*)\s*\(', c)) - fn - gpc):

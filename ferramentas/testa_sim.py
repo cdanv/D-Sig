@@ -536,19 +536,30 @@ def _importador():
             return False, (r.stderr or r.stdout).strip().split('\n')[-1][:120]
         g = json.loads(r.stdout)
         zp = os.path.join(d, 'teste.znbk')
+        # Mais dois slots de ARQUIVO ruim, que a bateria de 10/11 pegou: um spvars.json
+        # corrompido abortava a importacao inteira, e um slot listado sem spvars.json
+        # sumia calado. Os dois tem de virar PULADO, com os outros importados normalmente.
+        n = len(g['slots'])
         with zipfile.ZipFile(zp, 'w', zipfile.ZIP_DEFLATED) as z:
             z.writestr('manifest.json', json.dumps({'format_version': 3, 'slots': [
-                {'index': i, 'content_name': s['nome']} for i, s in enumerate(g['slots'])]}))
+                {'index': i, 'content_name': s['nome']} for i, s in enumerate(g['slots'])]
+                + [{'index': n, 'content_name': 'Corrompido.gpc'},
+                   {'index': n + 1, 'content_name': 'Sem_arquivo.gpc'}]}))
             for i, s in enumerate(g['slots']):
                 z.writestr(f'slot-{i}/spvars.json', json.dumps(
                     [{'index': k, 'value': v} for k, v in enumerate(s['sv'])]))
+            z.writestr(f'slot-{n}/spvars.json', '[{"index":0,')
             z.writestr('signature', b'\0' * 32)
         r = roda(['node', js, 'le', APP, zp], cwd=AQUI)
         if r.returncode != 0:
             return False, 'o app nao leu o .znbk: ' + (r.stderr or '').strip().split('\n')[-1][:100]
         imp = json.loads(r.stdout)
-        if len(imp['jogos']) != 4 or len(imp['pulos']) != 2:
-            return False, f'{len(imp["jogos"])} jogos e {len(imp["pulos"])} pulos; esperava 4 e 2'
+        if len(imp['jogos']) != 4 or len(imp['pulos']) != 4:
+            return False, f'{len(imp["jogos"])} jogos e {len(imp["pulos"])} pulos; esperava 4 e 4'
+        if not any('ilegíveis' in p for p in imp['pulos']) or \
+           not any('não tem' in p for p in imp['pulos']):
+            return False, 'slot corrompido ou sem arquivo nao foi listado como pulado: ' + \
+                '; '.join(imp['pulos'])[:100]
         campos = [k for k in g['mods'][0][0] if k not in ('nota', 'excl', 'assoc', 'bloq')]
         n = 0
         for k, jogo in enumerate(imp['jogos']):
@@ -565,7 +576,7 @@ def _importador():
                 if len(py) and (i + 1) not in py:
                     return False, f'decodifica.py perdeu o MOD {i + 1} do slot {k + 1}'
                 n += 1
-        return True, f'{n} MODs: app e decodifica.py devolvem o que o app gravou; zerado e alheio pulados'
+        return True, f'{n} MODs: app e decodifica.py devolvem o que o app gravou; 4 slots ruins pulados'
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
