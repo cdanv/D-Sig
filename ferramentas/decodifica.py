@@ -84,20 +84,42 @@ def configurado(m):
 
 
 def ler(caminho):
-    """-> [(indice do slot, nome do script, [64 int32])]"""
-    with zipfile.ZipFile(caminho) as z:
-        man = json.loads(z.read('manifest.json'))
-        saida = []
+    """-> [(indice do slot, nome do script, [64 int32] ou None, erro ou None)]
+
+    Slot com problema volta com sv=None e o motivo: nunca derruba os outros e nunca some
+    calado (a bateria de 10/11 achou os dois defeitos aqui e no app)."""
+    try:
+        z = zipfile.ZipFile(caminho)
+    except (zipfile.BadZipFile, OSError) as e:
+        raise SystemExit(f'{caminho}: nao e um arquivo .znbk (ZIP) valido ({e})')
+    with z:
+        try:
+            man = json.loads(z.read('manifest.json'))
+        except KeyError:
+            raise SystemExit(f'{caminho}: o backup nao tem manifest.json')
+        except ValueError:
+            raise SystemExit(f'{caminho}: o manifest.json nao e JSON valido')
+        saida, vistos = [], set()
         for s in man.get('slots', []):
-            try:
-                bruto = json.loads(z.read(f'slot-{int(s["index"])}/spvars.json'))
-            except KeyError:
+            i = s.get('index') if isinstance(s, dict) else None
+            if not isinstance(i, int) or i in vistos:
                 continue
-            sv = [0] * 64
-            for x in bruto:
-                if 0 <= x['index'] < 64:
-                    sv[x['index']] = int(x['value'])
-            saida.append((int(s['index']), str(s.get('content_name', '')), sv))
+            vistos.add(i)
+            nome = str(s.get('content_name') or f'slot {i + 1}')
+            try:
+                bruto = json.loads(z.read(f'slot-{i}/spvars.json'))
+                sv = [0] * 64
+                for x in bruto:
+                    if 0 <= x['index'] < 64:
+                        sv[x['index']] = int(x['value'])
+            except KeyError:
+                saida.append((i, nome, None, 'o backup nao tem as SPVARs deste slot'))
+                continue
+            except (ValueError, TypeError):
+                saida.append((i, nome, None, 'as SPVARs deste slot estao ilegiveis'))
+                continue
+            # int32 com sinal, como o Cronus guarda: aceita tambem o valor sem sinal
+            saida.append((i, nome, [((v + 2**31) % 2**32) - 2**31 for v in sv], None))
         return saida
 
 
@@ -150,12 +172,17 @@ def main(av):
         return 0
     slots = ler(av[0])
     if '--json' in av:
-        print(json.dumps([{'slot': i, 'script': n, 'spvars': sv, 'mods': mods(sv)[0],
-                           'erro': mods(sv)[1]} for i, n, sv in slots], indent=1))
+        print(json.dumps([{'slot': i, 'script': n, 'spvars': sv,
+                           'mods': mods(sv)[0] if sv else {},
+                           'erro': ler_erro or (mods(sv)[1] if sv else None)}
+                          for i, n, sv, ler_erro in slots], indent=1))
         return 0
-    for i, n, sv in slots:
-        ms, erro = mods(sv)
+    for i, n, sv, ler_erro in slots:
         print(f'slot {i + 1}: {n}')
+        if ler_erro:
+            print(f'   pulado: {ler_erro}')
+            continue
+        ms, erro = mods(sv)
         if erro:
             print(f'   nao e EEPROM do D-Sig ({erro})')
             continue
@@ -167,7 +194,7 @@ def main(av):
         print(f'   selo {(sv[63] >> 1) & 0x7FFFFFFF}   migrado {sv[63] & 1}')
     if '--confere' in av:
         alvo = config_inicial(av[av.index('--confere') + 1])
-        iguais = [f'slot {i + 1}' for i, n, sv in slots if sv[:60] == alvo]
+        iguais = [f'slot {i + 1}' for i, n, sv, _ in slots if sv and sv[:60] == alvo]
         print('\nconfere: ' + (', '.join(iguais) + ' = o Config_Inicial do script' if iguais
                                else 'NENHUM slot guarda o que o script manda'))
         return 0 if iguais else 1

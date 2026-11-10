@@ -159,7 +159,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.14";
+const string DS_VERSAO    = "D-Sig 1.0.15";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -5601,21 +5601,33 @@ function lerZnbk(u8){
       return Promise.reject(new Error('este navegador não descomprime ZIP; atualize-o'));
     return new Response(new Blob([dado]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()}
   return texto('manifest.json').then(function(t){
-    var man=JSON.parse(t);
+    var man;
+    try{man=JSON.parse(t)}catch(e){throw new Error('o manifest.json não é JSON válido')}
     if(!man||!Array.isArray(man.slots))throw new Error('manifest.json sem lista de slots');
-    return Promise.all(man.slots.map(function(s){
+    // Um slot com problema vira PULADO com o motivo — nunca derruba os outros, e nunca
+    // some calado. (A bateria de 10/11 achou os dois: um spvars.json corrompido abortava
+    // a importacao inteira, e um slot sem spvars.json desaparecia sem aviso.)
+    var vistos={};
+    var slots=man.slots.filter(function(s){
+      if(!s||typeof s.index!=='number'||vistos[s.index])return false;
+      return(vistos[s.index]=true)});
+    return Promise.all(slots.map(function(s){
+      var nome=String(s.content_name||'slot '+(s.index+1));   // 1-based, como o resto do app
       return texto('slot-'+s.index+'/spvars.json').then(function(t2){
-        var sv=new Array(64).fill(0);
-        JSON.parse(t2).forEach(function(x){if(x.index>=0&&x.index<64)sv[x.index]=x.value|0});
-        return{slot:s.index,nome:String(s.content_name||'slot '+s.index),sv:sv}},
-        function(){return null})}))
-  }).then(function(l){return l.filter(Boolean)})}
+        var l=JSON.parse(t2), sv=new Array(64).fill(0);
+        if(!Array.isArray(l))throw 0;
+        l.forEach(function(x){if(x&&x.index>=0&&x.index<64)sv[x.index]=x.value|0});
+        return{slot:s.index,nome:nome,sv:sv}
+      }).catch(function(e){
+        return{slot:s.index,nome:nome,erro:(e&&/não tem/.test(e.message))?
+          'o backup não tem as SPVARs deste slot':'as SPVARs deste slot estão ilegíveis'}})}))})}
 
 // Um jogo por slot que tenha MODs do D-Sig. Slot de outro script (SPVARs fora do layout)
 // ou sem MOD nenhum (o InLoco recem-gravado) e listado como pulado, com o motivo.
 function importaZnbk(slots){
   var jogos=[], pulos=[];
   slots.forEach(function(s){
+    if(s.erro){pulos.push('slot '+(s.slot+1)+' ('+s.nome+'): '+s.erro);return}
     var nome=s.nome.replace(/\.gpc$/i,'').replace(/_D-Sig$/i,'').replace(/_/g,' ').slice(0,20);
     try{var r=importaSpvars(s.sv,nome);
       if(r.mods)jogos.push(r); else pulos.push('slot '+(s.slot+1)+' ('+s.nome+'): nenhum MOD')}

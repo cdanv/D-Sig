@@ -101,7 +101,7 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.14.** Validada em hardware: compila com 0 erros e 0 avisos nos quatro
+**Versão 1.0.15.** Validada em hardware: compila com 0 erros e 0 avisos nos quatro
 scripts de referência, e os ajustes feitos no aparelho sobrevivem ao desligamento.
 
 Cada publicação passa por um portão de **18 verificações** que executam o script num

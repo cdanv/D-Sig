@@ -665,7 +665,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.14**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.15**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -834,6 +834,28 @@ continua recusando o 6º. Os números moram numa constante só (`ZEN_FOLGA`,
 
 O script não mudou, só o `DS_VERSAO`, pela regra do `sw.js`. Os scripts
 gravados como 1.0.13 se comportam igual aos da 1.0.14.
+
+### 1.0.15 — a bateria de testes (10/11/2026)
+
+Uma bateria além do portão: o verificador estrutural em todos os scripts,
+fuzz de 16 sementes × 2 milhões de voltas no avulso e nos 6 jogos, os
+cenários de ZETA (deletar cada slot, trocar posições, religar) nos jogos
+reais, 20 arquivos `.znbk` de ataque importados pelo **botão** do app, e a
+prova ponta a ponta: backup real → jogo importado → script gerado pelo app →
+as mesmas 60 SPVARs do backup. Achou quatro defeitos, nenhum no script:
+
+1. **Um `spvars.json` corrompido abortava a importação inteira.** Agora só
+   aquele slot é pulado, com o motivo.
+2. **Um slot listado sem `spvars.json` sumia calado.** Agora aparece em
+   "Pulados". (Os dois também no `decodifica.py`, que ainda dava traceback
+   para arquivo que não é ZIP.)
+3. **Sem nome no manifesto, o jogo saía "slot 0"**, contando de zero, contra
+   o "slot 1" do resto do app; slot repetido no manifesto virava dois jogos.
+4. **O `verificar_gpc.py` reprovava todo script** por não conhecer as nativas
+   `line_oled` e `image_oled`. Fora do portão, ninguém via.
+
+A verificação 18 passou a incluir um slot corrompido e um sem arquivo —
+provado contra o app de antes da correção, que reprovou nela.
 
 ### O que continua em aberto, e não impede nada
 
