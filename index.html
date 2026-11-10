@@ -159,7 +159,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.13";
+const string DS_VERSAO    = "D-Sig 1.0.14";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -5127,6 +5127,14 @@ var CORES=[
 // v6: o teto de MODs. Era 21 escrito a mao em cinco lugares; virou constante
 // quando caiu para 20 para liberar as SPVARs 61-63 para a permutacao do ZETA.
 var NMOD=20;
+// v1.0.14: quantos D-Sig cabem no Cronus. O limite e de MEMORIA, nao de slots (sao 8):
+// 256 KB de bytecode, e cada D-Sig compila entre ~52.300 e ~52.700 bytes conforme os
+// MODs. Quatro somam ~205 KB e cabem sempre; um quinto so cabe se os cinco somarem ate
+// 256 KB — com os jogos de 10/11/2026, o Cities caberia e o Mad Max nao. Ate a 1.0.13 o
+// app afirmava "5 scripts", o que so vale para os menores. Medido no Zen Studio.
+var ZEN_FOLGA=4, ZEN_MAX=5;
+var ZEN_TXT='O Cronus guarda 256 KB de scripts, e cada D-Sig ocupa cerca de 51 KB: '+
+  'cabem 4 com folga, e um 5º só se os cinco forem dos menores.';
 function modVazio(){return{nota:'',d1:0,d2:0,d3:0,d4:0,fonte:0,passivo:0,mult:9,tin:1,tout:0,dir:1,
   delay:0,gBlok:0,fin2clk:0,finTog:0,finHold:0,finAfter:0,g2clk:0,gTog:0,gHold:0,gHoldT:25,gHoldM:0,gAfter:0,gAfterT:5,
   tipo:0,dst:[0,0,0,0],tmp:[3,3,3,3],lat:4,modo:0,ciclos:0,excl:[],assoc:[],bloq:[]}}
@@ -5880,8 +5888,9 @@ function telaCat(A){
   bi.onclick=function(){tela='info';render()};
   r.appendChild(bn);r.appendChild(bd);r.appendChild(bi);A.appendChild(r);
   var p=document.createElement('p');p.className='hint';
-  p.innerHTML='<b>'+noZen+' de 5</b> gravados no Zen.'+
-    (noZen>5?' <span style="color:var(--verm)">Acima do limite.</span>':'')+'<br>'+
+  p.innerHTML='<b>'+noZen+'</b> gravados no Zen (cabem '+ZEN_FOLGA+', às vezes '+ZEN_MAX+').'+
+    (noZen>ZEN_MAX?' <span style="color:var(--verm)">Acima do limite.</span>':
+     noZen===ZEN_MAX?' <span style="color:var(--amber)">No limite: só cabe se forem dos menores.</span>':'')+'<br>'+
     (temLS?'Os dados ficam neste navegador. Exporte para levar a outro aparelho.'
     :'Atencao: este navegador nao guarda dados. Exporte antes de fechar.');
   A.appendChild(p)}
@@ -5897,7 +5906,9 @@ function telaJogo(A){
   s1.appendChild(fld('Nome',inp));
   s1.appendChild(fld('No Zen',chk(j.noZen,function(v){
     var n=0;D.jogos.forEach(function(x){if(x.noZen)n++});
-    if(v&&n>=5&&!j.noZen){alert('O Cronus comporta 5 scripts D-Sig. Desmarque outro antes.');return}
+    if(v&&!j.noZen&&n>=ZEN_MAX){alert(ZEN_TXT+'\n\nJá há '+n+' marcados. Desmarque outro antes.');return}
+    if(v&&!j.noZen&&n===ZEN_FOLGA)alert(ZEN_TXT+'\n\nEste é o 5º: pode não caber. '+
+      'Se o Zen Studio recusar por falta de espaço, desmarque um deles.');
     j.noZen=v;grava(D);render()})));
   [0,1,2,3].forEach(function(i){
     // Nome e cor do dominio no mesmo grupo, com a barra lateral na cor dele.
@@ -6298,7 +6309,7 @@ function telaInfo(A){
      'que isso, cada volta demora mais e TODOS os tempos esticam na mesma proporção. A v7l cortou '+
      'o trabalho por volta pela metade ou mais.'],
     ['20 MODs','96 bits cada, ocupando 60 das 64 SPVARs. Das 4 restantes, 3 guardam a permutação que mantém o ZETA correto ao deletar ou reordenar MODs no aparelho, e 1 guarda migração + selo.'],
-    ['5 scripts no Cronus','O dispositivo não comporta mais que isso, embora a biblioteca aqui seja ilimitada.'],
+    ['4 scripts no Cronus, às vezes 5',ZEN_TXT+' A biblioteca aqui é ilimitada.'],
     ['Sem backup no Cronus','Não há como extrair um script depois de gravado. Este app é o seu único registro — exporte de vez em quando.']]);
 }
 function telaDados(A){

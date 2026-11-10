@@ -56,7 +56,8 @@ divide domínio com quem o aponta, cadeia de ASSOC fechada em círculo, gatilho 
 PASSIVO engole.
 
 **2. Gere e grave.** "Gerar código" entrega o `.gpc` inteiro. Abra no Zen Studio, Build,
-grave num dos slots. O Cronus comporta **5 scripts D-Sig** ao mesmo tempo.
+grave num dos slots. O Cronus guarda **256 KB** de scripts e cada D-Sig ocupa cerca de
+51 KB: cabem **4** com folga, e um 5º só se os cinco forem dos menores.
 
 **3. Ajuste no aparelho.** **R1 + OPTIONS** abre o menu no OLED. Dali se cria, edita,
 reordena e apaga MOD sem computador — `UP`/`DOWN` navega, `LEFT`/`RIGHT` ajusta, `X`
@@ -100,7 +101,7 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.13.** Validada em hardware: compila com 0 erros e 0 avisos nos quatro
+**Versão 1.0.14.** Validada em hardware: compila com 0 erros e 0 avisos nos quatro
 scripts de referência, e os ajustes feitos no aparelho sobrevivem ao desligamento.
 
 Cada publicação passa por um portão de **18 verificações** que executam o script num

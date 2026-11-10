@@ -187,8 +187,12 @@ seguintes nada é sobrescrito — então o que você editar pelo OLED e
 salvar continua valendo. Gerar configuração nova muda o selo, e ela
 volta a ser aplicada.
 
-O Cronus comporta **5 scripts** ao mesmo tempo. A biblioteca do app
-é ilimitada.
+O Cronus tem 8 slots, mas o limite é de **memória**: 256 KB de
+bytecode, e cada D-Sig compila entre ~52.300 e ~52.700 bytes conforme
+os MODs. Cabem **4** com folga (os quatro gravados em 10/11 somam
+209.584 bytes). Um 5º só cabe se os cinco somarem até 262.144 bytes —
+com os jogos de hoje, o Cities Skylines caberia e o Mad Max não. A
+biblioteca do app é ilimitada.
 
 ---
 
@@ -661,7 +665,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.13**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.14**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -817,6 +821,20 @@ Achado de passagem: o comentário do pack de THR dizia `20 x 20 = 400`. O
 `THR_IN` vai até 20 (100%), então o campo vai a 419. O script sempre leu certo;
 o comentário foi corrigido, e o decodificador aceita a faixa inteira.
 
+### 1.0.14 — quantos scripts cabem no Cronus (10/11/2026)
+
+O app dizia "o Cronus comporta 5 scripts D-Sig", e travava o 6º. Medido ao
+gravar a 1.0.13: o limite não é de slots (são 8), é de **memória** — 256 KB
+de bytecode, e cada D-Sig compila entre ~52.300 e ~52.700 bytes. Quatro
+cabem sempre; o 5º só se os cinco forem dos menores.
+
+O app agora conta "N de 4", aceita o 5º com um aviso de que pode não caber, e
+continua recusando o 6º. Os números moram numa constante só (`ZEN_FOLGA`,
+`ZEN_MAX`, `ZEN_TXT`), que a trava, o contador e a tela de Informações leem.
+
+O script não mudou, só o `DS_VERSAO`, pela regra do `sw.js`. Os scripts
+gravados como 1.0.13 se comportam igual aos da 1.0.14.
+
 ### O que continua em aberto, e não impede nada
 
 1. **Por que a VM rodou a 16,1 ms numa sessão de 27/09.** Não se sabe,
@@ -834,6 +852,6 @@ o comentário foi corrigido, e o decodificador aceita a faixa inteira.
 python3 ferramentas/embutir.py
 ```
 
-Ele audita a estrutura **e** roda o portão de comportamento: 17
+Ele audita a estrutura **e** roda o portão de comportamento: 18
 verificações, cada uma conferida contra uma sabotagem deliberada. Se
 fechar, não publicou nada.
