@@ -100,10 +100,10 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.12.** Validada em hardware: compila com 0 erros e 0 avisos nos quatro
+**Versão 1.0.13.** Validada em hardware: compila com 0 erros e 0 avisos nos quatro
 scripts de referência, e os ajustes feitos no aparelho sobrevivem ao desligamento.
 
-Cada publicação passa por um portão de **17 verificações** que executam o script num
+Cada publicação passa por um portão de **18 verificações** que executam o script num
 simulador — entre elas os tempos do TURBO, que foram medidos no PLOT do Device Monitor com
 o Cronus na mão e saíram iguais aos do simulador (150/50 ms configurados, 149,8/50,1 ms
 medidos). Nenhuma dessas verificações foi aceita sem antes ser provada contra uma sabotagem
@@ -116,9 +116,12 @@ está verificando nada.
    todos os tempos saíram 1,63× mais longos. Não é reproduzível e o script não pode medir
    a própria velocidade. Se os tempos saírem longos, confira a largura da rampa no PLOT do
    Device Monitor — rampa larga significa volta longa.
-2. **O app não importa de volta o que você fez no aparelho.** O backup `.znbk` do Zen
-   Studio contém as SPVARs; um importador tornaria "regrave pelo app" em "traga o que
-   você fez". É funcionalidade que falta, não defeito.
+
+**O que você ajusta no aparelho volta para o app.** Desde a 1.0.13, **Exportar / importar
+→ Importar backup do Cronus (.znbk)** lê o backup que o Zen Studio salva e cria um jogo
+por slot com os MODs que estão na EEPROM. Nome dos domínios, cores, anotações, ZETA,
+GAMA BLOK e FINALIZA não ficam na EEPROM e não vêm junto. Um slot cujo script ainda não
+rodou no aparelho tem as SPVARs zeradas e é pulado.
 
 ## Para quem for mexer no código
 
@@ -128,8 +131,9 @@ está verificando nada.
 | `D-Sig.gpc` | o script avulso, sem comentários, pronto para o Zen Studio |
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado.** É o arquivo que se edita |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação** |
-| `ferramentas/testa_sim.py` | o portão: as 17 verificações, que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão: as 18 verificações, que **executam** o script |
 | `ferramentas/sim/` | o simulador — transpila o GPC para C e roda os cenários |
+| `ferramentas/decodifica.py` | lê um `.znbk` e mostra os MODs de cada slot; `--confere` compara com um script |
 
 ```bash
 cd ferramentas && python3 embutir.py

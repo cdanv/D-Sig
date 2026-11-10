@@ -159,7 +159,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.12";
+const string DS_VERSAO    = "D-Sig 1.0.13";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -5513,6 +5513,107 @@ function spvars(m){
   C|=(pt&127)<<25;
   return[A|0,B|0,C|0]}
 
+// ===== decodificador: os 3 SPVARs de um slot -> MOD do app =====
+// O inverso exato de spvars(). Serve ao importador de backup do Cronus (.znbk).
+// Devolve null para slot vazio (bit 0 apagado) e lanca erro para campo fora da faixa:
+// isso nao e EEPROM do D-Sig, ou e lixo, e importar lixo seria pior que recusar.
+// O que NAO esta na EEPROM volta com o valor padrao do modVazio(): nota, ZETA,
+// GAMA BLOK e o modo FINALIZA (ver "O que não é gravado na EEPROM" no LEIAME).
+function deSpvars(A,B,C){
+  if(!(A&1))return null;
+  var m=modVazio(), i, v;
+  function faixa(nome,x,lim){if(x<0||x>=lim)throw new Error(nome+'='+x+' fora de 0..'+(lim-1));return x}
+  for(i=0;i<4;i++)m['d'+(i+1)]=(A>>>(1+i))&1;
+  m.fonte=faixa('FONTE',(A>>>5)&31,FONTES.length);
+  m.passivo=(A>>>10)&1;
+  m.tipo=faixa('DST_TIPO',(A>>>11)&3,3);
+  v=(A>>>13)&131071; faixa('DESTINOS',v,19*19*19*19);
+  for(i=0;i<4;i++){m.dst[i]=v%19;v=(v-m.dst[i])/19}
+  var pt=(((A>>>30)&3)<<10)|(((B>>>29)&7)<<7)|((C>>>25)&127);
+  for(i=0;i<4;i++){m.tmp[i]=pt&7;pt>>>=3}
+  v=faixa('MULT*3+DIR',B&63,MULT.length*3);
+  m.mult=(v-v%3)/3; m.dir=v%3;
+  v=faixa('THR',(B>>>6)&511,THR.length*20);   // THR_IN vai ate 20 (100%): 0..419
+  m.tin=(v-v%20)/20; m.tout=v%20;
+  m.gHoldM=(B>>>15)&1;
+  m.gHoldT=faixa('HOLD_TEMPO',(B>>>16)&63,THOLD.length);
+  m.delay=(B>>>22)&3;
+  m.gAfterT=(B>>>24)&7;
+  m.modo=(B>>>27)&3;
+  m.gHold=faixa('HOLD_BTN',C&31,BOTOES.length);
+  v=faixa('TRIO',(C>>>5)&8191,17*17*17);
+  m.gAfter=v%17; v=(v-m.gAfter)/17; m.gTog=v%17; m.g2clk=(v-m.gTog)/17;
+  m.lat=(C>>>18)&15;
+  m.ciclos=(C>>>22)&7;
+  return m}
+
+// As 64 SPVARs do Cronus -> um jogo novo. Os MODs entram na ordem dos SLOTS, que e a
+// que o OLED mostra hoje (a permutacao em 61-63 so diz de onde cada um veio no app).
+// Slot marcado mas sem fonte, gatilho nem destino fica vazio: e o que o nomeMod() faria.
+function importaSpvars(sv,nome){
+  if(!sv||sv.length<60)throw new Error('esperava 64 SPVARs, vieram '+(sv?sv.length:0));
+  var j=jogoVazio(), k, m, n=0, ruins=[];
+  j.nome=nome||'IMPORTADO';
+  for(k=0;k<NMOD;k++){
+    try{m=deSpvars(sv[3*k]|0,sv[3*k+1]|0,sv[3*k+2]|0)}
+    catch(e){ruins.push('slot '+(k+1)+': '+e.message);continue}
+    if(!m)continue;
+    j.mods[k]=m;
+    if(nomeMod(j,k))n++; else j.mods[k]=modVazio();
+  }
+  if(ruins.length)throw new Error('estas SPVARs nao sao do D-Sig:\n'+ruins.join('\n'));
+  return{jogo:j,mods:n}}
+
+// ===== leitor do backup do Zen Studio (.znbk) =====
+// O .znbk e um ZIP: manifest.json (nome do script de cada slot) e, POR SLOT,
+// slot-N/spvars.json = [{index:0..63, value:int32}]. index 0 e a SPVAR_1. Cada slot do
+// Cronus tem as SUAS 64 SPVARs, entao cada slot vira um jogo. O resto do ZIP (bytecode,
+// bvar, signature) nao interessa e nao e tocado.
+// O ZIP e lido pelo diretorio central, e o deflate e o do proprio navegador — sem
+// biblioteca, para o app continuar sendo um arquivo so.
+function lerZnbk(u8){
+  var dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength), e=-1, i, ent={};
+  for(i=u8.length-22;i>=Math.max(0,u8.length-65557);i--)
+    if(dv.getUint32(i,true)===0x06054b50){e=i;break}
+  if(e<0)return Promise.reject(new Error('não é um arquivo .znbk (ZIP) válido'));
+  var n=dv.getUint16(e+10,true), p=dv.getUint32(e+16,true), td=new TextDecoder();
+  for(i=0;i<n;i++){
+    if(dv.getUint32(p,true)!==0x02014b50)return Promise.reject(new Error('ZIP corrompido'));
+    var ln=dv.getUint16(p+28,true), lx=dv.getUint16(p+30,true), lc=dv.getUint16(p+32,true);
+    ent[td.decode(u8.subarray(p+46,p+46+ln))]={met:dv.getUint16(p+10,true),
+      tam:dv.getUint32(p+20,true),loc:dv.getUint32(p+42,true)};
+    p+=46+ln+lx+lc}
+  function texto(nome){var x=ent[nome];
+    if(!x)return Promise.reject(new Error('o backup não tem '+nome));
+    var o=x.loc+30+dv.getUint16(x.loc+26,true)+dv.getUint16(x.loc+28,true);
+    var dado=u8.subarray(o,o+x.tam);
+    if(x.met===0)return Promise.resolve(td.decode(dado));
+    if(x.met!==8)return Promise.reject(new Error(nome+': compressão '+x.met+' desconhecida'));
+    if(typeof DecompressionStream==='undefined')
+      return Promise.reject(new Error('este navegador não descomprime ZIP; atualize-o'));
+    return new Response(new Blob([dado]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()}
+  return texto('manifest.json').then(function(t){
+    var man=JSON.parse(t);
+    if(!man||!Array.isArray(man.slots))throw new Error('manifest.json sem lista de slots');
+    return Promise.all(man.slots.map(function(s){
+      return texto('slot-'+s.index+'/spvars.json').then(function(t2){
+        var sv=new Array(64).fill(0);
+        JSON.parse(t2).forEach(function(x){if(x.index>=0&&x.index<64)sv[x.index]=x.value|0});
+        return{slot:s.index,nome:String(s.content_name||'slot '+s.index),sv:sv}},
+        function(){return null})}))
+  }).then(function(l){return l.filter(Boolean)})}
+
+// Um jogo por slot que tenha MODs do D-Sig. Slot de outro script (SPVARs fora do layout)
+// ou sem MOD nenhum (o InLoco recem-gravado) e listado como pulado, com o motivo.
+function importaZnbk(slots){
+  var jogos=[], pulos=[];
+  slots.forEach(function(s){
+    var nome=s.nome.replace(/\.gpc$/i,'').replace(/_D-Sig$/i,'').replace(/_/g,' ').slice(0,20);
+    try{var r=importaSpvars(s.sv,nome);
+      if(r.mods)jogos.push(r); else pulos.push('slot '+(s.slot+1)+' ('+s.nome+'): nenhum MOD')}
+    catch(e){pulos.push('slot '+(s.slot+1)+' ('+s.nome+'): não é EEPROM do D-Sig')}});
+  return{jogos:jogos,pulos:pulos}}
+
 // máscara de NMOD bits das relações ZETA. O filtro é novo: uma referência a um
 // MOD acima do teto viria de biblioteca antiga e viraria um bit que o script não
 // tem onde ler.
@@ -6228,7 +6329,27 @@ function telaDados(A){
   r.appendChild(b1);r.appendChild(b2);A.appendChild(r);
   var p=document.createElement('p');p.className='hint';
   p.textContent='Guarde este texto como backup. Para levar a outro aparelho, cole lá e toque em importar.';
-  A.appendChild(p)}
+  A.appendChild(p);
+  // Backup do Cronus: o Zen Studio salva as SPVARs num .znbk. Elas viram um jogo NOVO
+  // na biblioteca — nunca sobrescrevem um existente.
+  var f=document.createElement('input');f.type='file';f.accept='.znbk';f.hidden=true;
+  f.setAttribute('aria-label','Arquivo de backup do Cronus (.znbk)');
+  var b3=document.createElement('button');b3.className='btn';b3.textContent='Importar backup do Cronus (.znbk)';
+  b3.onclick=function(){f.value='';f.click()};
+  f.onchange=function(){var a=f.files&&f.files[0];if(!a)return;
+    a.arrayBuffer().then(function(buf){return lerZnbk(new Uint8Array(buf))}).then(function(sl){
+      var r=importaZnbk(sl), msg;
+      if(!r.jogos.length){alert('Nenhum slot deste backup tem MODs do D-Sig.'+
+        (r.pulos.length?'\n\n'+r.pulos.join('\n'):''));return}
+      r.jogos.forEach(function(x){D.jogos.push(x.jogo)});grava(D);
+      msg='Importado(s) como jogo(s) novo(s):\n'+r.jogos.map(function(x){
+        return '  '+x.jogo.nome+' — '+x.mods+' MOD(s)'}).join('\n');
+      if(r.pulos.length)msg+='\n\nPulados:\n  '+r.pulos.join('\n  ');
+      msg+='\n\nNão vêm do Cronus, porque não ficam na EEPROM: nome dos domínios, cores, '+
+        'anotações, relações ZETA, GAMA BLOK e modo FINALIZA. Confira esses antes de gerar o script.';
+      alert(msg);tela='cat';render();
+    }).catch(function(e){alert('Não consegui importar este backup:\n'+e.message)})};
+  var r2=document.createElement('div');r2.className='row';r2.appendChild(b3);A.appendChild(r2);A.appendChild(f)}
 
 render();
 

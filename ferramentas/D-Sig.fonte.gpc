@@ -2,7 +2,7 @@
 * D-Sig 1.0 — Sistema Universal de Roteamento de Sinais
 * -----------------------------------------------------------------------------------
 * DISPOSITIVO : Cronus Zen + PlayStation 5 (DualSense)   |   GPC 32-bit
-* VERSAO      : script 1.0.12  |   LAYOUT DE BITS 6   |   app D-Sig (cache dsig-1.0.12)
+* VERSAO      : script 1.0.13  |   LAYOUT DE BITS 6   |   app D-Sig (cache dsig-1.0.13)
 *   Os tres numeros andam separados de proposito. O SCRIPT e a versao deste arquivo. O
 *   LAYOUT e a posicao dos campos dentro dos SPVARs, e so muda quando um campo muda de
 *   lugar ou tamanho — mudar o layout sem mudar o app junto e o unico jeito de este
@@ -227,7 +227,7 @@ const string DS_TITULO    = "D-Sig";   // v3zz
 // a 1.0d gravada mostrar uma letra MAIOR que a do app, e o LEIAME diz que letra maior no
 // aparelho significa app desatualizado — o selo passaria a mentir exatamente na pergunta
 // que ele existe para responder.
-const string DS_VERSAO    = "D-Sig 1.0.12";
+const string DS_VERSAO    = "D-Sig 1.0.13";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -604,8 +604,10 @@ define CAT_BOTAO   = 3;   // sem condicional nenhum
 // combinacoes (7 -> 6 bits) e ainda FICA MAIS RAPIDO: Get_Cond_Mult passa de duas divisoes
 // para uma e Get_Cond_Inv deixa de existir.   pack = MULT * 3 + DIR  -> 0..56
 define SHIFT_COND_PACK    = 0;    // 6 bits — MULT+DIR
-// v3zb: THR_IN e THR_OUT empacotados. 20 x 20 = 400 combinacoes, que cabem em 9 bits
-// contra os 10 que os dois ocupavam separados. pack = THR_IN * 20 + THR_OUT.
+// v3zb: THR_IN e THR_OUT empacotados. pack = THR_IN * 20 + THR_OUT. O THR_IN vai de 0 a
+// 20 (21 valores, ate 100%) e o THR_OUT de 0 a 19, logo o pack vai de 0 a 419: cabe em
+// 9 bits contra os 10 que os dois ocupavam separados. (Dizia "20 x 20 = 400" ate a
+// 1.0.13 — o THR_IN = 100 sempre funcionou, so o comentario contava errado.)
 define SHIFT_COND_THR     = 6;    // 9 bits — THR_IN e THR_OUT juntos
 define BIT_HOLD_MODO      = 15;   // 1 bit — 0=APOS (classico), 1=ATE (toque curto)
 // v3zc: HPHOLD_TEMPO caiu de 7 para 6 bits (tabela de 96 -> 63 valores)
