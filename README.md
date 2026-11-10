@@ -160,7 +160,12 @@ automatizada nos termos de uso, e a punição é entre você e eles.
 
 ## Licença
 
-**Ainda não definida.** Sem licença, o padrão legal é que ninguém pode copiar, modificar
-ou redistribuir — o que provavelmente não é a intenção de publicar. Se o objetivo é que
-outras pessoas usem e adaptem, convém escolher uma (MIT é a mais simples) e adicionar o
-arquivo `LICENSE`.
+**[CC BY-NC 4.0](LICENSE)** — Creative Commons Atribuição-NãoComercial 4.0 Internacional.
+
+| | |
+|---|---|
+| **Pode** | usar, copiar, adaptar e redistribuir o script, o app e as ferramentas |
+| **Desde que** | dê o crédito ao D-Sig e indique o que mudou |
+| **Não pode** | vender o script, o app ou uma versão modificada deles, nem usá-los com fins comerciais |
+
+O texto legal completo está no arquivo [`LICENSE`](LICENSE).
