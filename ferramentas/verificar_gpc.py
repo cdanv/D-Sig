@@ -5,10 +5,41 @@ Foi um else orfao — introduzido ao inserir codigo no meio de uma cadeia else-i
 que passou por todas as checagens e so o ZenStudio acusou."""
 import re, sys
 
+def so_codigo(t):
+    """Tira comentarios e ESVAZIA strings ("abc" -> ""), preservando as quebras de linha.
+
+    Varredura caractere a caractere, e nao duas regex: as regex tratavam o que esta entre
+    aspas como codigo. Um nome de jogo como "VAZIO (molde)", que o app parte em duas
+    const string de 10 caracteres, deixava um parentese sozinho em cada metade e o
+    verificador acusava "parenteses desbalanceados" e "chamada sem definicao: VAZIO".
+    E um /* dentro de um nome apagaria codigo de verdade ate o proximo */. Achado na
+    auditoria de 10/11, com o molde vazio do proprio portao."""
+    out, i, n = [], 0, len(t)
+    while i < n:
+        ch = t[i]
+        if ch == '"':                                   # string: guarda so as aspas
+            j = i + 1
+            while j < n and t[j] != '"' and t[j] != '\n':
+                j += 2 if t[j] == '\\' else 1
+            out.append('""')
+            i = j + 1
+        elif t.startswith('//', i):                     # comentario de linha
+            while i < n and t[i] != '\n':
+                i += 1
+        elif t.startswith('/*', i):                     # comentario de bloco
+            j = t.find('*/', i + 2)
+            j = n if j < 0 else j + 2
+            out.append('\n' * t.count('\n', i, j))      # mantem a numeracao das linhas
+            i = j
+        else:
+            out.append(ch)
+            i += 1
+    return ''.join(out)
+
+
 def checa(path):
     bruto = open(path, encoding='utf-8', errors='replace').read()
-    c = re.sub(r'/\*.*?\*/', '', bruto, flags=re.S)
-    c = re.sub(r'//[^\n]*', '', c)
+    c = so_codigo(bruto)
     linhas = c.split('\n')
     prob = []
 

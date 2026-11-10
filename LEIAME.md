@@ -189,7 +189,7 @@ salvar continua valendo. Gerar configuração nova muda o selo, e ela
 volta a ser aplicada.
 
 O Cronus tem 8 slots, mas o limite é de **memória**: 256 KB de
-bytecode, e cada D-Sig compila entre ~52.300 e ~52.700 bytes conforme
+bytecode, e cada D-Sig compila entre 52.032 e 53.216 bytes conforme
 os MODs. Cabem **4** com folga (os quatro gravados em 10/11 somam
 209.584 bytes). Um 5º só cabe se os cinco somarem até 262.144 bytes —
 com os jogos de hoje, o Cities Skylines caberia e o Mad Max não. A
@@ -666,7 +666,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.15**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.16**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -826,7 +826,7 @@ o comentário foi corrigido, e o decodificador aceita a faixa inteira.
 
 O app dizia "o Cronus comporta 5 scripts D-Sig", e travava o 6º. Medido ao
 gravar a 1.0.13: o limite não é de slots (são 8), é de **memória** — 256 KB
-de bytecode, e cada D-Sig compila entre ~52.300 e ~52.700 bytes. Quatro
+de bytecode, e cada D-Sig compila entre ~52.000 e ~53.200 bytes. Quatro
 cabem sempre; o 5º só se os cinco forem dos menores.
 
 O app agora conta "N de 4", aceita o 5º com um aviso de que pode não caber, e
@@ -835,6 +835,40 @@ continua recusando o 6º. Os números moram numa constante só (`ZEN_FOLGA`,
 
 O script não mudou, só o `DS_VERSAO`, pela regra do `sw.js`. Os scripts
 gravados como 1.0.13 se comportam igual aos da 1.0.14.
+
+### 1.0.16 — auditoria no compilador real (10/11/2026)
+
+Dez scripts compilados no compilador do Zen Studio: os seis jogos, o avulso e
+três de teste gerados pelo app — o molde do portão, um jogo sem MOD e um
+**extremo**, com os 20 MODs em todos os domínios, TURBO de 4 destinos, tudo no
+máximo e relação ZETA para todos os outros. Todos com **0 erros e 0 avisos**,
+481 slots de variável e pilha 512/1024. O extremo, pior caso possível, dá
+53.216 bytes (81,22% do limite); o menor, o avulso, 52.032. No simulador o
+extremo passou 16 × 2 milhões de voltas de fuzz e 20 deletes e 4 movimentos
+de ZETA com relação em 19 slots, sem divergência após religar.
+
+Achados, nenhum no script:
+
+1. **O `verificar_gpc.py` contava parêntese dentro de string.** O nome do molde
+   vazio, "VAZIO (molde do portao)", é partido pelo app em duas `const string`
+   com um parêntese sozinho em cada, e o verificador acusava parênteses
+   desbalanceados e "chamada sem definição: VAZIO". Um `/*` num nome de jogo
+   apagaria código de verdade. Agora varre caractere a caractere, sabendo o que
+   é string e o que é comentário. O portão não via porque a verificação 19
+   rodava antes de o script vazio existir: agora roda depois, sobre o avulso, o
+   gerado e o vazio — e o verificador antigo reprova nela.
+2. **A tela de Informações dizia que o app é o único registro** e que nada sai
+   do Cronus. Desde a 1.0.13 os MODs voltam pelo `.znbk`; o texto agora diz o
+   que volta e o que não volta.
+3. **A faixa de tamanho escrita na 1.0.14** (~52.300 a ~52.700 bytes) era
+   estreita demais; medida, vai de 52.032 a 53.216. A conclusão — 4 cabem
+   sempre, o 5º só se forem dos menores — não muda.
+
+O que esta auditoria **não** fez: rodar os scripts de teste no aparelho. O
+"Build & Run" executa no Cronus e o script grava a EEPROM no primeiro boot,
+o que poderia sobrescrever a de um slot real; e os MODs só reagem a botões
+apertados no controle. O comportamento em hardware segue validado pelas
+medições da 1.0.10 em diante, e o script não mudou desde a 1.0.12.
 
 ### 1.0.15 — a bateria de testes (10/11/2026)
 
