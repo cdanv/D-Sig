@@ -95,9 +95,10 @@ def confere(readme, gpc, app, n_verif=None, raiz=None):
     maxdom = int(mdm.group(1)) if mdm else None
     dom_n = numeros_tabela(md, 'Nome de dom')
     ver('nome de dominio', dom_n is not None and dom_n == maxdom, dom_n, maxdom)
-    # o nome do jogo vai em duas const string de 10, cortado em slice(0,10)/slice(10,20)
-    corte = re.search(r"slice\(10,\s*(\d+)\)", a)
-    jogo_cod = int(corte.group(1)) if corte else None
+    # O nome do jogo sai do quebraNome(), que le o OLEDLIN. Era slice(10,20) ate a
+    # 1.0.17; o limite passou a ser 2*OLEDLIN, medido da tela em vez de herdado.
+    ol = re.search(r'\bvar OLEDLIN\s*=\s*(\d+)', a)
+    jogo_cod = 2 * int(ol.group(1)) if ol else None
     jogo_doc = numeros_tabela(md, 'Nome do jogo')
     ver('nome do jogo', jogo_doc is not None and jogo_doc == jogo_cod,
         jogo_doc, jogo_cod)

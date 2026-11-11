@@ -1,5 +1,6 @@
-// Prova que os nomes de dominio chegam ao script pelas DUAS vias do app com o MESMO
-// valor, e que o limite de 9 caracteres e o saneamento valem.
+// Prova que os nomes de DOMINIO e o nome do JOGO chegam ao script pelas DUAS vias do
+// app com o MESMO valor, que os limites de tela valem (9 e 17 caracteres) e que o
+// saneamento e a quebra do nome do jogo fazem o que dizem.
 //
 // POR QUE ISTO E PORTAO, e nao conferencia de uma vez: o app tem duas vias para o
 // script. O codigo(j) gera o bloco para colar a mao; o scriptCompleto(j) gera o script
@@ -55,4 +56,40 @@ console.log(`\nvazio -> padrao do template: ${vaz.join(', ')}  ${okv?'ok':'ERRAD
 // GAME_NAME_3/4 nao podem mais sair do codigo()
 const g34 = /GAME_NAME_[34]/.test(c);
 console.log(`codigo() emite GAME_NAME_3 ou _4: ${g34?'SIM — ERRADO':'nao'}`);
-process.exit(tudo && okv && !g34 ? 0 : 1);
+
+// ---- O NOME DO JOGO, pelas MESMAS duas vias -------------------------------------
+// Entrou com a quebra inteligente. O corte era duplicado nas duas vias, e corte
+// duplicado e divergencia esperando a hora — foi onde os MODE_S discordaram na 1.0.11.
+// As entradas sao os jogos reais do Cronus do Daniel, que foi onde o defeito apareceu.
+const nomes = [
+  ['InLoco',              'InLoco',           '',        'cabe em uma linha'],
+  ['GPs e Rally',         'GPs e Rally',      '',        'cabe em uma linha'],
+  ['Tomb Raiden',         'Tomb Raiden',      '',        'cabe em uma linha'],
+  ['Cities Skylines',     'Cities Skylines',  '',        'cabe em uma linha'],
+  ['Football-FIFA-eFoot', 'Football-FIFA-',   'eFoot',   'quebra no hifen'],
+  ['Red Dead Redemption II','Red Dead',       'Redemption II', 'quebra no espaco'],
+  ['ABCDEFGHIJKLMNOPQRSTUVWXYZ','ABCDEFGHIJKLMNOPQ','RSTUVWXYZ','sem separador: corte cego'],
+  ['AB CDEFGHIJKLMNOPQRSTU','AB CDEFGHIJKLMNOP','QRSTU','quebra perderia texto: corte cego'],
+];
+console.log(`\n${'nome do jogo'.padEnd(26)} ${'linha 1'.padEnd(18)} ${'linha 2'.padEnd(14)} via  ok`);
+console.log('-'.repeat(78));
+let okn = true;
+nomes.forEach(function(cs){
+  const jj = Object.assign({}, j, {nome: cs[0]});
+  [['scriptCompleto', w.scriptCompleto(jj)], ['codigo', w.codigo(jj)]].forEach(function(via){
+    const l1 = (via[1].match(/GAME_NAME_1  = "([^"]*)";/)||[])[1];
+    const l2 = (via[1].match(/GAME_NAME_2  = "([^"]*)";/)||[])[1];
+    const ok = l1===cs[1] && l2===cs[2];
+    if(!ok) okn = false;
+    console.log(`${JSON.stringify(cs[0]).padEnd(26)} ${JSON.stringify(l1).padEnd(18)} ${JSON.stringify(l2).padEnd(14)} ${via[0].slice(0,6).padEnd(6)} ${ok?'sim':'NAO ('+cs[3]+')'}`);
+  });
+});
+// Nenhuma linha pode passar de 17: a 18a letra sai da tela (x=4 + 18*7 = 130 > 127).
+const estouro = nomes.some(function(cs){
+  const t3 = w.scriptCompleto(Object.assign({}, j, {nome: cs[0]}));
+  return (t3.match(/GAME_NAME_[12]  = "([^"]*)";/g)||[])
+         .some(l=>(l.match(/"([^"]*)"/)[1]).length > 17);
+});
+console.log(`\nalguma linha passa de 17 caracteres: ${estouro?'SIM — SAI DA TELA':'nao'}`);
+
+process.exit(tudo && okv && !g34 && okn && !estouro ? 0 : 1);
