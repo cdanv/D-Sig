@@ -159,7 +159,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.16";
+const string DS_VERSAO    = "D-Sig 1.0.17";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -5143,6 +5143,30 @@ function modVazio(){return{nota:'',d1:0,d2:0,d3:0,d4:0,fonte:0,passivo:0,mult:9,
 // Aspas e barra invertida quebrariam o const string e gerariam .gpc que nao
 // compila — mesmo tratamento que o nome do jogo recebe.
 var MAXDOM=9;
+// A QUEBRA DO NOME DO JOGO NAS DUAS LINHAS DO OLED.
+//
+// 17 e MEDIDO, nao escolhido: print(4,37,0,1,...), fonte 0 a 7 px por caractere
+// (LARG_FONTE[0]), de x=4 ate x=123. O 18o caractere sairia da tela. Ate aqui o app
+// cortava em 10 — heranca de quando eram QUATRO linhas de nome, ate a 1.0b.
+//
+// A ordem de preferencia: cabe inteiro -> uma linha; senao quebra na ultima separacao
+// que couber; se a quebra bonita perder texto, volta ao corte cego.
+var OLEDLIN=17;
+function quebraNome(t){
+  var n=String(t||'').replace(/["\\]/g,' ').replace(/\/\//g,'/');
+  if(n.length<=OLEDLIN)return [n,''];
+  var corte=-1, esp=false, i;
+  for(i=Math.min(OLEDLIN,n.length-1); i>0; i--){
+    if(n.charAt(i)===' '){corte=i; esp=true; break}
+    if(n.charAt(i)==='-' && i+1<=OLEDLIN){corte=i+1; break}
+  }
+  if(corte<0)return [n.slice(0,OLEDLIN), n.slice(OLEDLIN,2*OLEDLIN)];
+  var l1=n.slice(0,corte).replace(/\s+$/,'');
+  var l2=esp ? n.slice(corte).replace(/^\s+/,'') : n.slice(corte);
+  // a quebra no separador nao pode custar texto: se a sobra estourar, corte cego
+  if(l2.length>OLEDLIN)return [n.slice(0,OLEDLIN), n.slice(OLEDLIN,2*OLEDLIN)];
+  return [l1,l2];
+}
 function limpaDom(t){return String(t||'').replace(/["\\]/g,' ')
   .replace(/\/\//g,'/').slice(0,MAXDOM)}
 function nomeDom(j,i){return limpaDom(j.dom&&j.dom[i])||('Dominio_'+(i+1))}
@@ -5471,8 +5495,9 @@ function codigo(j){
   // v1.0.11: o GAME_NAME_3 e o _4 saiam daqui e NAO EXISTEM no script desde a 1.0b —
   // quem seguisse a instrucao colava duas linhas sem destino. E o MODE_S saia como
   // "D1".."D4", divergindo do scriptCompleto, que nem tocava nas ancoras.
-  L.push('const string GAME_NAME_1  = "'+n.slice(0,10)+'";');
-  L.push('const string GAME_NAME_2  = "'+n.slice(10,20)+'";');
+  var qn=quebraNome(n);
+  L.push('const string GAME_NAME_1  = "'+qn[0]+'";');
+  L.push('const string GAME_NAME_2  = "'+qn[1]+'";');
   for(var i=1;i<=4;i++)L.push('const string MODE_S'+i+'      = "'+nomeDom(j,i-1)+'";');
   L.push('');
   L.push('// ---- substitua a função update_leds() ----');
@@ -5628,7 +5653,7 @@ function importaZnbk(slots){
   var jogos=[], pulos=[];
   slots.forEach(function(s){
     if(s.erro){pulos.push('slot '+(s.slot+1)+' ('+s.nome+'): '+s.erro);return}
-    var nome=s.nome.replace(/\.gpc$/i,'').replace(/_D-Sig$/i,'').replace(/_/g,' ').slice(0,20);
+    var nome=s.nome.replace(/\.gpc$/i,'').replace(/_D-Sig$/i,'').replace(/_/g,' ').slice(0,2*OLEDLIN);
     try{var r=importaSpvars(s.sv,nome);
       if(r.mods)jogos.push(r); else pulos.push('slot '+(s.slot+1)+' ('+s.nome+'): nenhum MOD')}
     catch(e){pulos.push('slot '+(s.slot+1)+' ('+s.nome+'): não é EEPROM do D-Sig')}});
@@ -5688,8 +5713,9 @@ function scriptCompleto(j){
   // Aspas e barra invertida no nome do jogo quebrariam o const string do OLED e
   // gerariam um .gpc que nao compila. Trocadas por espaco antes de entrar no script.
   var nome=(j.nome||'SEM NOME').replace(/["\\]/g,' ').replace(/\/\//g,'/');
-  t=t.replace('const string GAME_NAME_1  = "-TITULO-";','const string GAME_NAME_1  = "'+nome.slice(0,10)+'";');
-  t=t.replace('const string GAME_NAME_2  = "-TITULO-";','const string GAME_NAME_2  = "'+nome.slice(10,20)+'";');
+  var qn=quebraNome(nome);
+  t=t.replace('const string GAME_NAME_1  = "-TITULO-";','const string GAME_NAME_1  = "'+qn[0]+'";');
+  t=t.replace('const string GAME_NAME_2  = "-TITULO-";','const string GAME_NAME_2  = "'+qn[1]+'";');
   // GAME_NAME_3 e 4 sairam do script na 1.0b. Sempre recebiam "" aqui, porque o nome
   // ja e cortado em 20 caracteres acima — reservavam y 35..59 da tela inicial para nao
   // mostrar nada, e e nesse espaco que o nome do jogo mora agora, com o timbre em cima.
@@ -5913,6 +5939,9 @@ function telaJogo(A){
   $('volta').onclick=function(){tela='cat';render()};
   var s1=document.createElement('section');s1.innerHTML='<h2>Identificação</h2>';
   var inp=document.createElement('input');inp.type='text';inp.value=j.nome;
+  // O campo nao tinha limite: dava para digitar 80 caracteres e perder 46 em silencio
+  // na geracao. Campo que aceita o que nao cabe e campo que mente.
+  inp.maxLength=2*OLEDLIN;
   inp.placeholder='nome do jogo';inp.oninput=function(){j.nome=inp.value;grava(D);
     $('titulo').innerHTML=h(j.nome||'sem nome')};
   s1.appendChild(fld('Nome',inp));

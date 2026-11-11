@@ -897,6 +897,51 @@ sobre o avulso e o script gerado pelo app. Envelheceu por estar de fora;
 dentro, uma nativa nova no script reprova no dia em que entra. Sabotagem:
 o verificador sem `line_oled` e `image_oled` reprovou nela, apontando as duas.
 
+### 1.0.17 — a quebra do nome e o ícone (11/11/2026)
+
+Daniel mostrou a tela do Cronus: `Football-F / IFA-eFoot`, `GPs e Rall / y`,
+`Tomb Raide / n`. O corte era cego — `slice(0,10)` e `slice(10,20)` — e partia
+palavra no meio.
+
+**Ao medir para consertar, apareceu o defeito maior: o 10 era herança.** Até a
+1.0b eram QUATRO linhas de nome; quando viraram duas, o corte de 10 ficou como
+estava e ninguém releu. A fonte 0 tem 7 px por caractere e a linha começa em
+x=4: cabem `(128-4)/7 = 17`, terminando em x=123 — o 18º sairia da tela. O app
+usava 10, jogando fora **41% da linha** por um número herdado.
+
+A regra nova, nesta ordem: cabe em 17 → uma linha só; senão quebra na última
+separação que couber (no espaço, que não fica em nenhuma das duas; ou depois do
+hífen, que fica na primeira, porque `Football-` lê melhor que `Football`); e se
+a quebra bonita deixar a segunda linha maior que 17, **volta ao corte cego** —
+nunca vale perder texto para ganhar elegância.
+
+Com os seis jogos dele, quatro passaram a caber em **uma linha**. O único longo
+quebra no hífen: `Football-FIFA-` / `eFoot`.
+
+O corte estava duplicado nas duas vias do app, que é onde a divergência dos
+`MODE_S` morava na 1.0.11. Agora as duas chamam o mesmo `quebraNome()`, e o
+`testa_dom.js` passou a conferir o nome do jogo além dos domínios — 14
+comparações, as duas vias, mais a guarda de que nenhuma linha passa de 17.
+
+**A sabotagem achou um buraco no meu próprio teste.** Das três que fiz, a
+terceira — desligar a volta ao corte cego — *passou*: nenhum caso da bateria
+exercitava essa regra. Faltava um nome com separador cedo e sobra longa
+(`AB CDEFGHIJKLMNOPQRSTU`). Acrescentado, a sabotagem reprovou. Teste que não
+consegue reprovar não prova nada, e isso vale para o teste que acabei de
+escrever.
+
+De passagem: o campo do nome no app não tinha `maxLength`. Dava para digitar 80
+caracteres e perder 46 em silêncio na geração. Campo que aceita o que não cabe
+é campo que mente.
+
+**O ícone** ganhou separação RGB de três canais no lugar dos dois (ciano e
+magenta) que tinha. Três cópias do mesmo traço a 120° uma da outra, somadas
+canal a canal: onde duas se cruzam nasce a secundária, onde as três se cruzam
+nasce o branco. É a soma que a luz faz, não paleta escolhida à mão. O
+deslocamento — 1,4% do lado — foi calibrado contra o traço: a 3% o branco
+central some e o desenho vira ruído. O desenho não mudou. O gerador é o
+`ferramentas/oled/icone.py`, e os três PNG saem dele.
+
 ### O que continua em aberto, e não impede nada
 
 1. **Por que a VM rodou a 16,1 ms numa sessão de 27/09.** Não se sabe,

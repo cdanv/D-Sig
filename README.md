@@ -91,7 +91,7 @@ combate e exploração.
 | Scripts D-Sig no Cronus | **4** com folga; o 5º só se forem dos menores (256 KB no total, ~51 KB cada) |
 | Destinos por MOD | **4** |
 | Domínios | **4** |
-| Nome do jogo no OLED | 20 caracteres |
+| Nome do jogo no OLED | 34 caracteres (17 por linha, quebrados na palavra) |
 | Nome de domínio no OLED | 9 caracteres |
 
 **O que não sobrevive ao desligamento sem o app:** nada, desde a 1.0.10. Antes dela,
@@ -101,7 +101,7 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.16.** Validada em hardware: compila com 0 erros e 0 avisos no compilador do
+**Versão 1.0.17.** Validada em hardware: compila com 0 erros e 0 avisos no compilador do
 Zen Studio nos seis scripts de jogo e no pior caso (20 MODs com tudo no máximo, 53.216
 bytes, 81% do limite), e os ajustes feitos no aparelho sobrevivem ao desligamento.
 
