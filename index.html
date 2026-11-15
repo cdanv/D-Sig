@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>D-Sig — biblioteca</title>
 <link rel="manifest" href="./manifest.json">
+<meta name="description" content="Catálogo e configurador dos MODs do D-Sig, o roteador de sinais para Cronus Zen.">
 <meta name="theme-color" content="#0d1117">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="D-Sig">
@@ -159,7 +161,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.17";
+const string DS_VERSAO    = "D-Sig 1.0.18";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -310,6 +312,7 @@ define MAX_INST          = 20;
 define MAX_INST_EEP      = 20;
 define ZETA_NENHUM       = 21;
 define SPVARS_PER_INST   = 3;
+define VA_NADA           = 999;
 define VISIBLE_ROWS      = 2;
 define ITEM_X            = 5;
 define ROW0_Y            = 16;
@@ -494,6 +497,8 @@ int Fin_01=0; int Fin_02=0; int Fin_03=0; int Fin_04=0; int Fin_05=0; int Fin_06
 int Fin_08=0; int Fin_09=0; int Fin_10=0; int Fin_11=0; int Fin_12=0; int Fin_13=0; int Fin_14=0;
 int Fin_15=0; int Fin_16=0; int Fin_17=0; int Fin_18=0; int Fin_19=0; int Fin_20=0;
 int Est_Tmp              = 0;
+int Gb_V                 = 0;
+int Gb_N                 = 0;
 int Pipe_Val             = 0;
 int Pipe_Raw             = 0;
 int Pipe_Thr            = 0;
@@ -619,7 +624,7 @@ function Config_Zeta() {
     Zeta_Fin(ZETA_NENHUM, 0);
     Zeta_Blk(ZETA_NENHUM, 0);
 }
-define LAYOUT_VER = 5;
+define LAYOUT_VER = 6;
 define BIT_MIGRADO_V5 = 1;
 function Selo_Cfg_Gravado() {
     return (get_pvar(SPVAR_64, -2147483648, 2147483647, 0) >> 1) & 0x7FFFFFFF;
@@ -2251,7 +2256,7 @@ function Executar_Turbo_Fonte(num) {
             Est_Tmp = 100;
             if(Orfao_Adotado(num)) {
                 Work_D = Valor_Alvo_Assoc(num);
-                if(Work_D != -1) Est_Tmp = abs(Work_D);
+                if(Work_D != VA_NADA) Est_Tmp = abs(Work_D);
             }
             Acc_Um(Cmb_N, Trb_Aplicar_Cond(num, Est_Tmp));
         }
@@ -2497,16 +2502,21 @@ function Suprime_Gatilhos(num) {
     Work_N = Get_Gatilho_Hphold_Btn(num);     if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
     Work_N = Get_Gatilho_FinalAfter_Btn(num); if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
 }
+function Gatilho_Btn_Um(btn, fin) {
+    if(btn == 0 || fin) return;
+    Gb_N = Gb_N + 1;
+    Work_N = Ler_Btn_Fisico(btn - 1);
+    if(Work_N > Gb_V) Gb_V = Work_N;
+}
 function Gatilho_Btn_Val(num) {
-    Work_N = Get_Gatilho_Duplo_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_Hphold_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_Final_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_FinalAfter_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    return 100;
+    Gb_V = 0;
+    Gb_N = 0;
+    Gatilho_Btn_Um(Get_Gatilho_Duplo_Btn(num),      (Get_Fin(num) >> 0) & 1);
+    Gatilho_Btn_Um(Get_Gatilho_Final_Btn(num),      (Get_Fin(num) >> 1) & 1);
+    Gatilho_Btn_Um(Get_Gatilho_Hphold_Btn(num),     (Get_Fin(num) >> 2) & 1);
+    Gatilho_Btn_Um(Get_Gatilho_FinalAfter_Btn(num), (Get_Fin(num) >> 3) & 1);
+    if(Gb_N == 0) return 100;
+    return Gb_V;
 }
 function Trb_Aplicar_Cond(num, v) {
     if(Get_Fonte_Tipo(num) == FONTE_NENHUMA) return v;
@@ -2548,11 +2558,12 @@ function Run_Instance_v3(num) {
     if(Get_Fonte_Tipo(num) == FONTE_NENHUMA) {
         if(Get_F1_Tipo(num) == DST_TIPO_TURBO) { Executar_Turbo_Fonte(num); return; }
         if(Get_F1_Tipo(num) == DST_TIPO_DIRECT) {
-            Work_D = Gatilho_Btn_Val(num);
+            Gb_V = Gatilho_Btn_Val(num);
             if(Orfao_Adotado(num)) {
                 Est_Tmp = Valor_Alvo_Assoc(num);
-                if(Est_Tmp != -1) Work_D = Est_Tmp;
+                if(Est_Tmp != VA_NADA) Gb_V = Est_Tmp;
             }
+            Work_D = Gb_V;
             if(Work_D) {
                 Escrever_Destino(Dst_Mask(num), Work_D);
             } else {
@@ -3146,7 +3157,7 @@ function Valor_Alvo_Assoc(num) {
         Va_Msk = Va_Prox & (~Va_Visto);
         Va_Nv = Va_Nv + 1;
     }
-    return -1;
+    return VA_NADA;
 }
 function Orfao_Adotado(num) {
     if(Get_Fonte_Tipo(num) != FONTE_NENHUMA) return 0;
@@ -3365,6 +3376,8 @@ function Criar_Instancia() {
     Set_Spvar_B(Total_Inst, 0);
     Set_Spvar_C(Total_Inst, 0);
     Zero_F1_Behavior(Total_Inst);
+    Set_Fin(Total_Inst, 0);
+    Set_Blok(Total_Inst, 0);
     Cfg_Ram   = Cfg_Ram   & (~(1 << (Total_Inst - 1)));
     Cfg_Salvo = Cfg_Salvo & (~(1 << (Total_Inst - 1)));
     Cfg_Mov   = Cfg_Mov   & (~(1 << (Total_Inst - 1)));
@@ -3411,6 +3424,8 @@ function Swap_Pos(a, b) {
     Swp_T = Get_F1_Assoc(a); Set_F1_Assoc(a, Get_F1_Assoc(b)); Set_F1_Assoc(b, Swp_T);
     Swp_T = Get_F1_Bloq(a);  Set_F1_Bloq(a,  Get_F1_Bloq(b));  Set_F1_Bloq(b,  Swp_T);
     Swp_T = Get_GT_Relig(a); Set_GT_Relig(a, Get_GT_Relig(b)); Set_GT_Relig(b, Swp_T);
+    Swp_T = Get_Fin(a);  Set_Fin(a,  Get_Fin(b));  Set_Fin(b,  Swp_T);
+    Swp_T = Get_Blok(a); Set_Blok(a, Get_Blok(b)); Set_Blok(b, Swp_T);
     Swap_Refs(a - 1, b - 1);
     Swap_Ind(a - 1, b - 1);
     if(a <= MAX_INST_EEP) Save_Instance(a);
@@ -3501,6 +3516,8 @@ function Compact_Pos(dst, src) {
     Set_F1_Assoc(dst, Get_F1_Assoc(src));
     Set_F1_Bloq(dst,  Get_F1_Bloq(src));
     Set_GT_Relig(dst, Get_GT_Relig(src));
+    Set_Fin(dst,  Get_Fin(src));
+    Set_Blok(dst, Get_Blok(src));
     if(dst <= MAX_INST_EEP) Save_Instance(dst);
     Cfg_Mov = Cfg_Mov | (1 << (dst - 1));
 }
@@ -3509,6 +3526,7 @@ function Zerar_Posicao(pos) {
     Set_Spvar_B(pos, 0);
     Set_Spvar_C(pos, 0);
     Set_F1_Excl(pos,  0); Set_F1_Assoc(pos, 0); Set_F1_Bloq(pos, 0);
+    Set_Fin(pos, 0); Set_Blok(pos, 0);
     Zero_F1_Behavior(pos);
     if(pos <= MAX_INST_EEP) Save_Instance(pos);
 }
@@ -5045,33 +5063,90 @@ try{localStorage.setItem('_t','1');localStorage.removeItem('_t')}catch(e){temLS=
 // Jogos que tinham o MOD 21 configurado. O app avisa uma vez; nao tento mover o
 // MOD para um slot vago, porque isso renumeraria as referencias ZETA dos outros.
 var PERDIDOS=[];
-function ler(){try{
+// 1.0.18: biblioteca que nao pode ser lida NAO e biblioteca vazia. O ler() devolvia null
+// para qualquer excecao, o app abria com a lista em branco, e a primeira edicao gravava
+// essa lista em branco POR CIMA do que estava guardado — a perda vinha do conserto, nao
+// do defeito. Agora o texto ilegivel e copiado para a chave 'dsig_ilegivel' antes de
+// qualquer gravacao, e a tela diz que isso aconteceu.
+var ILEGIVEL=false;
+function ler(){var bruto=null;try{
   // A biblioteca vive sob a chave 'dsig'. Nao ha leitura de chave antiga: a passagem
   // de uma versao para a outra e feita por Exportar / importar, que e o backup de
   // qualquer jeito — o Cronus nao devolve o script depois de gravado.
-  var d=temLS?JSON.parse(localStorage.getItem('dsig')||'null'):mem.d;
-  if(d&&d.jogos) normaliza(d);
-  return d}catch(e){return null}}
+  if(!temLS)return mem.d;
+  bruto=localStorage.getItem('dsig');
+  var d=JSON.parse(bruto||'null');
+  if(d===null)return null;
+  if(!d||!Array.isArray(d.jogos))throw new Error('sem lista de jogos');
+  normaliza(d);
+  return d}catch(e){
+    if(bruto){ILEGIVEL=true;try{localStorage.setItem('dsig_ilegivel',bruto)}catch(e2){}}
+    return null}}
 
 // A normalizacao vive aqui, FORA do ler(), porque a importacao precisa da mesma. Ela
 // fazia apenas uma das sete, e um backup sem 'cores' deixava a tela em branco e a
 // biblioteca vazia no recarregamento seguinte.
+// 1.0.18: CADA CAMPO DE CADA MOD E CONFERIDO. A normalizacao so completava o que
+// FALTAVA; o que estava presente e errado passava. Reproduzido antes de consertar:
+//   - um MOD sem 'dst' travava a tela ("Cannot read properties of undefined") e, como o
+//     importador grava antes de desenhar, o app ja nao abria no recarregamento seguinte;
+//   - 'fonte: 40' nao dava erro: o spvars() mascarava para 8 e o Cronus recebia o L2;
+//   - 'tout: 20' — o THR_OUT "100" que a 1.0.12 tirou da TELA mas nao da BIBLIOTECA de
+//     quem ja o tinha salvo — continuava transbordando para o digito do THR_IN. A tela
+//     mostrava OFF, o resumo dizia "ate 100" e o aparelho lia outra janela;
+//   - um texto no lugar de um numero ia parar no innerHTML do resumo.
+// O conserto e NO LUGAR e so toca no que esta errado: a ordem das chaves e os valores
+// validos ficam como estao, porque o selo e o hash do JSON dos MODs — reescrever um MOD
+// valido mudaria o selo de todo jogo e faria o Cronus reaplicar a configuracao por cima
+// do que foi ajustado no aparelho.
+function normMod(mm,idx){
+  if(!mm||typeof mm!=='object'||Array.isArray(mm))return modVazio();
+  var pad=modVazio();
+  function faixa(k,lim){var v=mm[k];
+    if(!(typeof v==='number'&&v===Math.floor(v)&&v>=0&&v<lim))mm[k]=pad[k]}
+  function bit(k){var v=mm[k];
+    if(v===undefined)mm[k]=pad[k];
+    else if(typeof v!=='number'&&typeof v!=='boolean')mm[k]=v?1:0}
+  function quatro(k,lim){var a=mm[k], i;
+    if(!Array.isArray(a)){mm[k]=pad[k].slice();return}
+    if(a.length>4)a.length=4;
+    while(a.length<4)a.push(pad[k][a.length]);
+    for(i=0;i<4;i++)if(!(typeof a[i]==='number'&&a[i]===Math.floor(a[i])&&a[i]>=0&&a[i]<lim))a[i]=pad[k][i]}
+  if(typeof mm.nota!=='string')mm.nota=(mm.nota==null)?'':String(mm.nota);
+  // a nota vai para um comentario de uma linha no script; quebra de linha sairia dele
+  if(/[\r\n\t]/.test(mm.nota))mm.nota=mm.nota.replace(/[\r\n\t]+/g,' ');
+  ['d1','d2','d3','d4','passivo','gHoldM','fin2clk','finTog','finHold','finAfter'].forEach(bit);
+  faixa('fonte',FONTES.length); faixa('mult',MULT.length); faixa('tin',THR.length);
+  // THR_OUT: 0..19. O 20 ("100") nao cabe no empacotamento base 20 e vira OFF, que e o
+  // que uma janela que fecha em 100 significa.
+  faixa('tout',20); faixa('dir',3); faixa('delay',TDELAY.length);
+  ['gBlok','g2clk','gTog','gHold','gAfter'].forEach(function(k){faixa(k,BOTOES.length)});
+  // v5: o AFTER passou de 63 para 8 valores; o que vier acima cai no padrao (500ms).
+  faixa('gHoldT',THOLD.length); faixa('gAfterT',TAFTER.length);
+  faixa('tipo',3); faixa('lat',TLAT.length); faixa('modo',4); faixa('ciclos',8);
+  quatro('dst',DESTINOS.length); quatro('tmp',TPASSO.length);
+  // referencia ZETA a um MOD que nao existe (ou a si mesmo, ou repetida) nao sobrevive
+  ['excl','assoc','bloq'].forEach(function(r){var a=mm[r], ok=Array.isArray(a), v={}, i;
+    for(i=0;ok&&i<a.length;i++){
+      if(!(typeof a[i]==='number'&&a[i]===Math.floor(a[i])&&a[i]>=0&&a[i]<NMOD)||a[i]===idx||v[a[i]])ok=false;
+      v[a[i]]=1}
+    if(!ok){v={};mm[r]=(Array.isArray(a)?a:[]).filter(function(t){
+      var bom=typeof t==='number'&&t===Math.floor(t)&&t>=0&&t<NMOD&&t!==idx&&!v[t];
+      if(bom)v[t]=1;return bom})}});
+  return mm}
 function normaliza(d){
   {
     // a primeira versao guardava 5 posicoes fixas, com null nas vazias. A lista agora e
     // aberta, entao os nulls sao descartados e o que faltava ganha valor padrao.
-    d.jogos=d.jogos.filter(function(x){return x&&x.mods});
-    d.jogos.forEach(function(x){if(x.noZen===undefined)x.noZen=false;
+    d.jogos=d.jogos.filter(function(x){return x&&typeof x==='object'&&Array.isArray(x.mods)});
+    if(d.ordem!=='az')d.ordem='manual';
+    d.jogos.forEach(function(x){
+      if(typeof x.nome!=='string')x.nome=(x.nome==null)?'':String(x.nome);
+      x.noZen=!!x.noZen;
       // v1.0.11: nome por dominio. Vazio = o padrao do template (Dominio_N).
       if(!Array.isArray(x.dom))x.dom=['','','',''];
       while(x.dom.length<4)x.dom.push('');
-      x.mods.forEach(function(mm){
-        if(mm.nota===undefined)mm.nota='';
-        // v5: o GAMA BLOK saiu e o DELAY entrou; o AFTER passou de 63 para 8 valores.
-        if(mm.delay===undefined)mm.delay=0;
-        if(mm.gBlok===undefined)mm.gBlok=0;
-        if(mm.fin2clk===undefined){mm.fin2clk=0;mm.finTog=0;mm.finHold=0;mm.finAfter=0}
-        if(mm.gAfterT>7)mm.gAfterT=5;});
+      x.dom=x.dom.slice(0,4).map(limpaDom);
       // v6: o teto caiu de 21 para 20. Truncar aqui e o que faz o selo mudar — e o
       // selo mudando e o que dispara o Config_Inicial() no primeiro boot da 1.0g, que
       // escreve a permutacao identidade. Sem isto a migracao da EEPROM dependeria do
@@ -5082,15 +5157,24 @@ function normaliza(d){
         x.mods=x.mods.slice(0,NMOD);
       }
       while(x.mods.length<NMOD) x.mods.push(modVazio());
-      // referencia ZETA a um MOD que nao existe mais nao pode sobreviver a carga
-      x.mods.forEach(function(mm){['excl','assoc','bloq'].forEach(function(r){
-        if(mm[r]) mm[r]=mm[r].filter(function(t){return t<NMOD})})});
+      // depois do corte em NMOD: e aqui que um ZETA para o antigo MOD 21 cai fora
+      x.mods=x.mods.map(normMod);
       if(!Array.isArray(x.cores))x.cores=[3,6,9,12];
       while(x.cores.length<4)x.cores.push(0);
-      x.cores=x.cores.map(function(v){return(typeof v==='number'&&v>=0&&v<CORES.length)?v:0})});
+      x.cores=x.cores.slice(0,4).map(function(v){
+        return(typeof v==='number'&&v===Math.floor(v)&&v>=0&&v<CORES.length)?v:0})});
   }
   return d}
-function grava(d){if(temLS){try{localStorage.setItem('dsig',JSON.stringify(d))}catch(e){}}mem.d=d}
+// 1.0.18: a falha de gravacao era engolida. Com o armazenamento cheio ou bloqueado o app
+// seguia como se salvasse, e a edicao sumia ao fechar. Avisa uma vez, e a tela inicial
+// passa a dizer que os dados nao estao sendo guardados.
+var GRAVA_OK=true;
+function grava(d){mem.d=d;
+  if(!temLS)return;
+  try{localStorage.setItem('dsig',JSON.stringify(d));GRAVA_OK=true}
+  catch(e){if(GRAVA_OK){GRAVA_OK=false;
+    setTimeout(function(){alert('Não consegui salvar neste navegador (armazenamento cheio ou bloqueado).'+
+      '\n\nO que você editar agora se perde ao fechar. Use Exportar / importar para guardar a biblioteca.')},0)}}}
 
 // ---------- vocabulário do sistema ----------
 var FONTES=['---','TOUCH_X','TOUCH_Y','LX','LY','RX','RY','L1','L2','L3','R1','R2','R3',
@@ -5152,8 +5236,28 @@ var MAXDOM=9;
 // A ordem de preferencia: cabe inteiro -> uma linha; senao quebra na ultima separacao
 // que couber; se a quebra bonita perder texto, volta ao corte cego.
 var OLEDLIN=17;
+// O QUE PODE ENTRAR NUM const string DO SCRIPT. Uma regra so, para o nome do jogo e
+// para os nomes de dominio, nas duas vias do gerador.
+//
+// 1.0.18: o saneamento tirava aspas, barra invertida e "//", e parava ai. Dois buracos,
+// os dois reproduzidos antes do conserto:
+//   - "/*" ABRIA UM COMENTARIO DE BLOCO no limparGpc, que nao olhava se estava dentro
+//     de aspas. Um jogo chamado "AC/*Origins" gerava um script de DUAS linhas; o mesmo
+//     num nome de dominio, quatro. Baixava sem erro nenhum.
+//   - LETRA ACENTUADA ia crua. O print do Cronus so tem os caracteres ASCII 32..126, e
+//     em UTF-8 cada letra acentuada sao dois bytes: "Veículo" ocuparia 8 posicoes das 9
+//     e mostraria dois simbolos no lugar do í. "A pé" e "no veículo" sao justamente os
+//     exemplos de nome de dominio do LEIAME.
+// Acento vira a letra sem acento (NFD e descarta a marca); o que ainda nao for ASCII
+// imprimivel vira espaco. O comprimento so muda para MENOS, entao a conta das 17
+// colunas continua valendo.
+function asciiOled(t){
+  var n=String(t==null?'':t);
+  if(n.normalize)n=n.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  return n.replace(/["\\]/g,' ').replace(/\/{2,}/g,'/')
+    .replace(/\/\*/g,'/ ').replace(/\*\//g,' /').replace(/[^\x20-\x7e]/g,' ')}
 function quebraNome(t){
-  var n=String(t||'').replace(/["\\]/g,' ').replace(/\/\//g,'/');
+  var n=asciiOled(t);
   if(n.length<=OLEDLIN)return [n,''];
   var corte=-1, esp=false, i;
   for(i=Math.min(OLEDLIN,n.length-1); i>0; i--){
@@ -5167,14 +5271,18 @@ function quebraNome(t){
   if(l2.length>OLEDLIN)return [n.slice(0,OLEDLIN), n.slice(OLEDLIN,2*OLEDLIN)];
   return [l1,l2];
 }
-function limpaDom(t){return String(t||'').replace(/["\\]/g,' ')
-  .replace(/\/\//g,'/').slice(0,MAXDOM)}
+function limpaDom(t){return asciiOled(t).slice(0,MAXDOM)}
 function nomeDom(j,i){return limpaDom(j.dom&&j.dom[i])||('Dominio_'+(i+1))}
 function jogoVazio(){var m=[],i;for(i=0;i<NMOD;i++)m.push(modVazio());
   return{nome:'',cores:[3,6,9,12],dom:['','','',''],noZen:false,mods:m}}
 function base(){return{jogos:[],ordem:'manual'}}
 
 var D=ler()||base(), tela='cat', jg=0, md=0, modo='';
+if(ILEGIVEL){
+  setTimeout(function(){alert('A biblioteca guardada neste navegador não pôde ser lida, e o app abriu vazio.'+
+    '\n\nNada foi apagado: o texto original foi copiado para a chave "dsig_ilegivel" do armazenamento '+
+    'deste navegador. Se você tem um backup exportado, importe-o em Exportar / importar.')},400);
+}
 if(PERDIDOS.length){
   setTimeout(function(){alert('O teto de MODs caiu de 21 para 20 nesta versão, '+
     'para liberar memória do Cronus e corrigir o ZETA ao deletar MODs no aparelho.'+
@@ -5387,6 +5495,23 @@ function alertas(j,i){
       ? 'Todos os GAMA estão em FINALIZA e não há ZETA ASSOC — nada liga este MOD.'
       : 'Sem ALFA, sem GAMA que ligue e sem ZETA ASSOC — inerte para sempre.');}
 
+  // 1.0.18: DIRECT sem ALFA ACOMPANHA o botao do gatilho. O HOLD em ATE dispara na
+  // SOLTURA e o AFTER depois dela — quando ligam o MOD ja nao ha botao apertado, e o
+  // autoencerramento o desliga na mesma volta. Medido no simulador: 0 ms de saida. O
+  // script sempre fez isso (esta no comentario do Run_Instance_v3); faltava a tela dizer.
+  if(cat==='nenhuma'&&m.tipo===0&&temDestino(m)&&temGatilhoEstado(m)){
+    var apertado=(m.g2clk&&!m.fin2clk)||(m.gTog&&!m.finTog)||(m.gHold&&!m.finHold&&!m.gHoldM);
+    var soltura=[];
+    if(m.gHold&&!m.finHold&&m.gHoldM)soltura.push('HOLD em ATE');
+    if(m.gAfter&&!m.finAfter)soltura.push('AFTER');
+    if(soltura.length&&!apertado)A.push('DELTA DIRECT sem ALFA acompanha o botão do gatilho, e '+
+      soltura.join(' e ')+' só dispara'+(soltura.length>1?'m':'')+' depois de o botão ser SOLTO: '+
+      'não sobra botão apertado para acompanhar e o MOD nunca produz saída. Use STATIC ou TURBO, '+
+      'ou um gatilho que dispare com o botão apertado (2CLK, TOGGLE, HOLD em APOS).');
+    else if(soltura.length)O.push(soltura.join(' e ')+' dispara'+(soltura.length>1?'m':'')+
+      ' com o botão já solto: num DIRECT sem ALFA '+(soltura.length>1?'esses gatilhos não produzem':'esse gatilho não produz')+
+      ' saída. Só os outros gatilhos deste MOD produzem.');
+  }
   if(m.tout>0&&m.tin===m.tout)
     A.push('THR_IN igual ao THR_OUT: janela de largura zero, praticamente nunca responde.');
   // alvos de outro driver
@@ -5490,7 +5615,7 @@ function alertas(j,i){
 function codigo(j){
   // O mesmo saneamento do scriptCompleto. Esta via nao tinha, e um nome com aspas
   // gerava const string quebrado aqui e correto no download — duas vias, um dado.
-  var L=[],n=(j.nome||'SEM NOME').replace(/["\\]/g,' ').replace(/\/\//g,'/');
+  var L=[],n=j.nome||'SEM NOME';     // o quebraNome() saneia
   L.push('// ---- cole na SEÇÃO 1 (strings do OLED) ----');
   // v1.0.11: o GAME_NAME_3 e o _4 saiam daqui e NAO EXISTEM no script desde a 1.0b —
   // quem seguisse a instrucao colava duas linhas sem destino. E o MODE_S saia como
@@ -5610,16 +5735,21 @@ function lerZnbk(u8){
     if(dv.getUint32(i,true)===0x06054b50){e=i;break}
   if(e<0)return Promise.reject(new Error('não é um arquivo .znbk (ZIP) válido'));
   var n=dv.getUint16(e+10,true), p=dv.getUint32(e+16,true), td=new TextDecoder();
-  for(i=0;i<n;i++){
+  try{for(i=0;i<n;i++){
     if(dv.getUint32(p,true)!==0x02014b50)return Promise.reject(new Error('ZIP corrompido'));
     var ln=dv.getUint16(p+28,true), lx=dv.getUint16(p+30,true), lc=dv.getUint16(p+32,true);
     ent[td.decode(u8.subarray(p+46,p+46+ln))]={met:dv.getUint16(p+10,true),
       tam:dv.getUint32(p+20,true),loc:dv.getUint32(p+42,true)};
-    p+=46+ln+lx+lc}
-  function texto(nome){var x=ent[nome];
+    p+=46+ln+lx+lc}}
+  catch(e){return Promise.reject(new Error('ZIP corrompido'))}
+  function texto(nome){var x=ent[nome], dado;
     if(!x)return Promise.reject(new Error('o backup não tem '+nome));
-    var o=x.loc+30+dv.getUint16(x.loc+26,true)+dv.getUint16(x.loc+28,true);
-    var dado=u8.subarray(o,o+x.tam);
+    // Deslocamento apontando para fora do arquivo lanca RangeError AQUI, fora de qualquer
+    // promessa — e dentro do map dos slots isso derrubava a importacao inteira em vez de
+    // pular so o slot estragado.
+    try{var o=x.loc+30+dv.getUint16(x.loc+26,true)+dv.getUint16(x.loc+28,true);
+      dado=u8.subarray(o,o+x.tam)}
+    catch(e){return Promise.reject(new Error(nome+': ZIP corrompido'))}
     if(x.met===0)return Promise.resolve(td.decode(dado));
     if(x.met!==8)return Promise.reject(new Error(nome+': compressão '+x.met+' desconhecida'));
     if(typeof DecompressionStream==='undefined')
@@ -5683,37 +5813,32 @@ function selo(j){
 // extraido nem aberto no ZenStudio, entao comentario ali nao serve a ninguem — so pesa.
 // Nao junta linhas nem reindenta: o codigo sai igual, linha a linha, so sem comentario.
 // As aspas sao respeitadas, para o caso de um nome de jogo conter "//".
+// 1.0.18: o comentario de BLOCO era procurado com indexOf, sem olhar as aspas — so o de
+// linha as respeitava. Agora e uma varredura so, caractere a caractere, com quatro
+// estados: codigo, string, comentario de linha e comentario de bloco. "/*" dentro de
+// aspas e texto; "/*" dentro de um comentario de linha (a anotacao de um MOD, que o app
+// emite como "// MOD_01  nota") e comentario de linha e acaba no fim dela.
 function limparGpc(t){
-  var L=t.split('\n'), out=[], bloco=false, i, k, n, lin, fora, corte;
-  for(i=0;i<L.length;i++){
-    lin=L[i];
-    if(bloco){
-      if(lin.indexOf('*/')>=0){ bloco=false; lin=lin.slice(lin.indexOf('*/')+2);
-        if(!lin.replace(/\s/g,''))continue; }
-      else continue;
-    }
-    if(lin.indexOf('/*')>=0){
-      var antes=lin.slice(0,lin.indexOf('/*')), depois=lin.slice(lin.indexOf('/*')+2);
-      if(depois.indexOf('*/')>=0){ lin=antes+depois.slice(depois.indexOf('*/')+2); }
-      else { bloco=true; lin=antes; if(!lin.replace(/\s/g,''))continue; }
-    }
-    fora=true; corte=-1; n=lin.length;
-    for(k=0;k<n;k++){
-      if(lin.charAt(k)==='"') fora=!fora;
-      else if(fora && lin.charAt(k)==='/' && lin.charAt(k+1)==='/'){ corte=k; break; }
-    }
-    if(corte>=0) lin=lin.slice(0,corte);
-    lin=lin.replace(/\s+$/,'');
-    if(lin.replace(/\s/g,'')) out.push(lin);
+  var out=[], lin='', i=0, n=t.length, c, d, str=false, bloco=false;
+  function fecha(){lin=lin.replace(/\s+$/,'');if(lin.replace(/\s/g,''))out.push(lin);lin=''}
+  while(i<n){
+    c=t.charAt(i); d=t.charAt(i+1);
+    if(bloco){ if(c==='*'&&d==='/'){bloco=false;i+=2}else i++; continue }
+    if(c==='\n'){ str=false; fecha(); i++; continue }
+    if(str){ if(c==='"')str=false; lin+=c; i++; continue }
+    if(c==='"'){ str=true; lin+=c; i++; continue }
+    if(c==='/'&&d==='/'){ while(i<n&&t.charAt(i)!=='\n')i++; continue }
+    if(c==='/'&&d==='*'){ bloco=true; i+=2; continue }
+    lin+=c; i++;
   }
+  fecha();
   return out.join('\n')+'\n';
 }
 function scriptCompleto(j){
   var t=document.getElementById('tpl').textContent, i;
   // Aspas e barra invertida no nome do jogo quebrariam o const string do OLED e
   // gerariam um .gpc que nao compila. Trocadas por espaco antes de entrar no script.
-  var nome=(j.nome||'SEM NOME').replace(/["\\]/g,' ').replace(/\/\//g,'/');
-  var qn=quebraNome(nome);
+  var qn=quebraNome(j.nome||'SEM NOME');
   t=t.replace('const string GAME_NAME_1  = "-TITULO-";','const string GAME_NAME_1  = "'+qn[0]+'";');
   t=t.replace('const string GAME_NAME_2  = "-TITULO-";','const string GAME_NAME_2  = "'+qn[1]+'";');
   // GAME_NAME_3 e 4 sairam do script na 1.0b. Sempre recebiam "" aqui, porque o nome
@@ -5817,6 +5942,31 @@ function configGpc(j){
 
 // ---------- render ----------
 var $=function(s){return document.getElementById(s)};
+// 1.0.18: navigator.clipboard so existe em contexto seguro. Abrindo o index.html direto
+// do disco (file://) ele e undefined, e o botao Copiar lancava TypeError sem mostrar
+// nada. A reserva e o execCommand sobre um textarea temporario; se nem ela funcionar, o
+// botao diz que falhou em vez de ficar mudo.
+function copiar(txt,feito,falhou){
+  function reserva(){
+    var ok=false, ta=document.createElement('textarea');
+    ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta);ta.select();
+    try{ok=document.execCommand('copy')}catch(e){}
+    document.body.removeChild(ta);
+    if(ok)feito();else falhou()}
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(txt).then(feito,reserva);
+  else reserva()}
+function botaoCopia(b,rot,txt){
+  b.onclick=function(){copiar(typeof txt==='function'?txt():txt,
+    function(){b.textContent='Copiado';setTimeout(function(){b.textContent=rot},1400)},
+    function(){b.textContent='Não copiou — selecione e copie à mão';
+      setTimeout(function(){b.textContent=rot},2600)})}}
+function baixar(nome,txt,tipo){
+  var u=URL.createObjectURL(new Blob([txt],{type:tipo||'text/plain'}));
+  var a=document.createElement('a');a.href=u;a.download=nome;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(u)},1000)}
 function h(x){return String(x).replace(/[&<>"]/g,function(c){
   return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function sel(v,arr,cb){var s=document.createElement('select');
@@ -5849,8 +5999,19 @@ function chk(v,cb){var b=document.createElement('button');b.className='btn sm';
   b.setAttribute('role','switch');b.setAttribute('aria-checked',v?'true':'false');
   if(v)b.style.borderColor='var(--azul)';b.onclick=function(){cb(!v)};return b}
 
+// 1.0.18: O FOCO SOBREVIVE AO REDESENHO. Toda alteracao refaz a tela inteira, e o
+// elemento que tinha o foco deixava de existir: quem navega por teclado ou leitor de tela
+// voltava ao topo da pagina a cada campo alterado. Se a tela e a mesma, o foco volta ao
+// controle que ocupa a mesma posicao — e so se ele for do mesmo tipo, para nao pousar em
+// outro campo quando a alteracao acrescentou ou tirou linhas acima.
+var FOCAVEL='select,input,textarea,button';
+var _telaAnt='';
 function render(){
-  var A=$('app');A.innerHTML='';
+  var A=$('app'), at=document.activeElement, pos=-1, tag='', chave=tela+'/'+jg+'/'+md;
+  if(at&&A.contains(at)&&chave===_telaAnt){
+    pos=Array.prototype.indexOf.call(A.querySelectorAll(FOCAVEL),at);tag=at.tagName}
+  _telaAnt=chave;
+  A.innerHTML='';
   $('volta').style.display=tela==='cat'?'none':'block';
   if(tela==='cat')telaCat(A);
   else if(tela==='jogo')telaJogo(A);
@@ -5858,6 +6019,9 @@ function render(){
   else if(tela==='cod')telaCod(A);
   else if(tela==='dados')telaDados(A);
   else if(tela==='info')telaInfo(A);
+  if(pos>=0){var novo=A.querySelectorAll(FOCAVEL)[pos];
+    if(novo&&novo.tagName===tag&&!novo.disabled){
+      try{novo.focus({preventScroll:true})}catch(e){novo.focus()}}}
 }
 function telaCat(A){
   $('titulo').innerHTML='D-Sig <span class="sub">'+versaoDSig().replace('D-Sig ','')+'</span>';
@@ -5929,8 +6093,8 @@ function telaCat(A){
   p.innerHTML='<b>'+noZen+'</b> gravados no Zen (cabem '+ZEN_FOLGA+', às vezes '+ZEN_MAX+').'+
     (noZen>ZEN_MAX?' <span style="color:var(--verm)">Acima do limite.</span>':
      noZen===ZEN_MAX?' <span style="color:var(--amber)">No limite: só cabe se forem dos menores.</span>':'')+'<br>'+
-    (temLS?'Os dados ficam neste navegador. Exporte para levar a outro aparelho.'
-    :'Atencao: este navegador nao guarda dados. Exporte antes de fechar.');
+    (temLS&&GRAVA_OK?'Os dados ficam neste navegador. Exporte para levar a outro aparelho.'
+    :'<span style="color:var(--amber)">Atenção: este navegador não está guardando os dados. Exporte antes de fechar.</span>');
   A.appendChild(p)}
 
 function telaJogo(A){
@@ -5942,9 +6106,17 @@ function telaJogo(A){
   // O campo nao tinha limite: dava para digitar 80 caracteres e perder 46 em silencio
   // na geracao. Campo que aceita o que nao cabe e campo que mente.
   inp.maxLength=2*OLEDLIN;
-  inp.placeholder='nome do jogo';inp.oninput=function(){j.nome=inp.value;grava(D);
+  // 1.0.18: A PREVIA DO OLED. O nome guardado na biblioteca fica como foi digitado, com
+  // acento e tudo; o que vai para a tela do Cronus passa pelo quebraNome(), que tira o
+  // que o print nao desenha e parte em duas linhas. Mostrar as duas linhas aqui e o que
+  // impede a surpresa na hora de ligar o aparelho.
+  var pv=document.createElement('p');pv.className='hint mono';pv.id='previa';
+  function previa(){var q=quebraNome(j.nome||'SEM NOME');
+    pv.textContent='No OLED: '+q[0]+(q[1]?' ⏎ '+q[1]:'')}
+  inp.placeholder='nome do jogo';inp.oninput=function(){j.nome=inp.value;grava(D);previa();
     $('titulo').innerHTML=h(j.nome||'sem nome')};
   s1.appendChild(fld('Nome',inp));
+  previa();s1.appendChild(pv);
   s1.appendChild(fld('No Zen',chk(j.noZen,function(v){
     var n=0;D.jogos.forEach(function(x){if(x.noZen)n++});
     if(v&&!j.noZen&&n>=ZEN_MAX){alert(ZEN_TXT+'\n\nJá há '+n+' marcados. Desmarque outro antes.');return}
@@ -5957,8 +6129,13 @@ function telaJogo(A){
     g.style.setProperty('--gd',CORES[j.cores[i]][5]);
     var dn=document.createElement('input');dn.type='text';dn.maxLength=MAXDOM;
     dn.value=j.dom[i]||'';dn.placeholder='Dominio_'+(i+1);
-    dn.oninput=function(){j.dom[i]=limpaDom(dn.value);
-      if(dn.value!==j.dom[i])dn.value=j.dom[i];grava(D)};
+    // O campo mostra o que o OLED vai mostrar: acento sai, aspas viram espaco. Durante a
+    // composicao de um acento (tecla morta, teclado do celular) o campo NAO e reescrito —
+    // reescrever no meio dela quebra a digitacao; o acerto vem quando ela termina.
+    dn.oninput=function(ev){j.dom[i]=limpaDom(dn.value);grava(D);
+      if(ev&&ev.isComposing)return;
+      if(dn.value!==j.dom[i])dn.value=j.dom[i]};
+    dn.onchange=dn.onblur=function(){if(dn.value!==j.dom[i])dn.value=j.dom[i]};
     g.appendChild(fld('Domínio D'+(i+1),dn));
     var box=document.createElement('div');box.className='cor';
     var am=document.createElement('span');am.className='amostra';am.style.background=CORES[j.cores[i]][5];
@@ -6221,20 +6398,14 @@ function telaCod(A){
     var pre=document.createElement('pre');pre.textContent=txt;A.appendChild(pre);
     var r=document.createElement('div');r.className='row';
     var b=document.createElement('button');b.className='btn pri';b.textContent='Copiar';
-    b.onclick=function(){navigator.clipboard.writeText(txt).then(function(){
-      b.textContent='Copiado';setTimeout(function(){b.textContent='Copiar'},1400)})};
+    botaoCopia(b,'Copiar',txt);
     r.appendChild(b);A.appendChild(r)}
   var r0=document.createElement('div');r0.className='row';r0.style.marginBottom='10px';
   var bt=document.createElement('button');bt.className='btn pri';
   bt.textContent='Baixar o D-Sig completo (.gpc)';
   bt.onclick=function(){
-    var txt=scriptCompleto(j);
-    var bl=new Blob([txt],{type:'text/plain'});
-    var u=URL.createObjectURL(bl);
-    var a=document.createElement('a');a.href=u;
-    a.download=(j.nome||'D-Sig').replace(/[^\w\-]+/g,'_')+'_D-Sig.gpc';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(u)},1000)};
+    // o nome do arquivo passa pelo mesmo saneamento: 'Coração' vira Coracao, nao Cora__o
+    baixar((asciiOled(j.nome).trim()||'D-Sig').replace(/[^\w\-]+/g,'_')+'_D-Sig.gpc',scriptCompleto(j))};
   r0.appendChild(bt);A.appendChild(r0);
   var pc=document.createElement('p');pc.className='hint';pc.style.margin='0 0 20px';
   pc.textContent='Pronto para abrir no ZenStudio e gravar. Os dois blocos abaixo são as '+
@@ -6251,6 +6422,12 @@ function versaoDSig(){
   var m=/const string DS_VERSAO\s*=\s*"([^"]+)";/.exec(
     document.getElementById('tpl').textContent);
   return m?m[1]:'D-Sig';
+}
+// O numero do layout tambem sai do template, pela mesma razao da versao: estava escrito
+// aqui como "5" enquanto o cabecalho do script dizia 6.
+function layoutDSig(){
+  var m=/define LAYOUT_VER\s*=\s*(\d+);/.exec(document.getElementById('tpl').textContent);
+  return m?m[1]:'?';
 }
 function telaInfo(A){
   $('titulo').innerHTML='Informações';
@@ -6269,7 +6446,7 @@ function telaInfo(A){
     [versaoDSig(), 'É a versão do script embutido neste app, e é a mesma que aparece no '+
       'OLED do Cronus quando você abre o menu de status (OPTIONS). Se as duas não '+
       'coincidirem, o Cronus está com uma versão anterior gravada.'],
-    ['Layout de bits 5', 'Posição dos campos dentro dos SPVARs. Só muda quando um campo '+
+    ['Layout de bits '+layoutDSig(), 'Posição dos campos dentro dos SPVARs. Só muda quando um campo '+
       'muda de lugar ou tamanho — e nesse caso o app e o script têm de ser atualizados juntos.']]);
 
   var av=document.createElement('div');av.className='obs';
@@ -6360,13 +6537,11 @@ function telaDados(A){
   // Unico lugar onde a biblioteca inteira e copiada ou colada, e estava sem rotulo.
   t.setAttribute('aria-label','Backup da biblioteca, em JSON');
   t.setAttribute('spellcheck','false');A.appendChild(t);
-  var r=document.createElement('div');r.className='row';
-  var b1=document.createElement('button');b1.className='btn pri';b1.textContent='Copiar tudo';
-  b1.onclick=function(){t.select();navigator.clipboard.writeText(t.value).then(function(){
-    b1.textContent='Copiado';setTimeout(function(){b1.textContent='Copiar tudo'},1400)})};
-  var b2=document.createElement('button');b2.className='btn';b2.textContent='Importar do campo';
-  b2.onclick=function(){var n;
-    try{n=JSON.parse(t.value)}catch(e){alert('Texto inválido: não é JSON.');return}
+  // 1.0.18: A IMPORTACAO SUBSTITUI A BIBLIOTECA INTEIRA, e fazia isso sem perguntar —
+  // enquanto apagar UM jogo pede dois toques. Agora pergunta, dizendo quantos jogos saem
+  // e quantos entram, sempre que o conteudo for diferente do que ja esta guardado.
+  function importaTexto(txt){var n;
+    try{n=JSON.parse(txt)}catch(e){alert('Texto inválido: não é JSON.');return}
     if(!n||!Array.isArray(n.jogos)){alert('Texto inválido: não parece um backup do D-Sig.');return}
     try{
       // A MESMA normalizacao da carga. Antes esta via fazia uma das sete, e backup de
@@ -6374,13 +6549,36 @@ function telaDados(A){
       // aviso e mudando o selo sozinho no recarregamento seguinte.
       PERDIDOS=[];
       normaliza(n);
+      if(D.jogos.length&&JSON.stringify(n)!==JSON.stringify(D)&&
+         !confirm('Importar SUBSTITUI a biblioteca deste navegador.\n\nSaem '+D.jogos.length+
+           ' jogo(s), entram '+n.jogos.length+'. Continuar?'))return;
       D=n;grava(D);
       if(PERDIDOS.length)alert('O MOD 21 destes jogos foi removido: '+PERDIDOS.join(', '));
       tela='cat';render();
-    }catch(e){alert('O backup foi lido, mas tem algo que eu não soube tratar:\n'+e.message)}};
+    }catch(e){alert('O backup foi lido, mas tem algo que eu não soube tratar:\n'+e.message)}}
+  var r=document.createElement('div');r.className='row';
+  var b1=document.createElement('button');b1.className='btn pri';b1.textContent='Copiar tudo';
+  botaoCopia(b1,'Copiar tudo',function(){t.select();return t.value});
+  var b2=document.createElement('button');b2.className='btn';b2.textContent='Importar do campo';
+  b2.onclick=function(){importaTexto(t.value)};
   r.appendChild(b1);r.appendChild(b2);A.appendChild(r);
+  // 1.0.18: O BACKUP COMO ARQUIVO. Copiar e colar um JSON de dezenas de KB no celular e
+  // o tipo de passo que se adia — e este e o unico backup completo que existe. Baixar
+  // gera um .json com a data; importar arquivo le o mesmo .json pelo caminho de cima.
+  var ra=document.createElement('div');ra.className='row';
+  var b4=document.createElement('button');b4.className='btn';b4.textContent='Baixar backup (.json)';
+  b4.onclick=function(){var d=new Date(), z=function(v){return String(v).padStart(2,'0')};
+    baixar('D-Sig_biblioteca_'+d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+'.json',
+      JSON.stringify(D),'application/json')};
+  var fj=document.createElement('input');fj.type='file';fj.accept='.json,application/json';fj.hidden=true;
+  fj.setAttribute('aria-label','Arquivo de backup da biblioteca (.json)');
+  var b5=document.createElement('button');b5.className='btn';b5.textContent='Importar arquivo (.json)';
+  b5.onclick=function(){fj.value='';fj.click()};
+  fj.onchange=function(){var a=fj.files&&fj.files[0];if(!a)return;
+    a.text().then(importaTexto,function(){alert('Não consegui ler este arquivo.')})};
+  ra.appendChild(b4);ra.appendChild(b5);A.appendChild(ra);A.appendChild(fj);
   var p=document.createElement('p');p.className='hint';
-  p.textContent='Guarde este texto como backup. Para levar a outro aparelho, cole lá e toque em importar.';
+  p.textContent='Guarde o arquivo (ou o texto) como backup. Para levar a outro aparelho, importe-o lá.';
   A.appendChild(p);
   // Backup do Cronus: o Zen Studio salva as SPVARs num .znbk. Elas viram um jogo NOVO
   // na biblioteca — nunca sobrescrevem um existente.
@@ -6416,10 +6614,16 @@ function mostrarAviso(){
   var b=document.createElement('button');
   b.textContent='Atualizar';
   b.style.cssText='background:#04101f;color:#fff;border-radius:8px;padding:7px 14px;font-weight:600';
+  // 1.0.18: recarregava 300 ms depois de pedir, torcendo para o service worker novo ja
+  // ter assumido; num aparelho lento a pagina voltava ainda servida pelo antigo e o aviso
+  // reaparecia. Agora recarrega quando o controlador TROCA, com 2 s de teto.
   b.onclick=function(){
+    var foi=false;
+    function vai(){if(foi)return;foi=true;location.reload()}
+    navigator.serviceWorker.addEventListener('controllerchange',vai);
     navigator.serviceWorker.getRegistration().then(function(r){
       if(r && r.waiting) r.waiting.postMessage('assumir');
-      setTimeout(function(){location.reload()},300)})};
+      setTimeout(vai,2000)},vai)};
   bar.appendChild(b);document.body.appendChild(bar)}
 
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){

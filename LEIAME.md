@@ -28,7 +28,7 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado. É o único arquivo que se edita à mão** |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
 | `ferramentas/limpar.py` | o removedor de comentários e a lista das 11 âncoras que o app usa |
-| `ferramentas/testa_sim.py` | o portão de comportamento: 19 verificações que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão de comportamento: 20 verificações que **executam** o script |
 | `ferramentas/gera_molde.py` | **gera o molde sintético do portão** e declara os 34 itens de cobertura que ele tem de sustentar |
 | `ferramentas/testa_tabelas.py` | confere tabela por tabela entre o app e o script, por valor |
 | `ferramentas/testa_a11y.js` | nome acessível e alvo de toque, no Chromium de verdade |
@@ -44,7 +44,7 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/empacotar.py` | monta o repositório no layout público **e roda o `embutir.py` de dentro da cópia**, reprovando se ele não publicar o mesmo SHA-256. Roda tanto da bancada de desenvolvimento quanto de um clone: `python3 ferramentas/empacotar.py [destino]`. Recusa destino cujo apagamento levaria o projeto junto (`.`, `..`, `ferramentas`) |
 
 A cadeia da arte é reproduzível a partir do repositório: `python3 oled/padrao.py`
-grava o `timbre.png`, e o `oled/png2gpc.py` devolve deste os mesmos 300 bytes
+grava o `timbre.png`, e o `oled/png2gpc.py` devolve deste os mesmos 319 bytes
 que estão no `const image DS_TIMBRE` do publicado.
 
 O portão precisa de `python3`, `gcc` e `npm i -g jsdom playwright`. Faltando o
@@ -95,11 +95,6 @@ Os scripts que o app **gera** também saem limpos, pela mesma regra
 (`limparGpc`, gêmea do `limpar.py`). Faz sentido: depois de gravado no
 Cronus o script não pode mais ser extraído nem aberto no ZenStudio,
 então comentário ali não serve a ninguém.
-
-Qualquer outro arquivo com o app dentro — `sig_router_app.html` ou
-nomes parecidos — é cópia antiga e deve ser apagado. Foi ter duas
-cópias circulando que gerou um script com `FA_Cfg_01`, variável que
-não existe desde a v5.
 
 Qualquer outro arquivo com o app dentro — `sig_router_app.html` ou
 nomes parecidos — é cópia antiga e deve ser apagado. Foi ter duas
@@ -334,7 +329,7 @@ papel de parede, e papel de parede em 128×64 é desperdício de um espaço que 
 
 ### Primitiva, não bitmap
 
-Há **uma única imagem** no script, o timbre (`DS_TIMBRE`, 80×30, 300 bytes), e ela se
+Há **uma única imagem** no script, o timbre (`DS_TIMBRE`, 88×29, 319 bytes), e ela se
 justifica sozinha: o `print` só tem fonte 0 (10px) e fonte 1 (17px), e aquele "D-Sig"
 tem 30px de altura. Todo o resto é `line_oled` e `rect_oled`.
 
@@ -651,11 +646,11 @@ depois da segunda, saber-se-ia na hora se o defeito estava na poda ou na lógica
 **Publicar:**
 
 1. Mexa no `D-Sig.fonte.gpc` — nunca no `D-Sig.gpc`.
-2. **Incremente a letra** em `DS_VERSAO`.
+2. **Incremente o último número** em `DS_VERSAO`.
 3. Rode `python3 embutir.py`.
 
 O passo 3 limpa, embute, propaga a versão para o `sw.js` e **recusa
-publicar** se o conteúdo mudou e a letra não — ele guarda o SHA-256 da
+publicar** se o conteúdo mudou e a versão não — ele guarda o SHA-256 da
 última publicação em `publicado.json` e compara. Mudança só de
 comentário não conta, porque não altera o publicado.
 
@@ -666,7 +661,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.16**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.18**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -942,7 +937,102 @@ deslocamento — 1,4% do lado — foi calibrado contra o traço: a 3% o branco
 central some e o desenho vira ruído. O desenho não mudou. O gerador é o
 `ferramentas/oled/icone.py`, e os três PNG saem dele.
 
+### 1.0.18 — a auditoria externa (15/11/2026)
+
+Uma varredura do script e do app inteiros, feita **só no simulador**. Esta versão
+**não passou pelo compilador do Zen Studio nem pelo aparelho** — é a primeira desde a
+1.0.10 publicada assim, e por isso o README diz que a última validada em hardware é a
+1.0.17. Antes de gravar: Build, e conferir 0 erros e 0 avisos. Duas coisas são novas
+para o compilador e merecem o olhar: a função `Gatilho_Btn_Um`, e o `define VA_NADA`.
+
+Cada defeito abaixo foi **reproduzido antes de consertar** e reprovado de novo depois.
+O hash de comportamento do molde **não mudou** (avulso e configurado): os quatro
+consertos do script estão em ramos que o molde não exercita — o que explica também por
+que o portão não os via.
+
+**No script, quatro:**
+
+1. **`DIRECT` sem ALFA com dois gatilhos em botões diferentes só respondia a um.** O
+   `Gatilho_Btn_Val` devolvia o botão do *primeiro gatilho configurado* (2CLK, HOLD,
+   TOGGLE, AFTER, nessa ordem), não o do que ligou o MOD. Com 2CLK no CROSS e TOGGLE no
+   SQUARE, apertar o SQUARE ligava o MOD e, na mesma volta, a função lia o CROSS — solto —
+   e o autoencerramento o desligava: 0 ms de saída. Agora vale o maior valor entre os
+   gatilhos que **ligam** (os marcados como FINALIZA ficam de fora).
+2. **Um órfão `DIRECT` passava a emitir 13% no lugar de 100%.** O valor do gatilho ficava
+   na `Work_D`, e o `Valor_Alvo_Assoc` chamado logo depois a reescreve por dentro com o
+   *número do tipo da fonte* do alvo. Quando o alvo era um `STATIC` travado com o botão já
+   solto, era esse número que ia para o destino: 13 com o alvo no CROSS, 11 no R2. Num
+   botão digital passa despercebido; no R2 ou num eixo é 13% de curso. O valor mora
+   agora numa variável dedicada (`Gb_V`).
+3. **Órfão com gatilho em FINALIZA e alvo sem ALFA nunca subia.** Mesma função do item 1:
+   o único gatilho configurado era o FINALIZA, o botão dele estava solto, e o órfão
+   morria na volta em que era adotado. A tela de Informações promete o contrário (*"um
+   GAMA em FINALIZA consegue derrubá-lo"*), e só valia quando o alvo tinha ALFA.
+4. **O modo FINALIZA e o botão do BLOK não acompanhavam o MOD ao deletar ou reordenar.**
+   Os dois vivem por slot em RAM, e o `Swap_Pos`, o `Compact_Pos` e o `Zerar_Posicao`
+   moviam as três máscaras ZETA e os esqueciam. Depois de deletar o MOD_05 do molde,
+   **sete slots** ficavam com o FINALIZA e o BLOK do vizinho até o boot seguinte, quando o
+   `Config_Zeta` os repõe pela permutação. Um MOD criado numa posição reusada herdava os
+   do antigo ocupante.
+
+De passagem: a sentinela "não há de onde herdar" do `Valor_Alvo_Assoc` era `-1`, que é um
+valor possível (eixo em −10..−19 com MULT x0.1). Virou `VA_NADA = 999`, fora da faixa.
+
+**No app, cinco:**
+
+1. **`/*` num nome truncava o script gerado.** O `limparGpc` procurava comentário de
+   bloco sem olhar as aspas. Um jogo chamado `AC/*Origins` gerava um `.gpc` de **duas
+   linhas**; num nome de domínio, quatro; na anotação de um MOD, o script parava no meio
+   da `Config_Inicial` — e com um `*/` numa anotação seguinte, os MODs entre as duas
+   sumiam calados. O limpador virou uma varredura de quatro estados, e o saneamento dos
+   nomes passou a ser uma função só (`asciiOled`).
+2. **Letra acentuada ia crua para o OLED.** O `print` do Cronus só desenha ASCII. "A pé" e
+   "no veículo" — os exemplos de nome de domínio deste arquivo — sairiam com dois símbolos
+   no lugar da letra. Agora o acento cai e a letra fica; o campo do domínio mostra o que a
+   tela vai mostrar, e o do jogo ganhou uma **prévia das duas linhas do OLED**.
+   *Não confirmado no aparelho:* é o comportamento esperado de uma fonte ASCII, não uma
+   medição.
+3. **`THR_OUT = 100` continuava sendo gravado errado em quem já o tinha salvo.** A 1.0.12
+   tirou o "100" da tela, não da biblioteca: o valor 20 seguia no MOD, a tela mostrava
+   OFF, o resumo dizia "até 100" e o aparelho recebia `THR_IN + 5` sem teto. A carga
+   agora o converte em OFF — e o selo desses jogos muda, de propósito.
+4. **Backup com campo fora da faixa travava a tela ou gravava outra coisa.** A
+   normalização completava o que faltava e não conferia o que estava presente. Um MOD sem
+   `dst` derrubava o desenho — e como a importação grava antes de desenhar, o app não
+   abria mais; `fonte: 40` virava L2 no Cronus sem aviso. Cada campo é conferido agora
+   (`normMod`), **no lugar** e só onde está errado, para o selo dos jogos válidos não
+   mudar — conferido: mesmo selo e mesmo script, byte a byte, para os dois moldes.
+5. **Biblioteca ilegível era tratada como biblioteca vazia**, e a primeira edição gravava
+   a lista vazia por cima. O texto original agora é guardado em `dsig_ilegivel` antes de
+   qualquer gravação, e o app avisa.
+
+**Melhorias:** backup em arquivo (`Baixar backup (.json)` e `Importar arquivo`); a
+importação pergunta antes de substituir a biblioteca; alerta para `DIRECT` sem ALFA com
+gatilho que só dispara ao soltar (HOLD em ATE, AFTER), que nunca produz saída; o foco do
+teclado sobrevive ao redesenho da tela; o botão Copiar funciona fora de contexto seguro e
+avisa quando falha; falha de gravação no navegador deixa de ser engolida; o `Atualizar`
+recarrega quando o service worker novo assume, em vez de esperar 300 ms e torcer.
+
+**No portão:** foi de 19 para **20 verificações**. A nova monta um molde próprio com as
+três combinações de `DIRECT` sem ALFA e reprova no script da 1.0.17 nas três. As duas do
+ZETA passaram a fotografar também o FINALIZA e o BLOK (reprovam na 1.0.17: 7 slots no
+delete, 2 na troca), e a dos nomes ganhou os casos de acento, de `/*` e de anotação.
+
+**O método que achou três dos quatro:** todos são a mesma família — variável de trabalho
+global reescrita por uma chamada, ou estado por slot esquecido numa cópia. O TURBO, que é
+a parte mais intrincada, bateu com um modelo independente em 160 configurações
+aleatórias de 160.
+
 ### O que continua em aberto, e não impede nada
+
+0. **Deletar um MOD grava dezenas de SPVARs numa única volta do `main`.** Medido no
+   simulador com 20 MODs: **57 gravações numa volta** ao deletar o MOD_01, 49 ao deletar
+   o MOD_05. O boot foi diferido para uma instância por volta exatamente porque 64
+   gravações seguidas no `init` travavam o aparelho. A deleção funciona em hardware
+   desde a 1.0.10 (com 17 MODs), então o `main` tolera o que o `init` não tolerava — mas
+   ninguém mediu o teto. O caminho, se um dia travar: o `Compact_Pos` só mexer na RAM e a
+   gravação sair pelo `Boot_Persistir`. Não foi feito aqui porque muda a persistência e
+   só o aparelho valida isso.
 
 1. **Por que a VM rodou a 16,1 ms numa sessão de 27/09.** Não se sabe,
    não é reproduzível, e o script não mede a própria velocidade. O
@@ -959,6 +1049,6 @@ central some e o desenho vira ruído. O desenho não mudou. O gerador é o
 python3 ferramentas/embutir.py
 ```
 
-Ele audita a estrutura **e** roda o portão de comportamento: 19
+Ele audita a estrutura **e** roda o portão de comportamento: 20
 verificações, cada uma conferida contra uma sabotagem deliberada. Se
 fechar, não publicou nada.

@@ -36,7 +36,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.17";
+const string DS_VERSAO    = "D-Sig 1.0.18";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -187,6 +187,7 @@ define MAX_INST          = 20;
 define MAX_INST_EEP      = 20;
 define ZETA_NENHUM       = 21;
 define SPVARS_PER_INST   = 3;
+define VA_NADA           = 999;
 define VISIBLE_ROWS      = 2;
 define ITEM_X            = 5;
 define ROW0_Y            = 16;
@@ -371,6 +372,8 @@ int Fin_01=0; int Fin_02=0; int Fin_03=0; int Fin_04=0; int Fin_05=0; int Fin_06
 int Fin_08=0; int Fin_09=0; int Fin_10=0; int Fin_11=0; int Fin_12=0; int Fin_13=0; int Fin_14=0;
 int Fin_15=0; int Fin_16=0; int Fin_17=0; int Fin_18=0; int Fin_19=0; int Fin_20=0;
 int Est_Tmp              = 0;
+int Gb_V                 = 0;
+int Gb_N                 = 0;
 int Pipe_Val             = 0;
 int Pipe_Raw             = 0;
 int Pipe_Thr            = 0;
@@ -496,7 +499,7 @@ function Config_Zeta() {
     Zeta_Fin(ZETA_NENHUM, 0);
     Zeta_Blk(ZETA_NENHUM, 0);
 }
-define LAYOUT_VER = 5;
+define LAYOUT_VER = 6;
 define BIT_MIGRADO_V5 = 1;
 function Selo_Cfg_Gravado() {
     return (get_pvar(SPVAR_64, -2147483648, 2147483647, 0) >> 1) & 0x7FFFFFFF;
@@ -2128,7 +2131,7 @@ function Executar_Turbo_Fonte(num) {
             Est_Tmp = 100;
             if(Orfao_Adotado(num)) {
                 Work_D = Valor_Alvo_Assoc(num);
-                if(Work_D != -1) Est_Tmp = abs(Work_D);
+                if(Work_D != VA_NADA) Est_Tmp = abs(Work_D);
             }
             Acc_Um(Cmb_N, Trb_Aplicar_Cond(num, Est_Tmp));
         }
@@ -2374,16 +2377,21 @@ function Suprime_Gatilhos(num) {
     Work_N = Get_Gatilho_Hphold_Btn(num);     if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
     Work_N = Get_Gatilho_FinalAfter_Btn(num); if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
 }
+function Gatilho_Btn_Um(btn, fin) {
+    if(btn == 0 || fin) return;
+    Gb_N = Gb_N + 1;
+    Work_N = Ler_Btn_Fisico(btn - 1);
+    if(Work_N > Gb_V) Gb_V = Work_N;
+}
 function Gatilho_Btn_Val(num) {
-    Work_N = Get_Gatilho_Duplo_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_Hphold_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_Final_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_FinalAfter_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    return 100;
+    Gb_V = 0;
+    Gb_N = 0;
+    Gatilho_Btn_Um(Get_Gatilho_Duplo_Btn(num),      (Get_Fin(num) >> 0) & 1);
+    Gatilho_Btn_Um(Get_Gatilho_Final_Btn(num),      (Get_Fin(num) >> 1) & 1);
+    Gatilho_Btn_Um(Get_Gatilho_Hphold_Btn(num),     (Get_Fin(num) >> 2) & 1);
+    Gatilho_Btn_Um(Get_Gatilho_FinalAfter_Btn(num), (Get_Fin(num) >> 3) & 1);
+    if(Gb_N == 0) return 100;
+    return Gb_V;
 }
 function Trb_Aplicar_Cond(num, v) {
     if(Get_Fonte_Tipo(num) == FONTE_NENHUMA) return v;
@@ -2425,11 +2433,12 @@ function Run_Instance_v3(num) {
     if(Get_Fonte_Tipo(num) == FONTE_NENHUMA) {
         if(Get_F1_Tipo(num) == DST_TIPO_TURBO) { Executar_Turbo_Fonte(num); return; }
         if(Get_F1_Tipo(num) == DST_TIPO_DIRECT) {
-            Work_D = Gatilho_Btn_Val(num);
+            Gb_V = Gatilho_Btn_Val(num);
             if(Orfao_Adotado(num)) {
                 Est_Tmp = Valor_Alvo_Assoc(num);
-                if(Est_Tmp != -1) Work_D = Est_Tmp;
+                if(Est_Tmp != VA_NADA) Gb_V = Est_Tmp;
             }
+            Work_D = Gb_V;
             if(Work_D) {
                 Escrever_Destino(Dst_Mask(num), Work_D);
             } else {
@@ -3023,7 +3032,7 @@ function Valor_Alvo_Assoc(num) {
         Va_Msk = Va_Prox & (~Va_Visto);
         Va_Nv = Va_Nv + 1;
     }
-    return -1;
+    return VA_NADA;
 }
 function Orfao_Adotado(num) {
     if(Get_Fonte_Tipo(num) != FONTE_NENHUMA) return 0;
@@ -3242,6 +3251,8 @@ function Criar_Instancia() {
     Set_Spvar_B(Total_Inst, 0);
     Set_Spvar_C(Total_Inst, 0);
     Zero_F1_Behavior(Total_Inst);
+    Set_Fin(Total_Inst, 0);
+    Set_Blok(Total_Inst, 0);
     Cfg_Ram   = Cfg_Ram   & (~(1 << (Total_Inst - 1)));
     Cfg_Salvo = Cfg_Salvo & (~(1 << (Total_Inst - 1)));
     Cfg_Mov   = Cfg_Mov   & (~(1 << (Total_Inst - 1)));
@@ -3288,6 +3299,8 @@ function Swap_Pos(a, b) {
     Swp_T = Get_F1_Assoc(a); Set_F1_Assoc(a, Get_F1_Assoc(b)); Set_F1_Assoc(b, Swp_T);
     Swp_T = Get_F1_Bloq(a);  Set_F1_Bloq(a,  Get_F1_Bloq(b));  Set_F1_Bloq(b,  Swp_T);
     Swp_T = Get_GT_Relig(a); Set_GT_Relig(a, Get_GT_Relig(b)); Set_GT_Relig(b, Swp_T);
+    Swp_T = Get_Fin(a);  Set_Fin(a,  Get_Fin(b));  Set_Fin(b,  Swp_T);
+    Swp_T = Get_Blok(a); Set_Blok(a, Get_Blok(b)); Set_Blok(b, Swp_T);
     Swap_Refs(a - 1, b - 1);
     Swap_Ind(a - 1, b - 1);
     if(a <= MAX_INST_EEP) Save_Instance(a);
@@ -3378,6 +3391,8 @@ function Compact_Pos(dst, src) {
     Set_F1_Assoc(dst, Get_F1_Assoc(src));
     Set_F1_Bloq(dst,  Get_F1_Bloq(src));
     Set_GT_Relig(dst, Get_GT_Relig(src));
+    Set_Fin(dst,  Get_Fin(src));
+    Set_Blok(dst, Get_Blok(src));
     if(dst <= MAX_INST_EEP) Save_Instance(dst);
     Cfg_Mov = Cfg_Mov | (1 << (dst - 1));
 }
@@ -3386,6 +3401,7 @@ function Zerar_Posicao(pos) {
     Set_Spvar_B(pos, 0);
     Set_Spvar_C(pos, 0);
     Set_F1_Excl(pos,  0); Set_F1_Assoc(pos, 0); Set_F1_Bloq(pos, 0);
+    Set_Fin(pos, 0); Set_Blok(pos, 0);
     Zero_F1_Behavior(pos);
     if(pos <= MAX_INST_EEP) Save_Instance(pos);
 }
