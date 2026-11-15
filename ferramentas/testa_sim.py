@@ -465,16 +465,28 @@ try:
                     def mascaras(txt, rot):
                         d = {}
                         for lin in txt.split('\n'):
-                            mm = re.match(rf'{rot} slot=(\d+) excl=(\d+) assoc=(\d+) bloq=(\d+)',
-                                          lin)
+                            mm = re.match(rf'{rot} slot=(\d+) excl=(\d+) assoc=(\d+) bloq=(\d+)'
+                                          rf' fin=(\d+) blok=(\d+)', lin)
                             if mm:
-                                d[int(mm.group(1))] = tuple(int(mm.group(i)) for i in (2, 3, 4))
+                                d[int(mm.group(1))] = tuple(int(mm.group(i))
+                                                            for i in (2, 3, 4, 5, 6))
                         return d
+                    # 1.0.18: a tupla tem CINCO campos. O FINALIZA e o BLOK vivem por slot
+                    # em RAM como as tres mascaras, e o Swap_Pos e o Compact_Pos nao os
+                    # moviam: ao vivo, cada MOD ficava com os do vizinho ate religar. O
+                    # teste so fotografava as mascaras e aprovava. Provado contra o script
+                    # da 1.0.17: 7 slots divergem no delete, 2 na troca.
+                    Z0 = (0, 0, 0, 0, 0)
+
+                    def com_ram(d):
+                        """slots que carregam FINALIZA ou BLOK — a guarda contra aprovar
+                        num molde que nao tem nenhum dos dois."""
+                        return [k for k, v in d.items() if v[3] or v[4]]
                     dep = mascaras(ra.stdout, 'depois')
                     reb = mascaras(rb.stdout, 'reboot')
                     slots = sorted(set(dep) | set(reb))
                     ruins = [s for s in slots
-                             if dep.get(s, (0, 0, 0)) != reb.get(s, (0, 0, 0))]
+                             if dep.get(s, Z0) != reb.get(s, Z0)]
                     nome = f'o ZETA sobrevive a deletar o slot {ZETA_SLOT} e religar'
                     # GUARDA CONTRA APROVACAO VAZIA. "nenhum slot divergiu" e verdade
                     # tambem quando nenhum slot tem relacao: um molde sem ZETA passaria
@@ -482,13 +494,14 @@ try:
                     # tinha essa guarda (len(mexeu)>=2); este nao, e a diferenca so ficou
                     # visivel ao trocar de molde. Dez e o piso: o molde sintetico entrega
                     # 13 e o anterior entregava 12.
-                    bastante = len(slots) >= 10
+                    bastante = len(slots) >= 10 and len(com_ram(reb)) >= 3
                     det = ('igual nos %d slots' % len(slots) if not ruins
                            else '%d de %d slots divergem: %s' % (len(ruins), len(slots),
                                                                  ','.join(map(str, ruins))))
                     if not bastante:
-                        det += (' — SO %d slots com relacao: o molde nao exercita a '
-                                'permutacao o bastante para este teste valer' % len(slots))
+                        det += (' — SO %d slots com relacao e %d com FINALIZA/BLOK: o molde '
+                                'nao exercita a permutacao o bastante para este teste valer'
+                                % (len(slots), len(com_ram(reb))))
                     if ZETA_CONSERTADO:
                         passo(nome, (not ruins) and bastante, det)
                     else:
@@ -509,10 +522,10 @@ try:
                     dp = mascaras(rc.stdout, 'depois')
                     rb2 = mascaras(rd.stdout, 'reboot')
                     mexeu = [x for x in sorted(set(an) | set(dp))
-                             if an.get(x, (0, 0, 0)) != dp.get(x, (0, 0, 0))]
+                             if an.get(x, Z0) != dp.get(x, Z0)]
                     sl2 = sorted(set(dp) | set(rb2))
                     ru2 = [x for x in sl2
-                           if dp.get(x, (0, 0, 0)) != rb2.get(x, (0, 0, 0))]
+                           if dp.get(x, Z0) != rb2.get(x, Z0)]
                     # um teste que nao mexe em nada passaria sem provar nada
                     ok2 = (not ru2) and len(mexeu) >= 2
                     passo(nome2, ok2,
@@ -535,6 +548,57 @@ try:
                         _mdet.append(f'{_rot}: {(_rm.stdout or _rm.stderr or "").strip()[:40]}')
                 passo('a EEPROM da 1.0f migra para a identidade nos 3 estados',
                       _mok, '; '.join(_mdet) if _mdet else 'zeradas, com config e com lixo')
+
+                # --- 8. o DIRECT sem ALFA espelha o gatilho que o LIGOU ------
+                # Tres defeitos da 1.0.17, os tres no mesmo ramo do Run_Instance_v3 e os
+                # tres invisiveis ao molde, que nao tem MOD nenhum com estas combinacoes:
+                #   a) 2CLK e TOGGLE em botoes diferentes: o TOGGLE nunca produzia saida,
+                #      porque o Gatilho_Btn_Val lia o botao do PRIMEIRO gatilho configurado;
+                #   b) orfao adotado por um STATIC travado: saia 13 no lugar de 100 — o
+                #      numero do TIPO da fonte do alvo, vazado pela Work_D;
+                #   c) orfao com gatilho em FINALIZA e alvo sem ALFA: morria na volta em
+                #      que era adotado.
+                # Molde proprio, minimo, montado aqui a partir do vazio. Provado contra o
+                # script da 1.0.17, que reprova nos tres.
+                _dj = json.load(open(CFG_VAZIO, encoding='utf-8'))
+                _dm = _dj['jogos'][0]['mods']
+                _dj['jogos'][0]['nome'] = 'DIRECT'
+
+                def _dmod(i, **k):
+                    _dm[i].update(d1=1, **k)
+                _dmod(0, g2clk=7, gTog=9, dst=[10, 0, 0, 0])            # a) 2CLK CROSS, TOGGLE SQUARE -> TRIANGLE
+                _dmod(1, fonte=14, tipo=1, gTog=11, dst=[1, 0, 0, 0])   # b) alvo: CIRCLE trava o L1; UP desliga
+                _dmod(2, assoc=[1], dst=[5, 0, 0, 0])                   #    orfao DIRECT -> R2
+                _dmod(3, tipo=1, gTog=12, dst=[3, 0, 0, 0])             # c) alvo sem ALFA: DOWN trava o L3
+                _dmod(4, assoc=[3], gTog=13, finTog=1, dst=[6, 0, 0, 0])  # orfao -> R3, LEFT finaliza
+                _dc = os.path.join(tmp, 'direct.json')
+                json.dump(_dj, open(_dc, 'w', encoding='utf-8'))
+                _dg = os.path.join(tmp, 'direct.gpc')
+                _nomed = 'o DIRECT sem ALFA espelha o gatilho que o ligou'
+                _rd = roda(['node', GERA, app_tmp, _dc, _dg], cwd=AQUI)
+                _okd, _resd = (False, (_rd.stderr or '').strip()[-90:]) if _rd.returncode != 0 \
+                    else constroi(_dg, 'direct', tmp)
+                if not _okd:
+                    passo(_nomed, False, str(_resd))
+                else:
+                    # SQUARE 500-900 | CIRCLE 500-700, UP 1500-1600 | DOWN 500-600, LEFT 1200-1300
+                    _rot = ('500 8 100\n500 7 100\n500 11 100\n600 11 0\n700 7 0\n900 8 0\n'
+                            '1200 12 100\n1300 12 0\n1500 10 100\n1600 10 0\nEND 2000\n')
+                    _rh = roda([_resd['harness'], '9', '4', '5'], entrada=_rot)
+                    _tr = {'9': [], '4': [], '5': []}
+                    for _l in (_rh.stdout or '').split('\n'):
+                        _mm = re.match(r'\s*(\d+)\s+out(\d+)=(-?\d+)', _l)
+                        if _mm:
+                            _tr[_mm.group(2)].append((int(_mm.group(1)), int(_mm.group(3))))
+                    _esp = {'9': [(0, 0), (500, 100), (900, 0)],        # a) TRIANGLE segue o SQUARE
+                            '4': [(0, 0), (500, 100), (1510, 0)],       # b) R2 em 100 ate o alvo cair
+                            '5': [(0, 0), (510, 100), (1200, 0)]}       # c) R3 sobe e o LEFT derruba
+                    _dif = ['%s: %s' % (_n, ' '.join('%d:%d' % x for x in _tr[_k]) or 'nada')
+                            for _k, _n in (('9', 'TRIANGLE'), ('4', 'R2'), ('5', 'R3'))
+                            if _tr[_k] != _esp[_k]]
+                    passo(_nomed, not _dif,
+                          '; '.join(_dif) if _dif else 'dois gatilhos, orfao de STATIC travado e '
+                          'orfao com FINALIZA')
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

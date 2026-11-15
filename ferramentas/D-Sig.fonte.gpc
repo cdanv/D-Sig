@@ -2,7 +2,7 @@
 * D-Sig 1.0 — Sistema Universal de Roteamento de Sinais
 * -----------------------------------------------------------------------------------
 * DISPOSITIVO : Cronus Zen + PlayStation 5 (DualSense)   |   GPC 32-bit
-* VERSAO      : script 1.0.17  |   LAYOUT DE BITS 6   |   app D-Sig (cache dsig-1.0.16)
+* VERSAO      : script 1.0.18  |   LAYOUT DE BITS 6   |   app D-Sig (cache dsig-1.0.18)
 *   Os tres numeros andam separados de proposito. O SCRIPT e a versao deste arquivo. O
 *   LAYOUT e a posicao dos campos dentro dos SPVARs, e so muda quando um campo muda de
 *   lugar ou tamanho — mudar o layout sem mudar o app junto e o unico jeito de este
@@ -227,7 +227,7 @@ const string DS_TITULO    = "D-Sig";   // v3zz
 // a 1.0d gravada mostrar uma letra MAIOR que a do app, e o LEIAME diz que letra maior no
 // aparelho significa app desatualizado — o selo passaria a mentir exatamente na pergunta
 // que ele existe para responder.
-const string DS_VERSAO    = "D-Sig 1.0.17";
+const string DS_VERSAO    = "D-Sig 1.0.18";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -443,6 +443,10 @@ define MAX_INST_EEP      = 20;   // MODs que a EEPROM comporta — 3 SPVARs cada
 // do Config_Zeta avulso retornarem na primeira linha.
 define ZETA_NENHUM       = 21;
 define SPVARS_PER_INST   = 3;    // SPVARs por MOD — 96 bits, sem bit sobrando
+// 1.0.18: o "nao ha de onde herdar" do Valor_Alvo_Assoc. Positivo e fora da faixa
+// -100..100 de proposito: nenhum define deste arquivo e negativo, e nao ha por que ser
+// este o primeiro a descobrir se o compilador aceita.
+define VA_NADA           = 999;
 
 // --- Geometria do OLED ---
 // A tela tem 128x64. Estes numeros sao as unicas coordenadas repetidas em mais de uma
@@ -844,6 +848,11 @@ int Fin_01=0; int Fin_02=0; int Fin_03=0; int Fin_04=0; int Fin_05=0; int Fin_06
 int Fin_08=0; int Fin_09=0; int Fin_10=0; int Fin_11=0; int Fin_12=0; int Fin_13=0; int Fin_14=0;
 int Fin_15=0; int Fin_16=0; int Fin_17=0; int Fin_18=0; int Fin_19=0; int Fin_20=0;
 int Est_Tmp              = 0;   // v3za: valor absoluto da fonte no destrave do ESTATC
+// 1.0.18: o valor do gatilho do DIRECT sem ALFA. Dedicada, e nao uma Work_: ela tem de
+// atravessar o Valor_Alvo_Assoc, que por dentro chama Zona_Ativa_Fonte e Cond_Aplicar_Fonte
+// e reescreve a Work_A, a Work_C, a Work_D e a Work_N. Ver Run_Instance_v3.
+int Gb_V                 = 0;
+int Gb_N                 = 0;   // quantos gatilhos que LIGAM o Gatilho_Btn_Val achou
    // retorno de Cycle_Mod (máscara seleção)
    // retorno de Cycle_Mod (máscara modo)
 // === Fase 3 — pipeline ===
@@ -1163,13 +1172,15 @@ function Config_Zeta() {
 //   bits 1-31  selo da configuracao do app (31 bits)
 // Um nao apaga mais o outro.
 // VERSAO DO LAYOUT DE BITS — nao confundir com a versao do script.
-// O script esta na v6c; o LAYOUT esta na 5 porque as posicoes dos campos nos SPVARs nao
-// mudaram desde a v5. A v6 mexeu em tabelas e na inicializacao, nao em bits. Uma auditoria
-// externa estranhou a diferenca, com razao: os dois numeros andam separados de proposito.
+// O LAYOUT esta na 6 desde a 1.0g, quando as SPVARs 61-63 deixaram de guardar o MOD 21 e
+// passaram a guardar a permutacao. Os campos DENTRO das tres palavras de cada MOD nao
+// mudam desde a 5. Os dois numeros — script e layout — andam separados de proposito.
+// 1.0.18: este define dizia 5 enquanto o cabecalho deste arquivo e o LEIAME diziam 6, e a
+// tela de Informacoes do app dizia 5. Um numero so, em tres lugares: e o que esta aqui.
 // Incremente ESTE numero so quando um campo mudar de posicao ou tamanho — e, quando
 // fizer isso, incremente tambem no app, para que os dois nunca divirjam em silencio,
 // que e o unico jeito deste sistema falhar sem dar sinal.
-define LAYOUT_VER = 5;
+define LAYOUT_VER = 6;
 define BIT_MIGRADO_V5 = 1;
 function Selo_Cfg_Gravado() {
     return (get_pvar(SPVAR_64, -2147483648, 2147483647, 0) >> 1) & 0x7FFFFFFF;
@@ -3450,7 +3461,7 @@ function Executar_Turbo_Fonte(num) {
             Est_Tmp = 100;
             if(Orfao_Adotado(num)) {
                 Work_D = Valor_Alvo_Assoc(num);
-                if(Work_D != -1) Est_Tmp = abs(Work_D);
+                if(Work_D != VA_NADA) Est_Tmp = abs(Work_D);
             }
             Acc_Um(Cmb_N, Trb_Aplicar_Cond(num, Est_Tmp));
         }
@@ -3738,16 +3749,39 @@ function Suprime_Gatilhos(num) {
     Work_N = Get_Gatilho_Hphold_Btn(num);     if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
     Work_N = Get_Gatilho_FinalAfter_Btn(num); if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
 }
+// O valor que o DIRECT sem ALFA espelha: o botao do gatilho que o LIGOU.
+//
+// 1.0.18 CORRIGIDO. Esta funcao devolvia o botao do PRIMEIRO gatilho configurado, na ordem
+// 2CLK, HOLD, TOGGLE, AFTER — sem olhar qual deles tinha ligado o MOD nem se ele sequer
+// PODIA ligar. Dois defeitos, os dois reproduzidos no simulador antes do conserto:
+//
+//   1. DOIS GATILHOS EM BOTOES DIFERENTES. Com 2CLK no CROSS e TOGGLE no SQUARE, apertar o
+//      SQUARE ligava o MOD e, na mesma volta, a funcao lia o CROSS — solto, zero — e o
+//      autoencerramento o desligava. O TOGGLE nunca produzia saida: 0 ms de TRIANGLE.
+//   2. GATILHO EM FINALIZA NUM ORFAO. O FINALIZA so desliga, entao nao e ele que o destino
+//      deve espelhar. Mas era o unico configurado, a funcao devolvia o botao dele (solto) e
+//      o orfao morria na volta em que era adotado, toda vez que o alvo nao tinha ALFA de
+//      onde herdar a intensidade.
+//
+// Agora so contam os gatilhos que LIGAM (nao marcados como FINALIZA), e vale o MAIOR deles:
+// e o botao que esta apertado, seja qual for. Sem nenhum gatilho que ligue, devolve 100 —
+// o MOD so esta de pe por adocao, e nao ha botao para espelhar.
+// Os bits do Get_Fin seguem o Gatilho_Idx: 0=2CLK 1=TOGGLE 2=HOLD 3=AFTER.
+function Gatilho_Btn_Um(btn, fin) {
+    if(btn == 0 || fin) return;
+    Gb_N = Gb_N + 1;
+    Work_N = Ler_Btn_Fisico(btn - 1);
+    if(Work_N > Gb_V) Gb_V = Work_N;
+}
 function Gatilho_Btn_Val(num) {
-    Work_N = Get_Gatilho_Duplo_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_Hphold_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_Final_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_FinalAfter_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    return 100;
+    Gb_V = 0;
+    Gb_N = 0;
+    Gatilho_Btn_Um(Get_Gatilho_Duplo_Btn(num),      (Get_Fin(num) >> 0) & 1);
+    Gatilho_Btn_Um(Get_Gatilho_Final_Btn(num),      (Get_Fin(num) >> 1) & 1);
+    Gatilho_Btn_Um(Get_Gatilho_Hphold_Btn(num),     (Get_Fin(num) >> 2) & 1);
+    Gatilho_Btn_Um(Get_Gatilho_FinalAfter_Btn(num), (Get_Fin(num) >> 3) & 1);
+    if(Gb_N == 0) return 100;
+    return Gb_V;
 }
 function Trb_Aplicar_Cond(num, v) {
     // v3t: sem fonte ("---") não há condicionais — a tela 101 nem é exibida. Aplicar MULT
@@ -3850,12 +3884,20 @@ function Run_Instance_v3(num) {
         // sobe; solta -> destino cai), até o gatilho desarmar. Antes se comportava igual ao
         // ESTATC (travava em 100%), que é o comportamento certo só pro ESTATC.
         if(Get_F1_Tipo(num) == DST_TIPO_DIRECT) {
-            Work_D = Gatilho_Btn_Val(num);
+            // 1.0.18 CORRIGIDO: o valor do gatilho ficava na Work_D, e o Valor_Alvo_Assoc
+            // logo abaixo a REESCREVE por dentro (Zona_Ativa_Fonte guarda nela o TIPO da
+            // fonte do alvo). Quando o alvo tinha ALFA mas estava fora da zona — um STATIC
+            // travado cujo botao ja foi solto — o orfao passava a escrever no destino o
+            // NUMERO DO TIPO da fonte do alvo: 13 com o alvo no CROSS, 11 no R2. Medido no
+            // simulador: R2 em 13% no lugar de 100%. O Gatilho_Btn_Val ja deixa o valor
+            // na Gb_V, que ninguem mais toca; a Work_D so o recebe depois da chamada.
+            Gb_V = Gatilho_Btn_Val(num);
             // v7i: orfao adotado herda a INTENSIDADE do alvo, em vez de 100% fixo.
             if(Orfao_Adotado(num)) {
                 Est_Tmp = Valor_Alvo_Assoc(num);
-                if(Est_Tmp != -1) Work_D = Est_Tmp;
+                if(Est_Tmp != VA_NADA) Gb_V = Est_Tmp;
             }
+            Work_D = Gb_V;
             // v3zp AUTOENCERRAMENTO (proposta do Daniel apos o teste do Mad Max).
             // DIRECT sem fonte espelha o botao do gatilho, entao o destino ja cai ao
             // soltar — mas o ESTADO ficava ligado, e como sem fonte o gatilho ALTERNA, o
@@ -4753,7 +4795,10 @@ function Computar_Mods_Excl_v3() {
 // se comportava como STATIC (0 ou 100), quando o natural e seguir a metrica do MOD
 // "matriz" — o ALFA e o BETA dele ja definem quanto o sinal vale.
 // v7l: numa cadeia de orfaos a metrica vem do primeiro MOD com fonte, subindo a cadeia.
-// Devolve -1 quando nao ha alvo com fonte de onde herdar.
+// Devolve VA_NADA quando nao ha alvo com fonte de onde herdar.
+// 1.0.18: a sentinela era -1, que e um VALOR POSSIVEL: eixo em -10..-19 com MULT x0.1 da
+// exatamente -1, e o orfao lia "nao ha de onde herdar" e saltava para 100%. Agora ela fica
+// fora da faixa -100..100 que o Cond_Aplicar_Fonte consegue devolver (define na SECAO 2).
 function Valor_Alvo_Assoc(num) {
     // v7l: sobe a CADEIA. Se o alvo tambem e orfao, olha o alvo dele, ate 4 niveis, e usa
     // o primeiro MOD com ALFA que encontrar. Antes so o alvo direto contava, e um orfao de
@@ -4778,7 +4823,7 @@ function Valor_Alvo_Assoc(num) {
         Va_Msk = Va_Prox & (~Va_Visto);
         Va_Nv = Va_Nv + 1;
     }
-    return -1;
+    return VA_NADA;
 }
 function Orfao_Adotado(num) {
     if(Get_Fonte_Tipo(num) != FONTE_NENHUMA) return 0;
@@ -5050,6 +5095,10 @@ function Criar_Instancia() {
     Set_Spvar_B(Total_Inst, 0);
     Set_Spvar_C(Total_Inst, 0);
     Zero_F1_Behavior(Total_Inst);  // garante defaults limpos (sem lixo de posição reusada)
+    // 1.0.18: o FINALIZA e o BLOK vivem por SLOT em RAM. Um MOD novo nao pode herdar o
+    // que o ocupante anterior da posicao deixou ali.
+    Set_Fin(Total_Inst, 0);
+    Set_Blok(Total_Inst, 0);
     // v3z7: instancia nova nasce SEM indicador — nem R nem E. So aparece algo depois que
     // o usuario confirmar (R) ou salvar (E). Limpar aqui importa porque a posicao pode
     // estar sendo REUSADA depois de uma delecao.
@@ -5118,6 +5167,12 @@ function Swap_Pos(a, b) {
     Swp_T = Get_F1_Assoc(a); Set_F1_Assoc(a, Get_F1_Assoc(b)); Set_F1_Assoc(b, Swp_T);
     Swp_T = Get_F1_Bloq(a);  Set_F1_Bloq(a,  Get_F1_Bloq(b));  Set_F1_Bloq(b,  Swp_T);
     Swp_T = Get_GT_Relig(a); Set_GT_Relig(a, Get_GT_Relig(b)); Set_GT_Relig(b, Swp_T);
+    // 1.0.18 CORRIGIDO: o modo FINALIZA e o botao do BLOK NAO trocavam. Sao por slot, em
+    // RAM, e ficavam para tras: depois de reordenar, cada MOD respondia com o FINALIZA e
+    // o BLOK do vizinho ate o proximo boot, quando o Config_Zeta os repoe pela permutacao.
+    // Medido no molde do portao: mover 3->9 deixava 2 slots errados; deletar o 5, sete.
+    Swp_T = Get_Fin(a);  Set_Fin(a,  Get_Fin(b));  Set_Fin(b,  Swp_T);
+    Swp_T = Get_Blok(a); Set_Blok(a, Get_Blok(b)); Set_Blok(b, Swp_T);
     // as referencias de TODOS os slots passam a apontar para as posicoes novas.
     // Roda DEPOIS da troca de conteudo: as mascaras ja trocaram junto com seus donos,
     // e agora os bits dentro delas sao reindexados de uma vez so.
@@ -5254,8 +5309,13 @@ function Compact_Pos(dst, src) {
     Set_F1_Assoc(dst, Get_F1_Assoc(src));
     Set_F1_Bloq(dst,  Get_F1_Bloq(src));
     Set_GT_Relig(dst, Get_GT_Relig(src)); // v3: trava do ESTATC (bit1) — estado volatil
-    // v3zb: o Hold_Relig saiu — nao ha mais nada indexado por POSICAO fora dos SPVARs,
-    // entao a compactacao da delecao ficou mais simples.
+    // 1.0.18 CORRIGIDO: o comentario abaixo dizia que nao havia mais nada indexado por
+    // posicao fora dos SPVARs. Havia: o FINALIZA e o BLOK, que entraram depois (v6c e v7)
+    // e nunca foram acrescentados aqui. Deletar um MOD deixava todos os de cima com o
+    // FINALIZA e o BLOK do antigo ocupante do slot.
+    Set_Fin(dst,  Get_Fin(src));
+    Set_Blok(dst, Get_Blok(src));
+    // v3zb: o Hold_Relig saiu, entao a compactacao da delecao ficou mais simples.
     // v3z5 ETAPA 1: Copy_F1_Behavior e os F2_* saíram. Aquela funcao copiava 42 campos e
     // NENHUM deles era lido pela execucao v3 — F1X/F1Y (fonte por eixo, morta desde a fonte
     // unica), GATILHO/BTN_FN velhos (hoje no SPVAR_B/C), TAIL, TRB_* (hoje no SPVAR_C),
@@ -5271,6 +5331,7 @@ function Zerar_Posicao(pos) {
     Set_Spvar_B(pos, 0);
     Set_Spvar_C(pos, 0);
     Set_F1_Excl(pos,  0); Set_F1_Assoc(pos, 0); Set_F1_Bloq(pos, 0);
+    Set_Fin(pos, 0); Set_Blok(pos, 0);   // 1.0.18: ver Compact_Pos
     // v3z5 ETAPA 1: F2_* removidos — dados da FONTE_2, que nao existe mais na v3.
     Zero_F1_Behavior(pos);  // já cobre FA_Cfg, GT_Relig e as condicionais com os defaults certos
     if(pos <= MAX_INST_EEP) Save_Instance(pos);

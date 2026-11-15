@@ -32,6 +32,16 @@ const casos = [
   ['NomeMuitoLongo', 'NomeMuito', 'cortado em 9'],
   [String.fromCharCode(65,114,34,109,97,92,88), 'Ar ma X', 'aspas e barra viram espaco'],
 ];
+// 1.0.18: os quatro dominios acima sao os de sempre; estes entram numa SEGUNDA rodada,
+// porque sao quatro por jogo. "/*" abria comentario de bloco no limparGpc e o script
+// gerado saia com QUATRO linhas; letra acentuada ia crua para um print que so desenha
+// ASCII. O 3o confere tambem que o script continua INTEIRO depois do nome.
+const casos2 = [
+  ['A p\u00e9',       'A pe',      'acento vira a letra sem acento'],
+  ['Ve\u00edculo',    'Veiculo',   'idem, e continua com 7 colunas'],
+  ['a/*b',            'a/ b',      'abre-comentario nao abre comentario'],
+  ['x*/y\u00e7\u00e3o', 'x /ycao',   'fecha-comentario e cedilha'],
+];
 j.dom = casos.map(c=>c[0]);
 
 const t = w.scriptCompleto(j);
@@ -47,6 +57,37 @@ casos.forEach(function(cs,i){
   if(!ok) tudo=false;
   console.log(`${JSON.stringify(cs[0]).padEnd(18)} ${JSON.stringify(cs[1]).padEnd(11)} ${JSON.stringify(a).padEnd(15)} ${JSON.stringify(b).padEnd(11)} ${ok?'sim':'NAO'}`);
 });
+{
+  j.dom = casos2.map(c=>c[0]);
+  const t5 = w.scriptCompleto(j), c5 = w.codigo(j);
+  casos2.forEach(function(cs,i){
+    const re = new RegExp('const string MODE_S'+(i+1)+'      = "([^"]*)";');
+    const a = (t5.match(re)||[])[1], b = (c5.match(re)||[])[1];
+    const ok = a===cs[1] && b===cs[1];
+    if(!ok) tudo=false;
+    console.log(`${JSON.stringify(cs[0]).padEnd(18)} ${JSON.stringify(cs[1]).padEnd(11)} ${String(JSON.stringify(a)).padEnd(15)} ${String(JSON.stringify(b)).padEnd(11)} ${ok?'sim':'NAO'}`);
+  });
+  // o script tem de sair INTEIRO e so com ASCII: um comentario aberto por engano corta
+  // tudo o que vem depois, e o main e a ultima coisa que se perde de vista.
+  const inteiro = /\nmain \{/.test(t5) && /function Config_Zeta\(\) \{/.test(t5) && !/[^\x00-\x7f]/.test(t5);
+  if(!inteiro) tudo=false;
+  console.log(`script inteiro e so ASCII com esses nomes: ${inteiro?'sim':'NAO'}`);
+  // a ANOTACAO de um MOD vira comentario de linha; "/*" nela engolia os MODs seguintes
+  const jn = JSON.parse(JSON.stringify(j));
+  jn.dom = ['','','',''];
+  const usados = jn.mods.map((m,k)=>w.nomeMod(jn,k)?k:-1).filter(k=>k>=0);
+  let okNota = usados.length >= 2;
+  if(okNota){
+    // fora a linha do selo: a anotacao entra no hash dos MODs, entao o selo muda mesmo
+    const semSelo = t => t.replace(/^int Cfg_Selo = -?\d+;$/m, 'int Cfg_Selo;');
+    const ref = semSelo(w.scriptCompleto(jn));
+    jn.mods[usados[0]].nota = 'liga /* desliga';
+    jn.mods[usados[1]].nota = 'fim */ sobra';
+    okNota = semSelo(w.scriptCompleto(jn)) === ref;
+  }
+  if(!okNota) tudo=false;
+  console.log(`anotacao com /* e */ nao altera o script gerado: ${okNota?'sim':'NAO'}`);
+}
 // vazio -> o padrao do template
 j.dom = ['','','',''];
 const t2 = w.scriptCompleto(j);
@@ -70,6 +111,9 @@ const nomes = [
   ['Red Dead Redemption II','Red Dead',       'Redemption II', 'quebra no espaco'],
   ['ABCDEFGHIJKLMNOPQRSTUVWXYZ','ABCDEFGHIJKLMNOPQ','RSTUVWXYZ','sem separador: corte cego'],
   ['AB CDEFGHIJKLMNOPQRSTU','AB CDEFGHIJKLMNOP','QRSTU','quebra perderia texto: corte cego'],
+  ['Pok\u00e9mon',         'Pokemon',          '',        'acento vira a letra sem acento'],
+  ['AC/*Origins',         'AC/ Origins',      '',        'abre-comentario nao corta o script'],
+  ['Cora\u00e7\u00e3o de A\u00e7o IV','Coracao de Aco IV','',  'acentuado e cabe em 17 depois de saneado'],
 ];
 console.log(`\n${'nome do jogo'.padEnd(26)} ${'linha 1'.padEnd(18)} ${'linha 2'.padEnd(14)} via  ok`);
 console.log('-'.repeat(78));
