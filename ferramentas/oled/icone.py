@@ -10,33 +10,63 @@ Ate a 1.0.16 eram DOIS canais (ciano e magenta deslocados em diagonal), o que da
 vulto, nao um prisma: sem o terceiro canal nao existe o branco central nem as tres
 secundarias, e o efeito le como sombra colorida.
 
-O traco vem do icone publicado — a forma nao muda, so a cor.
+O TRACO VEM DE traco.png, e nao mais do icone publicado. Ler o traco do proprio icone
+tinha dois defeitos: o que esta BRANCO no icone e a INTERSECAO das tres copias, mais
+fina que o traco — cada geracao a partir da anterior afinava o desenho —, e qualquer
+mudanca de tamanho se aplicaria de novo a cada rodada. O traco.png e o traco original,
+512x512, recuperado do canal vermelho do icone da 1.0.17 (deslocado de volta) e
+conferido: regenerar com ESCALA = 1 a partir dele devolve aquele icone pixel a pixel.
+
+1.0.19 — O DESENHO CRESCEU. Ocupava 52% do lado do icone, e no maskable (o que o
+Android usa na tela inicial) so 32%. ESCALA aumenta o traco e o DESLOCAMENTO JUNTO, na
+mesma proporcao: e a razao entre os dois que faz o prisma — crescer so o traco deixaria
+a franja colorida relativamente mais fina e o efeito de profundidade encolheria. O
+desenho tambem passou a ser CENTRADO pela caixa do traco; estava 24 px a esquerda.
+
+uso:  python3 icone.py            grava os tres PNG na raiz do repositorio
+      python3 icone.py <pasta>    grava na pasta dada (para revisar antes)
 """
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageDraw
 import numpy as np, math, sys, os
 
 AQUI   = os.path.dirname(os.path.abspath(__file__))
+RAIZ   = os.path.dirname(os.path.dirname(AQUI))
 FUNDO  = (13, 17, 23)        # #0d1117, o mesmo de sempre
 RAIO   = 0.18                # canto arredondado, fracao do lado
-DESLOC = 0.014               # deslocamento de cada canal, fracao do lado
+DESLOC = 0.014               # deslocamento de cada canal com ESCALA = 1, fracao do lado
 ANGULOS = (90, 210, 330)     # R, G, B — 120 graus entre si
+ESCALA = 1.22                # tamanho do desenho em relacao ao da 1.0.17
+# O maskable e recortado pelo sistema num circulo (ou outra forma) inscrito; a zona que
+# nunca e cortada e o circulo de raio 40% do lado. MASK e a fracao do lado que o icone
+# inteiro ocupa la dentro, e o __main__ CONFERE que a tinta fica aquem dos 40%.
+MASK   = 0.70
+ZONA_SEGURA = 0.40
+SUPER  = 4                   # superamostragem: o traco e ampliado e re-limiarizado
 
-def mascara_do_traco(origem):
-    """O traco e o que esta BRANCO no icone publicado."""
-    a = np.array(Image.open(origem).convert("RGBA")).astype(int)
-    r, g, b, al = a[...,0], a[...,1], a[...,2], a[...,3]
-    return Image.fromarray((((r>200)&(g>200)&(b>200)&(al>128))*255).astype('uint8'))
+def traco_mestre():
+    return Image.open(os.path.join(AQUI, "traco.png")).convert("L")
+
+def traco_escalado(lado, escala):
+    """O traco, ampliado por `escala` e centrado num quadro lado x lado."""
+    m = traco_mestre()
+    caixa = m.getbbox()
+    rec = m.crop(caixa)
+    f = lado * SUPER / m.width * escala
+    g = rec.resize((max(1, round(rec.width * f)), max(1, round(rec.height * f))), Image.LANCZOS)
+    g = g.point(lambda v: 255 if v >= 128 else 0)        # borda nitida outra vez
+    q = Image.new("L", (lado * SUPER, lado * SUPER), 0)
+    q.paste(g, ((q.width - g.width) // 2, (q.height - g.height) // 2))
+    return q.resize((lado, lado), Image.LANCZOS)
 
 def canto(lado, raio):
     """Mascara do quadrado de cantos arredondados."""
-    from PIL import ImageDraw
     m = Image.new("L", (lado, lado), 0)
     ImageDraw.Draw(m).rounded_rectangle([0, 0, lado-1, lado-1], radius=int(lado*raio), fill=255)
     return m
 
-def icone(traco, lado, desloc=DESLOC, com_canto=True, fundo=FUNDO):
-    t = traco.resize((lado, lado), Image.LANCZOS)
-    d = lado * desloc
+def icone(lado, escala=ESCALA, com_canto=True, fundo=FUNDO):
+    t = traco_escalado(lado, escala)
+    d = lado * DESLOC * escala          # o deslocamento acompanha o traco
     canais = []
     for ang in ANGULOS:
         dx = int(round( d * math.cos(math.radians(ang))))
@@ -54,16 +84,27 @@ def icone(traco, lado, desloc=DESLOC, com_canto=True, fundo=FUNDO):
         saida.putalpha(canto(lado, RAIO))
     return saida
 
+def raio_da_tinta(img, fundo=FUNDO):
+    """Maior distancia do centro a um pixel que nao e fundo, como fracao do lado."""
+    a = np.array(img.convert("RGB")).astype(int)
+    tinta = np.abs(a - np.array(fundo)).sum(axis=2) > 60
+    ys, xs = np.where(tinta)
+    c = (img.width - 1) / 2.0
+    return float(np.sqrt((xs - c) ** 2 + (ys - c) ** 2).max()) / img.width
+
 if __name__ == "__main__":
-    origem = sys.argv[1] if len(sys.argv) > 1 else os.path.join(AQUI, "icone-512.png")
-    traco = mascara_do_traco(origem)
+    destino = sys.argv[1] if len(sys.argv) > 1 else RAIZ
     for lado, nome in ((512, "icone-512.png"), (192, "icone-192.png")):
-        icone(traco, lado).save(os.path.join(AQUI, "novo-" + nome))
-        print(f"  novo-{nome}  ({lado}x{lado})")
-    # o maskable precisa de margem de seguranca: o sistema recorta um circulo
-    # inscrito, entao o traco encolhe para 62% e o fundo vai ate a borda, sem canto.
+        icone(lado).save(os.path.join(destino, nome))
+        print(f"  {nome}  ({lado}x{lado})")
+    # o maskable precisa de margem de seguranca: o fundo vai ate a borda, sem canto, e o
+    # icone inteiro entra reduzido a MASK do lado.
     m = Image.new("RGB", (512, 512), FUNDO)
-    peq = icone(traco, int(512*0.62), com_canto=False).convert("RGB")
-    m.paste(peq, ((512-peq.width)//2, (512-peq.height)//2))
-    m.save(os.path.join(AQUI, "novo-icone-maskable.png"))
-    print("  novo-icone-maskable.png  (512x512, traco a 62% pela zona segura)")
+    peq = icone(int(512 * MASK), com_canto=False).convert("RGB")
+    m.paste(peq, ((512 - peq.width) // 2, (512 - peq.height) // 2))
+    r = raio_da_tinta(m)
+    assert r < ZONA_SEGURA - 0.02, (
+        f"a tinta do maskable chega a {r:.3f} do lado; a zona segura e {ZONA_SEGURA} — "
+        "o sistema cortaria o desenho. Diminua MASK ou ESCALA.")
+    m.save(os.path.join(destino, "icone-maskable.png"))
+    print(f"  icone-maskable.png  (512x512, tinta ate {r:.3f} do lado; zona segura {ZONA_SEGURA})")
