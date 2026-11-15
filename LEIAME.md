@@ -28,13 +28,14 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado. É o único arquivo que se edita à mão** |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
 | `ferramentas/limpar.py` | o removedor de comentários e a lista das 11 âncoras que o app usa |
-| `ferramentas/testa_sim.py` | o portão de comportamento: 20 verificações que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão de comportamento: 21 verificações que **executam** o script |
 | `ferramentas/gera_molde.py` | **gera o molde sintético do portão** e declara os 34 itens de cobertura que ele tem de sustentar |
 | `ferramentas/testa_tabelas.py` | confere tabela por tabela entre o app e o script, por valor |
 | `ferramentas/testa_a11y.js` | nome acessível e alvo de toque, no Chromium de verdade |
 | `ferramentas/testa_dom.js` | o nome dos domínios, pelas duas vias do app |
 | `ferramentas/verificar_gpc.py` | o verificador estrutural: `else` órfão, bloco mal aninhado e chamada para função que não existe — o que a contagem de chaves não pega e só o Zen Studio acusava. Roda no portão, sobre o avulso e o gerado |
 | `ferramentas/decodifica.py` | lê um backup `.znbk` do Zen Studio e mostra os MODs de cada slot. `--confere script.gpc` diz qual slot guarda exatamente o `Config_Inicial` daquele script |
+| `ferramentas/testa_copia.js` | copiar e colar um MOD: a cópia é independente, o ZETA acompanha o MOD e não o número, e a lista não ganha buraco |
 | `ferramentas/testa_importa.js` | o lado app da verificação do importador: gera MODs pelo `spvars()` e importa o `.znbk` que o portão monta |
 | `ferramentas/tira_foto.js` | renderiza o app e fotografa uma seção, para revisão visual |
 | `ferramentas/publicado.json` | o SHA-256 da última publicação. É com ele que o `embutir.py` recusa republicar conteúdo novo sob a mesma versão |
@@ -661,7 +662,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.19**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.20**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -1048,6 +1049,37 @@ e um aumento se aplicaria de novo a cada rodada. O traço original está agora e
 `ferramentas/oled/traco.png`, recuperado do canal vermelho do ícone da 1.0.17 e conferido:
 com `ESCALA = 1` ele devolve aquele ícone pixel a pixel.
 
+### 1.0.20 — copiar e colar um MOD (15/11/2026)
+
+**O script não mudou**, só o `DS_VERSAO`.
+
+Pedido do Daniel: muitos MODs de um jogo são quase iguais, e refazer cada um do zero para
+mudar dois campos é o tipo de trabalho que o app existe para tirar. **Copiar este MOD**
+fica ao lado do Apagar, no fim da tela do MOD; **Colar MOD copiado** aparece na tela do
+jogo enquanto houver algo copiado, e serve para o mesmo jogo ou para outro.
+
+A versão ingênua — `j.mods[k] = COPIA` — tem quatro defeitos, nenhum dos quais dá erro:
+
+1. **Cópia e original seriam o mesmo objeto.** Editar um editaria o outro. A cópia é um
+   clone tirado na hora de copiar, e cada colagem é outro clone: o que se cola é o MOD
+   como estava *ao copiar*, mesmo que o original tenha mudado depois.
+2. **O ZETA por número aponta para o MOD errado** se alguém apagar ou reordenar entre
+   copiar e colar. A cópia guarda os próprios MODs-alvo e, na colagem, pergunta em que
+   posição cada um está hoje. Alvo apagado sai, e a colagem avisa.
+3. **Em outro jogo o ZETA não vai.** Lá os mesmos números são outros MODs. A colagem diz
+   quantas relações ficaram para trás.
+4. **A lista não pode ter buraco** (ver *Apagar um MOD*). A cópia entra sempre na primeira
+   vaga; com os 20 MODs usados o botão fica desligado e a tela diz por quê.
+
+A anotação da cópia ganha "(cópia)" no fim, para as duas linhas não ficarem iguais na
+lista. A cópia vive na memória do app e some ao fechá-lo.
+
+**O teste ensinou duas coisas sobre si mesmo.** Das seis sabotagens que fiz no app, duas
+*passaram*: copiar sem clonar (faltava mexer no original entre copiar e colar) e levar o
+ZETA para outro jogo (o jogo de destino era vazio, e num jogo vazio nenhum alvo existe —
+o número só engana onde há um MOD naquela posição). Consertado o teste, as seis reprovam.
+O portão foi a **21 verificações**.
+
 ### O que continua em aberto, e não impede nada
 
 0. **Deletar um MOD grava dezenas de SPVARs numa única volta do `main`.** Medido no
@@ -1074,6 +1106,6 @@ com `ESCALA = 1` ele devolve aquele ícone pixel a pixel.
 python3 ferramentas/embutir.py
 ```
 
-Ele audita a estrutura **e** roda o portão de comportamento: 20
+Ele audita a estrutura **e** roda o portão de comportamento: 21
 verificações, cada uma conferida contra uma sabotagem deliberada. Se
 fechar, não publicou nada.

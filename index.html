@@ -161,7 +161,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.19";
+const string DS_VERSAO    = "D-Sig 1.0.20";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -6229,7 +6229,29 @@ function telaJogo(A){
   var bm=document.createElement('button');bm.className=modo==='mover'?'btn pri':'btn';
   bm.textContent=modo==='mover'?'Concluir reordenação':'Reordenar MODs';
   bm.onclick=function(){modo=modo==='mover'?'':'mover';render()};
-  r3.appendChild(bm);A.appendChild(r3);
+  r3.appendChild(bm);
+  if(COPIA){
+    var bp=document.createElement('button');bp.className='btn';
+    var vg=vagaMod(j);
+    bp.textContent='Colar MOD copiado';
+    bp.setAttribute('aria-label','Colar o '+COPIA.de+' copiado');
+    if(vg<0){bp.disabled=true;bp.style.opacity='.4'}
+    else bp.onclick=function(){
+      var c=colaMod(j);if(!c)return;
+      grava(D);
+      if(c.semZeta)alert(c.semZeta+' relação(ões) ZETA do MOD copiado não vieram junto: '+
+        (COPIA.jogo===j?'os MODs para onde apontavam foram apagados.'
+          :'elas apontam para MODs do jogo de origem, que aqui são outros.')+
+        '\n\nConfira a seção ZETA do MOD colado.');
+      md=c.i;tela='mod';render()};
+    r3.appendChild(bp);
+  }
+  A.appendChild(r3);
+  if(COPIA){var pc2=document.createElement('p');pc2.className='hint';
+    pc2.textContent=vagaMod(j)<0
+      ?'Copiado: '+COPIA.de+'. Este jogo já tem os '+NMOD+' MODs — apague um para poder colar.'
+      :'Copiado: '+COPIA.de+'. Colar cria o MOD_'+String(vagaMod(j)+1).padStart(2,'0')+' e abre para editar.';
+    A.appendChild(pc2)}
   var pm=document.createElement('p');pm.className='hint';
   pm.textContent='A ordem decide o desempate quando dois MODs se bloqueiam. Mantenha igual à do Cronus.';
   if(modo==='mover')A.appendChild(pm);
@@ -6388,7 +6410,16 @@ function telaMod(A){
     if(!arm2){arm2=1;bl.textContent='Tocar de novo para apagar';bl.style.borderColor='var(--verm)';
       bl.style.color='var(--verm)';setTimeout(function(){if(arm2){arm2=0;
       bl.textContent='Apagar este MOD';bl.style.borderColor='';bl.style.color=''}},4000);return}
-    apagarMod(j,md);grava(D);tela='jogo';render()};r.appendChild(bl);A.appendChild(r)}
+    apagarMod(j,md);grava(D);tela='jogo';render()};r.appendChild(bl);
+  // Copiar so existe para MOD configurado: de um MOD em branco nao ha o que levar.
+  if(nomeMod(j,md)){
+    var bc=document.createElement('button');bc.className='btn';bc.textContent='Copiar este MOD';
+    var hc=document.createElement('p');hc.className='hint';hc.setAttribute('role','status');
+    bc.onclick=function(){copiaMod(j,md);bc.textContent='Copiado ✓';
+      hc.textContent='Copiado. Volte à tela do jogo — este ou outro — e toque em '+
+        '"Colar MOD copiado". A cópia entra na primeira vaga da lista.'};
+    r.appendChild(bc);A.appendChild(r);A.appendChild(hc)}
+  else A.appendChild(r)}
 
 // APAGAR UM MOD, com a MESMA semantica do script. Ate a 1.0e isto era
 // `j.mods[md]=modVazio()`, e as consequencias foram medidas, nao supostas:
@@ -6405,6 +6436,50 @@ function telaMod(A){
 //  3. NAO SAIA DA TELA. Ficava no editor do MOD, agora em branco, com o titulo ainda
 //     dizendo "MOD_10". Funcionava e parecia nao funcionar — foi assim que o bug foi
 //     relatado como "a funcao de deletar nao esta respondendo".
+// COPIAR E COLAR UM MOD (1.0.20).
+// Muitos MODs de um jogo sao quase iguais; copiar um e mexer em dois campos e o caminho
+// natural. A copia fica na memoria do app (some ao fechar) e pode ser colada no mesmo
+// jogo ou em outro, quantas vezes se quiser. Quatro cuidados, cada um contra um defeito
+// que a versao ingenua — "j.mods[k] = COPIA" — teria:
+//
+//  1. A COPIA E INDEPENDENTE. E um clone tirado NA HORA de copiar, e cada colagem e outro
+//     clone. Sem isso o original e a copia seriam o mesmo objeto, e editar um editava o
+//     outro; e o que se colasse seria o MOD como esta agora, nao como estava ao copiar.
+//  2. O ZETA E GUARDADO POR MOD, NAO POR NUMERO. Entre copiar e colar da para apagar ou
+//     reordenar MODs, e o numero guardado passaria a apontar para outro. A copia guarda
+//     os PROPRIOS MODs-alvo, e na colagem pergunta em que posicao cada um esta hoje;
+//     alvo que foi apagado simplesmente sai.
+//  3. EM OUTRO JOGO O ZETA NAO VAI. La os numeros apontariam para MODs que nao tem nada
+//     a ver. A colagem avisa quantas relacoes ficaram para tras.
+//  4. COLA NA PRIMEIRA VAGA, e nao no fim nem onde o usuario escolher: a lista nao pode
+//     ter buraco (ver apagarMod, abaixo). Sem vaga — 20 MODs — nao cola e diz por que.
+//     Relacao perdida de outro MOD que ainda apontasse para a vaga e limpa, para nao
+//     passar a apontar para a copia sem ninguem ter pedido.
+var COPIA=null;
+function copiaMod(j,i){
+  var m=j.mods[i], alvos={};
+  ['excl','assoc','bloq'].forEach(function(r){alvos[r]=m[r].map(function(t){return j.mods[t]})});
+  COPIA={mod:JSON.parse(JSON.stringify(m)),jogo:j,alvos:alvos,
+    de:'MOD_'+String(i+1).padStart(2,'0')+(j.nome?' de '+j.nome:'')}}
+function vagaMod(j){for(var k=0;k<NMOD;k++)if(!nomeMod(j,k))return k;return -1}
+// Devolve {i: posicao onde colou, semZeta: relacoes que nao vieram} ou null se nao colou.
+function colaMod(j){
+  if(!COPIA)return null;
+  var k=vagaMod(j);
+  if(k<0)return null;
+  var m=JSON.parse(JSON.stringify(COPIA.mod)), fora=0;
+  var mesmo=(COPIA.jogo===j&&D.jogos.indexOf(j)>=0);
+  ['excl','assoc','bloq'].forEach(function(r){var v=[];
+    COPIA.alvos[r].forEach(function(o){
+      var t=mesmo?j.mods.indexOf(o):-1;
+      if(t>=0&&t!==k&&nomeMod(j,t)&&v.indexOf(t)<0)v.push(t);else fora++});
+    m[r]=v});
+  if(m.nota&&!/\(cópia\)$/.test(m.nota))m.nota+=' (cópia)';
+  j.mods.forEach(function(o){['excl','assoc','bloq'].forEach(function(r){
+    if(o[r].indexOf(k)>=0)o[r]=o[r].filter(function(t){return t!==k})})});
+  j.mods[k]=normMod(m,k);
+  return{i:k,semZeta:fora}}
+
 function apagarMod(j,i){
   // as relacoes: fora o apagado, e quem estava acima desce um
   j.mods.forEach(function(o){['excl','assoc','bloq'].forEach(function(r){
