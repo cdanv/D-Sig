@@ -24,6 +24,7 @@ int SCREEN=0, CLS=0, PRINTS=0;
 long NGET=0, NSET=0;
 void gpc_init(void); void gpc_main(void); int Switch_Mode(int m);
 int Get_F1_Excl(int n); int Get_F1_Assoc(int n); int Get_F1_Bloq(int n);
+int Get_Fin(int n); int Get_Blok(int n);
 extern int Total_Inst, MenuDin, MenuCursor;
 
 #define L2 1
@@ -43,7 +44,11 @@ static void imprime(const char *rot){
   int n;
   for(n=1;n<=21;n++){
     int e=Get_F1_Excl(n), a=Get_F1_Assoc(n), b=Get_F1_Bloq(n);
-    if(e||a||b) printf("%s slot=%02d excl=%d assoc=%d bloq=%d\n", rot, n, e, a, b);
+    /* 1.0.18: o FINALIZA e o BLOK tambem sao por slot e tambem tem de acompanhar o MOD.
+       Ficavam de fora desta fotografia, e por isso o portao aprovou durante oito versoes
+       um delete que deixava os dois para tras. */
+    int fi=(n<=20)?Get_Fin(n):0, bk=(n<=20)?Get_Blok(n):0;
+    if(e||a||b||fi||bk) printf("%s slot=%02d excl=%d assoc=%d bloq=%d fin=%d blok=%d\n", rot, n, e, a, b, fi, bk);
   }
   printf("%s TOTAL=%d\n", rot, Total_Inst);
 }
