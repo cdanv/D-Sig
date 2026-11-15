@@ -101,8 +101,9 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.18.** Corrige quatro defeitos de comportamento achados numa auditoria feita
-só no simulador — a lista está no [`LEIAME.md`](LEIAME.md). **Esta versão ainda não passou
+**Versão 1.0.19.** O script é o da 1.0.18, que corrige quatro defeitos de comportamento
+achados numa auditoria feita só no simulador — a lista está no [`LEIAME.md`](LEIAME.md); a
+1.0.19 mexe só no app (o voltar do Android e o ícone). **O script ainda não passou
 pelo compilador do Zen Studio nem pelo aparelho**: antes de confiar nela, faça o Build e
 confira 0 erros e 0 avisos.
 

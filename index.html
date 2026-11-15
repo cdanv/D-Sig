@@ -161,7 +161,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.18";
+const string DS_VERSAO    = "D-Sig 1.0.19";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -6004,6 +6004,36 @@ function chk(v,cb){var b=document.createElement('button');b.className='btn sm';
 // voltava ao topo da pagina a cada campo alterado. Se a tela e a mesma, o foco volta ao
 // controle que ocupa a mesma posicao — e so se ele for do mesmo tipo, para nao pousar em
 // outro campo quando a alteracao acrescentou ou tirou linhas acima.
+// 1.0.19: O VOLTAR DO SISTEMA. A navegacao do app era so uma variavel (tela) e nunca
+// entrava no historico do navegador: para o Android havia UMA pagina, e o gesto ou o
+// botao de voltar saia dela — fechava o app, de qualquer tela. Agora cada nivel de tela
+// e uma entrada do historico:
+//     0  lista de jogos        1  jogo / exportar / informacoes        2  MOD / codigo
+// O render() mantem o historico na profundidade da tela (empurra ao descer, recua ao
+// subir pelo "‹" do app), e o voltar do sistema chega como popstate e sobe um nivel.
+// Na lista de jogos nao ha entrada para voltar: ali o voltar fecha o app, como deve.
+// HIST e a profundidade que o historico tem; _histEsp conta os recuos pedidos por nos,
+// cujo popstate nao e um voltar do usuario. Enquanto ha um recuo em curso nada e
+// empurrado — history.go() e assincrono, e empurrar no meio dele pousaria no lugar errado.
+var HIST=0, _histEsp=0;
+function profTela(){return tela==='cat'?0:(tela==='mod'||tela==='cod')?2:1}
+function sobeTela(){tela=(tela==='mod'||tela==='cod')?'jogo':'cat';modo=''}
+function histSync(){
+  if(_histEsp)return;
+  var p=profTela();
+  try{
+    while(HIST<p){HIST++;history.pushState({d:HIST},'')}
+    if(HIST>p){var n=HIST-p;HIST=p;_histEsp++;history.go(-n)}
+  }catch(e){}}
+try{HIST=(history.state&&typeof history.state.d==='number')?history.state.d:0;
+  if(!HIST)history.replaceState({d:0},'')}catch(e){}
+window.addEventListener('popstate',function(ev){
+  var d=(ev.state&&typeof ev.state.d==='number')?ev.state.d:0;
+  HIST=d;
+  if(_histEsp){_histEsp--;histSync();return}     // recuo nosso: so acerta a conta
+  if(d>profTela()){histSync();return}            // "avancar": a tela de la nao existe mais
+  while(profTela()>d)sobeTela();
+  render()});
 var FOCAVEL='select,input,textarea,button';
 var _telaAnt='';
 function render(){
@@ -6019,6 +6049,7 @@ function render(){
   else if(tela==='cod')telaCod(A);
   else if(tela==='dados')telaDados(A);
   else if(tela==='info')telaInfo(A);
+  histSync();
   if(pos>=0){var novo=A.querySelectorAll(FOCAVEL)[pos];
     if(novo&&novo.tagName===tag&&!novo.disabled){
       try{novo.focus({preventScroll:true})}catch(e){novo.focus()}}}

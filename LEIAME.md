@@ -661,7 +661,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.18**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.19**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -1022,6 +1022,31 @@ delete, 2 na troca), e a dos nomes ganhou os casos de acento, de `/*` e de anota
 global reescrita por uma chamada, ou estado por slot esquecido numa cópia. O TURBO, que é
 a parte mais intrincada, bateu com um modelo independente em 160 configurações
 aleatórias de 160.
+
+### 1.0.19 — o voltar do Android e o ícone (15/11/2026)
+
+**O script não mudou**, só o `DS_VERSAO`, pela regra do `sw.js`.
+
+**O voltar do sistema fechava o app, de qualquer tela.** A navegação era uma variável
+(`tela`) e nunca entrava no histórico do navegador: para o Android havia uma página só, e
+voltar saía dela. Agora cada nível de tela é uma entrada do histórico — lista de jogos (0),
+jogo / exportar / informações (1), MOD / código (2). O `render()` mantém o histórico na
+profundidade da tela, e o voltar do sistema sobe um nível, igual ao `‹` do app. Na lista
+de jogos continua fechando, que é o certo. Conferido no Chromium, não num Android: descer
+até um MOD e voltar três vezes passa por MOD → jogo → lista; alternar entre o `‹` e o
+voltar do sistema não deixa entrada sobrando.
+
+**O desenho do ícone cresceu 22%** e foi centrado (estava 24 px à esquerda). No maskable —
+o que o Android põe na tela inicial — o desenho ia a 32% do lado e foi a 45%; a tinta
+chega a 29% do centro, com a zona segura em 40%, e o `icone.py` reprova se passar. O
+deslocamento dos três canais cresceu **na mesma proporção** do traço: é a razão entre os
+dois que faz o prisma, e crescer só o traço afinaria a franja colorida.
+
+O gerador deixou de ler o traço do ícone publicado. O branco do ícone é a *interseção* das
+três cópias, mais fina que o traço — cada geração a partir da anterior afinava o desenho,
+e um aumento se aplicaria de novo a cada rodada. O traço original está agora em
+`ferramentas/oled/traco.png`, recuperado do canal vermelho do ícone da 1.0.17 e conferido:
+com `ESCALA = 1` ele devolve aquele ícone pixel a pixel.
 
 ### O que continua em aberto, e não impede nada
 
