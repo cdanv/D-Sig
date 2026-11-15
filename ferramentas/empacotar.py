@@ -87,7 +87,7 @@ BANCADA = [
     'embutir.py', 'limpar.py', 'empacotar.py', 'verificar_gpc.py',
     'testa_sim.py', 'testa_tabelas.py', 'testa_doc.py',
     'testa_a11y.js', 'testa_dom.js', 'tira_foto.js',
-    'decodifica.py', 'testa_importa.js',
+    'decodifica.py', 'testa_importa.js', 'testa_copia.js',
     'sim_gera.js', 'gera_molde.py', 'sim_cfg.json', 'sim_cfg_vazio.json',
     'publicado.json', 'sim_hash.json',
 ]
@@ -126,7 +126,7 @@ def monta(dest):
             shutil.copy2(o, os.path.join(dest, 'ferramentas', f))
         else:
             faltou.append(f)
-    for f in ('padrao.py', 'png2gpc.py'):
+    for f in ('padrao.py', 'png2gpc.py', 'icone.py', 'traco.png'):
         o = os.path.join(OLED, f)
         if os.path.isfile(o):
             shutil.copy2(o, os.path.join(dest, 'ferramentas', 'oled', f))

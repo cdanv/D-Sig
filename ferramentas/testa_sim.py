@@ -387,6 +387,22 @@ try:
                   _rd.returncode == 0,
                   (_rd.stdout or _rd.stderr or '').strip().split('\n')[-1][:90])
 
+            # --- COPIAR E COLAR um MOD (1.0.20) ------------------------------
+            # A copia tem quatro jeitos de sair errada sem dar erro nenhum: ser o mesmo
+            # objeto que o original, levar o ZETA por numero (que muda ao apagar ou
+            # reordenar), levar o ZETA para outro jogo, e abrir buraco na lista. O
+            # testa_copia.js confere os quatro e o caminho pelos botoes; cada conferencia
+            # foi provada contra o app sabotado — duas delas so depois de consertado o
+            # proprio teste, que aprovava a sabotagem.
+            _rc = roda(['node', os.path.join(AQUI, 'testa_copia.js'), app_tmp, CFG], cwd=AQUI)
+            _lc = (_rc.stdout or _rc.stderr or '').strip().split('\n')
+            passo('copiar e colar um MOD nao altera o original nem o ZETA',
+                  _rc.returncode == 0,
+                  ('%d conferencias' % sum(1 for _x in _lc if _x.strip().startswith('ok'))
+                   if _rc.returncode == 0 else
+                   '; '.join(_x.strip()[5:70] for _x in _lc if _x.strip().startswith('NAO'))[:150]
+                   or _lc[-1][:120]))
+
             # --- as TABELAS, valor por valor ---------------------------------
             # O app grava um INDICE e o script traduz em milissegundos. Se as tabelas
             # discordarem, o app mostra "150ms", o Cronus aplica outra coisa, e NENHUM
