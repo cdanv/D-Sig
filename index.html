@@ -11,7 +11,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="D-Sig">
-<link rel="apple-touch-icon" href="./icone-192.png">
+<link rel="icon" type="image/png" href="./icone-192.png?v=1.0.25">
+<link rel="apple-touch-icon" href="./icone-192.png?v=1.0.25">
 <style>
 :root{
   --bg:#0d1117; --panel:#151b23; --panel2:#1c242e; --line:#2a3440;
@@ -34,6 +35,8 @@ header{position:sticky;top:0;z-index:20;background:var(--bg);
   border-bottom:1px solid var(--line);padding:14px 16px;
   display:flex;align-items:center;gap:12px}
 header h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.01em;flex:1}
+/* O logo so aparece na tela inicial, no lugar que o botao de voltar ocupa nas outras. */
+#logo{width:34px;height:34px;border-radius:8px;flex:none;display:block}
 header .sub{font-size:13px;color:var(--dim);font-weight:400}
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;
@@ -119,6 +122,7 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 <body>
 <header>
   <button class="btn sm" id="volta" style="display:none" aria-label="Voltar">‹</button>
+  <img id="logo" src="./icone-192.png?v=1.0.25" alt="" width="34" height="34">
   <h1 id="titulo">D-Sig<span class="sub" id="subtitulo"></span></h1>
 </header>
 <div class="wrap" id="app"></div>
@@ -161,7 +165,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.24";
+const string DS_VERSAO    = "D-Sig 1.0.25";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -6287,6 +6291,7 @@ function render(){
   _telaAnt=chave;
   A.innerHTML='';
   $('volta').style.display=tela==='cat'?'none':'block';
+  $('logo').style.display=tela==='cat'?'block':'none';
   if(tela==='cat')telaCat(A);
   else if(tela==='jogo')telaJogo(A);
   else if(tela==='mod')telaMod(A);

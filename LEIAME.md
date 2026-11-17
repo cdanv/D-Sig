@@ -663,7 +663,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.24**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.25**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -1196,6 +1196,25 @@ Acima disso (2,6%) o miolo branco do raio some.
 
 O traço deixou de ser um PNG sem fonte. Ele sai agora do `ferramentas/oled/traco.py`, com
 cada medida num parâmetro; o `icone.py` continua aplicando as cores sobre ele.
+
+### 1.0.25 — o ícone que não atualizava (17/11/2026)
+
+**O script não mudou**, só o `DS_VERSAO`.
+
+O Daniel publicou a 1.0.24, mandou atualizar e não viu diferença. Dois motivos, nenhum
+deles no desenho:
+
+1. **O logo não aparecia em lugar nenhum dentro do app.** Ele só existia como ícone da
+   tela inicial; o cabeçalho era texto. Atualizar o app trocava tudo menos a única coisa
+   que ele foi olhar. Agora o logo fica no cabeçalho da tela inicial e na aba do navegador.
+2. **O ícone trocou três vezes com o mesmo nome de arquivo.** O Android só refaz o ícone
+   da tela inicial quando o `manifest.json` muda, e um manifest que aponta para o mesmo
+   `icone-512.png` não mudou. O `embutir.py` passou a pôr a versão no endereço
+   (`icone-512.png?v=1.0.25`) no manifest, no `sw.js` e no `index.html`.
+
+O que isso **não** resolve: o Android confere o manifest de um app instalado no máximo
+uma vez por dia, e troca o ícone depois, quando o aparelho está ocioso. Desinstalar e
+instalar de novo troca na hora.
 
 ### O que continua em aberto, e não impede nada
 

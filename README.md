@@ -105,11 +105,11 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.24.** Desde a 1.0.17 o script mudou três vezes, todas só no simulador: a
+**Versão 1.0.25.** Desde a 1.0.17 o script mudou três vezes, todas só no simulador: a
 1.0.18 corrige quatro defeitos de comportamento, a 1.0.21 muda como o **disparo único**
 (TURBO de ciclos contados sem ALFA) responde ao gatilho, e a 1.0.23 traz o **gatilho que
 enxerga o DELTA** de outro MOD — a lista está no [`LEIAME.md`](LEIAME.md). A 1.0.19, a
-1.0.20, a 1.0.22 e a 1.0.24 mexem só no app e no ícone. **O script ainda não passou
+1.0.20, a 1.0.22, a 1.0.24 e a 1.0.25 mexem só no app e no ícone. **O script ainda não passou
 pelo compilador do Zen Studio nem pelo aparelho**: antes de confiar nela, faça o Build e
 confira 0 erros e 0 avisos.
 

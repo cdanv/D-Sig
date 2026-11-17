@@ -404,6 +404,24 @@ if atual.group(1) != CACHE:
 else:
     print(f'  sw.js    : {CACHE} (ja estava)')
 
+# --- 5b. os ICONES levam a versao no endereco --------------------------------------
+# O icone trocou tres vezes com o MESMO nome de arquivo (icone-512.png), e o Daniel
+# relatou que "mandou atualizar e nao deu diferenca". Com o endereco igual, o navegador
+# e o Android nao tem motivo para buscar a imagem de novo: o Chrome so refaz o icone da
+# tela inicial quando o manifest MUDA, e um manifest que aponta para o mesmo arquivo nao
+# mudou. Com "?v=1.0.25" no endereco, cada publicacao e um endereco novo — o manifest
+# muda, o cache HTTP nao serve a imagem velha e o service worker a guarda como outra.
+# Vale para o manifest.json, o sw.js e o index.html, e sai do mesmo DS_VERSAO.
+_VQ = '?v=%d.%d.%d' % NUM
+_ICO = re.compile(r'(icone-(?:192|512|maskable)\.png)(\?v=[0-9.]+)?')
+for _arq in (os.path.join(RAIZ, 'manifest.json'), SW, APP):
+    _t = open(_arq, encoding='utf-8').read()
+    _n = _ICO.sub(lambda m: m.group(1) + _VQ, _t)
+    assert _ICO.search(_n), f'nenhum icone referenciado em {_arq}'
+    if _n != _t:
+        open(_arq, 'w', encoding='utf-8').write(_n)
+print(f'  icones   : enderecos com {_VQ} no manifest.json, no sw.js e no index.html')
+
 json.dump({'versao': VERSAO, 'sha256': sha}, open(REG, 'w'), indent=2)
 
 print(f'  fonte    : {FONTE:18s} {bruto.count(chr(10))+1:6d} linhas  {len(bruto):7d} bytes')
