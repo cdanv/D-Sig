@@ -593,6 +593,17 @@ try:
                       dst=[8, 0, 0, 0], assoc=[5])
                 _dmod(7, gTog=14, tipo=2, ciclos=1, lat=0, tmp=[5, 3, 3, 3],  # RIGHT: L1 250 ms
                       dst=[1, 0, 0, 0])
+                # item 10 (gatilho que enxerga o DELTA), no mesmo script. E o caso do Tomb
+                # Raiden: uma "mira" STATIC que um AFTER no R2 deve derrubar, e um "tiro"
+                # que escreve o R2 sem ninguem apertar o R2.
+                _dmod(8, tipo=1, gTog=15, gAfter=5, gAfterT=0, finAfter=1,   # TOUCH liga; AFTER R2 FIN
+                      veAfter=1, dst=[2, 0, 0, 0])                            # ... ENXERGANDO o DELTA -> L2
+                _dmod(9, gTog=6, tipo=2, ciclos=1, lat=0, tmp=[4, 3, 3, 3],  # R3: R2 por 150 ms
+                      dst=[5, 0, 0, 0])
+                _dmod(10, tipo=1, gTog=15, gAfter=5, gAfterT=0, finAfter=1,  # o CONTROLE: igual ao 09,
+                      dst=[3, 0, 0, 0])                                       # sem a opcao -> L3
+                _dmod(11, tipo=1, gHold=15, gHoldT=0, gTog=4, finTog=1,      # o proprio destino (R1) no
+                      veTog=1, dst=[4, 0, 0, 0])                              # TOGGLE FIN: nao pode se ver
                 _dc = os.path.join(tmp, 'direct.json')
                 json.dump(_dj, open(_dc, 'w', encoding='utf-8'))
                 _dg = os.path.join(tmp, 'direct.gpc')
@@ -658,6 +669,27 @@ try:
                     passo('o disparo unico nao arma, nao retoma e reinicia no 2o toque',
                           not _difu, '; '.join(_difu) if _difu else
                           'toque vetado descartado, interrompido nao volta, 2o toque reinicia')
+
+                    # --- 10. o gatilho que ENXERGA O DELTA (1.0.23) -----------
+                    # TOUCH=14 aos 500 liga as tres "miras" (L2=1, L3=2, R1=3). R3=5 aos
+                    # 1000 dispara o "tiro": R2=4 por 150 ms, sem R2 fisico. Entao:
+                    #   a) a mira COM a opcao cai 50 ms depois de o R2 do tiro acabar, mais a
+                    #      volta de atraso com que o gatilho ve o DELTA;
+                    #   b) a mira SEM a opcao continua de pe — e o comportamento de sempre;
+                    #   c) a que tem o TOGGLE em FINALIZA no PROPRIO destino nao se derruba.
+                    # Provado contra o script da 1.0.22, que ignora a opcao e reprova em (a).
+                    _tv = _du('500 14 100\n600 14 0\n1000 5 100\n1050 5 0\nEND 2500\n', [1, 2, 3, 4])
+                    _espv = {'4': [(0, 0), (1000, 100), (1150, 0)],
+                             '1': [(0, 0), (500, 100), (1210, 0)],
+                             '2': [(0, 0), (500, 100)],
+                             '3': [(0, 0), (550, 100)]}
+                    _difv = ['%s: %s' % (_n, ' '.join('%d:%d' % x for x in _tv[_k]))
+                             for _k, _n in (('4', 'R2 do tiro'), ('1', 'mira que enxerga'),
+                                            ('2', 'mira de controle'), ('3', 'proprio destino'))
+                             if _tv[_k] != _espv[_k]]
+                    passo('o gatilho marcado enxerga o DELTA de outro MOD, e so ele',
+                          not _difv, '; '.join(_difv) if _difv else
+                          'AFTER ve o R2 escrito; o de controle nao; o proprio DELTA nao conta')
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

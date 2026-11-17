@@ -28,7 +28,7 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado. É o único arquivo que se edita à mão** |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
 | `ferramentas/limpar.py` | o removedor de comentários e a lista das 11 âncoras que o app usa |
-| `ferramentas/testa_sim.py` | o portão de comportamento: 22 verificações que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão de comportamento: 23 verificações que **executam** o script |
 | `ferramentas/gera_molde.py` | **gera o molde sintético do portão** e declara os 34 itens de cobertura que ele tem de sustentar |
 | `ferramentas/testa_tabelas.py` | confere tabela por tabela entre o app e o script, por valor |
 | `ferramentas/testa_a11y.js` | nome acessível e alvo de toque, no Chromium de verdade |
@@ -284,8 +284,9 @@ ele que o `init` chamava nos dois pontos que causavam a pane.
 
 ## O que não é gravado na EEPROM
 
-Três variáveis vivem em RAM: as relações **ZETA**, o botão do **GAMA
-BLOK** e o **modo FINALIZA** dos gatilhos.
+Quatro coisas vivem em RAM: as relações **ZETA**, o botão do **GAMA
+BLOK**, o **modo FINALIZA** dos gatilhos e, desde a 1.0.23, a opção de um
+gatilho **enxergar o DELTA** de outro MOD.
 
 Se o script vier do app, eles são reaplicados a cada boot — a
 configuração do app funciona como o padrão deles. Configurando só
@@ -662,7 +663,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.22**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.23**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -1137,6 +1138,51 @@ mais limpo e com um raio no lugar do pulso. Ficou o D, um raio sólido dentro de
 entrada e uma saída. As outras duas versões estão em `ferramentas/oled/`
 (`traco-alternativa.png`, só o D e o raio; `traco-roteador.png`, o da 1.0.21).
 
+### 1.0.23 — o gatilho que enxerga o DELTA (16/11/2026)
+
+**O script mudou, e não passou pelo Zen Studio nem pelo aparelho.**
+
+O caso veio do Tomb Raiden do Daniel. A "Mirar arma" trava o L2 e tem um AFTER no R2 em
+FINALIZA, para a mira cair depois do tiro. Só que o tiro é outro MOD: um toque no TOUCH
+escreve R2 por 150 ms. Todo gatilho do GAMA lê o botão **físico**, o R2 do tiro nunca
+passou pelo dedo, e a mira ficava de pé.
+
+Fazer todo gatilho enxergar o que os MODs escrevem quebraria os jogos que existem: no FIFA
+o L1 do "Mudar jogador" dispararia a "Enfiada"; no Mad Max a mira, que escreve L1 e tem um
+TOGGLE no L1 em FINALIZA, se encerraria sozinha. Por isso é uma **opção por gatilho**:
+no app, cada gatilho ganhou o campo `· enxerga`, com `FISICO` (o padrão, igual a antes) e
+`FISICO + DELTA`.
+
+- **Onde mora.** Nos bits 4 a 7 do mesmo número que guarda o FINALIZA (`Fin_NN`, bits 0 a
+  3), na mesma ordem: 2CLK, TOGGLE, HOLD, AFTER. Nenhum bit de EEPROM e nenhuma variável
+  por MOD. Vive em RAM, o app a reaplica a cada boot pelo `Zeta_Fin`, e leva a etiqueta RAM.
+  Pelo OLED não aparece; o menu do aparelho carrega e devolve o número inteiro, então a
+  preserva.
+- **O que o gatilho vê.** O botão físico **ou** o que os MODs escreveram nele na volta
+  anterior. Uma volta de atraso, 10 ms. O 2CLK e o HOLD usam a borda e o tempo de aperto do
+  sinal combinado, não os do físico.
+- **Um MOD nunca enxerga o próprio DELTA.** Se o botão do gatilho é destino do próprio
+  MOD, a opção é ignorada naquele gatilho, e o app avisa. A regra é pela configuração, não
+  por quem escreveu de fato: o acumulador guarda o maior valor, não o autor.
+- **TOUCH e SHARE ficam de fora**, porque nenhum MOD escreve neles. O BLOK e o espelho do
+  DIRECT sem ALFA continuam lendo só o físico.
+- **O custo por volta é zero para quem não usa.** Uma máscara estática diz quais MODs têm
+  a opção; os outros não consultam nada a mais, e o fechamento da volta sai na primeira
+  linha. O hash de comportamento do molde não mudou.
+
+**O selo dos jogos não muda.** As quatro chaves novas (`ve2clk`, `veTog`, `veHold`,
+`veAfter`) só existem no MOD em que a opção foi marcada: não estão no `modVazio()` e a
+normalização não as cria. Uma chave nova em todo MOD mudaria o selo de todo jogo e faria o
+Cronus reaplicar a configuração por cima do que foi ajustado no aparelho. Conferido nos
+seis jogos do Daniel: mesmos selos; marcar e desmarcar a opção devolve o selo original.
+
+Medido no Tomb Raiden com o AFTER da mira em `FISICO + DELTA`: toque no TOUCH, R2 por
+150 ms, e o L2 da mira cai 60 ms depois de o R2 terminar (os 50 ms do AFTER mais a volta
+de atraso). O R2 físico continua derrubando a mira como antes.
+
+O portão foi a **23 verificações**. A nova monta a mira, o tiro, uma mira de controle sem
+a opção e uma com o gatilho no próprio destino, e reprova no script da 1.0.22.
+
 ### O que continua em aberto, e não impede nada
 
 0. **Deletar um MOD grava dezenas de SPVARs numa única volta do `main`.** Medido no
@@ -1163,6 +1209,6 @@ entrada e uma saída. As outras duas versões estão em `ferramentas/oled/`
 python3 ferramentas/embutir.py
 ```
 
-Ele audita a estrutura **e** roda o portão de comportamento: 22
+Ele audita a estrutura **e** roda o portão de comportamento: 23
 verificações, cada uma conferida contra uma sabotagem deliberada. Se
 fechar, não publicou nada.

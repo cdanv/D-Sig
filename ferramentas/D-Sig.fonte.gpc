@@ -2,7 +2,7 @@
 * D-Sig 1.0 — Sistema Universal de Roteamento de Sinais
 * -----------------------------------------------------------------------------------
 * DISPOSITIVO : Cronus Zen + PlayStation 5 (DualSense)   |   GPC 32-bit
-* VERSAO      : script 1.0.22  |   LAYOUT DE BITS 6   |   app D-Sig (cache dsig-1.0.22)
+* VERSAO      : script 1.0.23  |   LAYOUT DE BITS 6   |   app D-Sig (cache dsig-1.0.23)
 *   Os tres numeros andam separados de proposito. O SCRIPT e a versao deste arquivo. O
 *   LAYOUT e a posicao dos campos dentro dos SPVARs, e so muda quando um campo muda de
 *   lugar ou tamanho — mudar o layout sem mudar o app junto e o unico jeito de este
@@ -227,7 +227,7 @@ const string DS_TITULO    = "D-Sig";   // v3zz
 // a 1.0d gravada mostrar uma letra MAIOR que a do app, e o LEIAME diz que letra maior no
 // aparelho significa app desatualizado — o selo passaria a mentir exatamente na pergunta
 // que ele existe para responder.
-const string DS_VERSAO    = "D-Sig 1.0.22";
+const string DS_VERSAO    = "D-Sig 1.0.23";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -853,6 +853,37 @@ int Est_Tmp              = 0;   // v3za: valor absoluto da fonte no destrave do 
 // e reescreve a Work_A, a Work_C, a Work_D e a Work_N. Ver Run_Instance_v3.
 int Gb_V                 = 0;
 int Gb_N                 = 0;   // quantos gatilhos que LIGAM o Gatilho_Btn_Val achou
+// --- 1.0.23: O GATILHO QUE ENXERGA O DELTA ---------------------------------------------
+// Todo gatilho do GAMA le o botao FISICO. O Daniel configurou, no Tomb Raiden, um AFTER
+// no R2 para derrubar a mira depois do tiro — e o tiro e um MOD (toque no TOUCH -> R2 por
+// 150 ms). O R2 que o jogo ve nunca passou pelo dedo, e a mira ficava de pe. Fazer TODO
+// gatilho enxergar o que os MODs escrevem quebraria os jogos que existem (no FIFA o L1
+// do "Mudar jogador" dispararia a "Enfiada"), entao e uma OPCAO POR GATILHO.
+//
+// ONDE MORA: nos bits 4-7 do Fin_NN, ao lado do FINALIZA (bits 0-3), na mesma ordem do
+// Gatilho_Idx: 4=2CLK 5=TOGGLE 6=HOLD 7=AFTER. Nenhuma variavel nova por MOD e nenhum bit
+// de EEPROM: vive em RAM e o app a reaplica a cada boot pelo Zeta_Fin, como o FINALIZA.
+// Pelo OLED nao se edita; o menu a preserva (carrega e devolve o Fin inteiro).
+//
+// O QUE O GATILHO VE: o botao fisico OU o que os MODs escreveram naquele botao NA VOLTA
+// ANTERIOR (Dv_Agora, fechado no fim do Run_Pipeline). Uma volta de atraso, 10 ms.
+// O MOD NUNCA ENXERGA O PROPRIO DELTA: se o botao do gatilho e um dos destinos do proprio
+// MOD, a opcao e ignorada para aquele gatilho — senao um STATIC com TOGGLE em FINALIZA no
+// proprio destino se encerraria sozinho. A regra e pela CONFIGURACAO (nao por quem
+// escreveu de fato), porque o acumulador guarda o maior valor e nao o autor.
+define SHIFT_VE          = 4;
+int Ve_On                = FALSE;   // o gatilho em avaliacao enxerga o DELTA?
+int Msk_Ve               = 0;       // estatica: MODs com algum gatilho que enxerga o DELTA.
+                                    // E o que poupa os outros MODs de consultar o Fin a cada volta.
+int Ve_Btns              = 0;       // estatica: botoes (indice BTN_BIT) vigiados por algum gatilho
+int Dv_Agora             = 0;       // botoes que os MODs escreveram na volta anterior
+int Cb_Antes             = 0;       // estado combinado (fisico ou DELTA) que a volta anterior viu
+int Ve_I                 = 0;       // contador do Ve_Fechar — dedicado
+int Ve_M                 = 0;
+// Ha quanto tempo cada botao vigiado esta "apertado" no sinal combinado. E o get_ptime
+// do sinal combinado, para o HOLD. So os 14 botoes que podem ser destino (L1..RIGHT).
+int Ct_00=0; int Ct_01=0; int Ct_02=0; int Ct_03=0; int Ct_04=0; int Ct_05=0; int Ct_06=0;
+int Ct_07=0; int Ct_08=0; int Ct_09=0; int Ct_10=0; int Ct_11=0; int Ct_12=0; int Ct_13=0;
    // retorno de Cycle_Mod (máscara seleção)
    // retorno de Cycle_Mod (máscara modo)
 // === Fase 3 — pipeline ===
@@ -3124,10 +3155,123 @@ function Toggle_Inst(num) {
 // Regra: QUALQUER botão marcado, segurado por >= tempo configurado, alterna 1x.
 // ===== V3-e: execução com botão único (substituem as versões com máscara acima quando a
 // execução for reescrita em V3-f/g/h — nomes próprios, não conectadas ao Run_Instance ainda) =====
+function Get_Ct(b) {
+    if(b <= 6) {
+        if(b == 0) return Ct_00;
+        if(b == 1) return Ct_01;
+        if(b == 2) return Ct_02;
+        if(b == 3) return Ct_03;
+        if(b == 4) return Ct_04;
+        if(b == 5) return Ct_05;
+        return Ct_06;
+    }
+    if(b == 7) return Ct_07;
+    if(b == 8) return Ct_08;
+    if(b == 9) return Ct_09;
+    if(b == 10) return Ct_10;
+    if(b == 11) return Ct_11;
+    if(b == 12) return Ct_12;
+    if(b == 13) return Ct_13;
+    return 0;
+}
+function Set_Ct(b, v) {
+    if(b == 0) Ct_00 = v;
+    if(b == 1) Ct_01 = v;
+    if(b == 2) Ct_02 = v;
+    if(b == 3) Ct_03 = v;
+    if(b == 4) Ct_04 = v;
+    if(b == 5) Ct_05 = v;
+    if(b == 6) Ct_06 = v;
+    if(b == 7) Ct_07 = v;
+    if(b == 8) Ct_08 = v;
+    if(b == 9) Ct_09 = v;
+    if(b == 10) Ct_10 = v;
+    if(b == 11) Ct_11 = v;
+    if(b == 12) Ct_12 = v;
+    if(b == 13) Ct_13 = v;
+}
+// O gatilho g do MOD num, no botao de indice b, enxerga o DELTA? Precisa da opcao marcada,
+// de um botao que possa ser destino (0-13: TOUCH e SHARE nenhum MOD escreve), e de o botao
+// NAO ser destino do proprio MOD. O indice de botao e o de destino coincidem de L1 a
+// TRIANGLE (0-9); de UP a RIGHT o destino fica 4 adiante (10-13 -> 14-17).
+// Dst_Mask so mexe nas Cmb_*, que nenhum gatilho usa.
+function Ve_Liga(num, g, b) {
+    if(!((Get_Fin(num) >> (SHIFT_VE + g)) & 1)) return FALSE;
+    if(b > 13) return FALSE;
+    if(b > 9) {
+        if((Dst_Mask(num) >> (b + 4)) & 1) return FALSE;
+    } else {
+        if((Dst_Mask(num) >> b) & 1) return FALSE;
+    }
+    return TRUE;
+}
+// Os tres verbos dos gatilhos, que escolhem entre o fisico e o combinado pelo Ve_On.
+function G_Ler(b) {
+    if(Ve_On && ((Dv_Agora >> b) & 1)) return 100;
+    return Ler_Btn_Fisico(b);
+}
+function G_Press(b) {
+    if(!Ve_On) return Press_Btn_Fisico(b);
+    if((Cb_Antes >> b) & 1) return 0;
+    return G_Ler(b) != 0;
+}
+function G_Ptime(b) {
+    if(!Ve_On) return Ptime_Btn(b);
+    return Get_Ct(b);
+}
+// Fecha a volta: guarda o estado combinado que ESTA volta viu (para a borda e o tempo de
+// aperto da proxima) e so entao troca o Dv_Agora pelo que os MODs acabaram de escrever.
+// Sem nenhum gatilho vigiando (o caso de todo jogo que nao usa a opcao) sai na 1a linha.
+function Ve_Fechar() {
+    if(!Ve_Btns) return;
+    Cb_Antes = 0;
+    Ve_I = 0;
+    while(Ve_I < 14) {
+        if((Ve_Btns >> Ve_I) & 1) {
+            if(Ler_Btn_Fisico(Ve_I) || ((Dv_Agora >> Ve_I) & 1)) {
+                Cb_Antes = Cb_Antes | (1 << Ve_I);
+                Ve_M = Get_Ct(Ve_I) + get_rtime();
+                if(Ve_M > 30000) Ve_M = 30000;
+                Set_Ct(Ve_I, Ve_M);
+            } else {
+                Set_Ct(Ve_I, 0);
+            }
+        }
+        Ve_I++;
+    }
+    Ve_M = 0;
+    if(Acc_00) Ve_M = Ve_M | 1;
+    if(Acc_01) Ve_M = Ve_M | 2;
+    if(Acc_02) Ve_M = Ve_M | 4;
+    if(Acc_03) Ve_M = Ve_M | 8;
+    if(Acc_04) Ve_M = Ve_M | 16;
+    if(Acc_05) Ve_M = Ve_M | 32;
+    if(Acc_06) Ve_M = Ve_M | 64;
+    if(Acc_07) Ve_M = Ve_M | 128;
+    if(Acc_08) Ve_M = Ve_M | 256;
+    if(Acc_09) Ve_M = Ve_M | 512;
+    if(Acc_14) Ve_M = Ve_M | 1024;
+    if(Acc_15) Ve_M = Ve_M | 2048;
+    if(Acc_16) Ve_M = Ve_M | 4096;
+    if(Acc_17) Ve_M = Ve_M | 8192;
+    Dv_Agora = Ve_M;
+}
+// Zera a vigia inteira: troca de dominio e saida do menu (Inicializar_Estado).
+function Ve_Zerar() {
+    Dv_Agora = 0; Cb_Antes = 0; Ve_On = FALSE;
+    Ct_00=0; Ct_01=0; Ct_02=0; Ct_03=0; Ct_04=0; Ct_05=0; Ct_06=0;
+    Ct_07=0; Ct_08=0; Ct_09=0; Ct_10=0; Ct_11=0; Ct_12=0; Ct_13=0;
+}
+// Marca em Ve_Btns o botao do gatilho g do MOD i, se ele enxerga o DELTA (Recalc_Um).
+function Ve_Marcar(i, g, btn) {
+    if(btn == 0) return;
+    if(Ve_Liga(i, g, btn - 1)) Ve_Btns = Ve_Btns | (1 << (btn - 1));
+}
 function Gatilho_HPHOLD_v3(num) {
     Work_A = Get_Gatilho_Hphold_Btn(num);      // 0=nenhum, 1-16=BTN_BIT+1
     if(Work_A == 0) return;
     Work_C = Work_A - 1;                        // índice físico do botão
+    Ve_On = FALSE; if((Msk_Ve >> (num - 1)) & 1) Ve_On = Ve_Liga(num, 2, Work_C);            // 1.0.23
     Work_B = Hphold_Tempo_Ms(Get_Gatilho_Hphold_Tempo(num));
     // v3z8: MODO ATE — o toque curto. Valida na SOLTURA, e so se o botao nao tiver
     // passado do tempo enquanto pressionado. A logica e o espelho do APOS:
@@ -3138,10 +3282,10 @@ function Gatilho_HPHOLD_v3(num) {
     // com o botao segurado ja chega com a janela perdida e a soltura nao vale — que e
     // exatamente o principio que fixamos para os outros tres gatilhos.
     if(Get_Hold_Modo(num)) {
-        Work_D = Ler_Btn_Fisico(Work_C);
+        Work_D = G_Ler(Work_C);
         if(Work_D) {
             Hp_Press = Hp_Press | (1 << (num - 1));
-            if(Ptime_Btn(Work_C) >= Work_B) Hp_Travado = Hp_Travado | (1 << (num - 1));
+            if(G_Ptime(Work_C) >= Work_B) Hp_Travado = Hp_Travado | (1 << (num - 1));
             return;
         }
         if((Hp_Press >> (num - 1)) & 1) {          // acabou de soltar
@@ -3159,7 +3303,7 @@ function Gatilho_HPHOLD_v3(num) {
         return;
     }
     // MODO APOS — comportamento classico, inalterado.
-    if(Ler_Btn_Fisico(Work_C) && Ptime_Btn(Work_C) >= Work_B) {
+    if(G_Ler(Work_C) && G_Ptime(Work_C) >= Work_B) {
         if(!((Hp_Travado >> (num - 1)) & 1)) {
             if(Gatilho_Alterna_G(num, 2)) {
                 Toggle_Inst(num);
@@ -3169,7 +3313,7 @@ function Gatilho_HPHOLD_v3(num) {
             }
             Hp_Travado = Hp_Travado | (1 << (num - 1));
         }
-    } else if(!Ler_Btn_Fisico(Work_C)) {
+    } else if(!G_Ler(Work_C)) {
         Hp_Travado = Hp_Travado & (~(1 << (num - 1)));
     }
 }
@@ -3177,13 +3321,14 @@ function Gatilho_DUPLO_v3(num) {
     Work_A = Get_Gatilho_Duplo_Btn(num);
     if(Work_A == 0) return;
     Work_C = Work_A - 1;
+    Ve_On = FALSE; if((Msk_Ve >> (num - 1)) & 1) Ve_On = Ve_Liga(num, 0, Work_C);   // 1.0.23
     Work_E = Get_Dc(num);
     Work_D = Work_E;
     if(Work_D > 0) {
         Work_D = Work_D - get_rtime();
         if(Work_D < 0) Work_D = 0;
     }
-    if(Press_Btn_Fisico(Work_C)) {
+    if(G_Press(Work_C)) {
         if(Work_D > 0) {
             if(Gatilho_Alterna_G(num, 0)) {
                 Toggle_Inst(num);
@@ -3201,7 +3346,8 @@ function Gatilho_DUPLO_v3(num) {
 function BTN_FN_Finaliza_v3(num) {
     Work_A = Get_Gatilho_Final_Btn(num);
     if(Work_A == 0) return;
-    Work_C = Ler_Btn_Fisico(Work_A - 1);
+    Ve_On = FALSE; if((Msk_Ve >> (num - 1)) & 1) Ve_On = Ve_Liga(num, 1, Work_A - 1);   // 1.0.23
+    Work_C = G_Ler(Work_A - 1);
     if(Work_C) {
         if(!((Fz_Travado >> (num - 1)) & 1)) {
             if(Gatilho_Alterna_G(num, 1)) {
@@ -3219,7 +3365,8 @@ function BTN_FN_Finaliza_v3(num) {
 function BTN_FN_FinalAfter_v3(num) {
     Work_A = Get_Gatilho_FinalAfter_Btn(num);
     if(Work_A == 0) return;
-    Work_C = Ler_Btn_Fisico(Work_A - 1);
+    Ve_On = FALSE; if((Msk_Ve >> (num - 1)) & 1) Ve_On = Ve_Liga(num, 3, Work_A - 1);   // 1.0.23
+    Work_C = G_Ler(Work_A - 1);
     Work_E = Get_Fa(num);
     Work_B = Work_E & 1;
     Work_D = Work_E >> 1;
@@ -3863,6 +4010,7 @@ function Run_Instance_v3(num) {
     Gatilho_DUPLO_v3(num);
     BTN_FN_Finaliza_v3(num);
     BTN_FN_FinalAfter_v3(num);
+    Ve_On = FALSE;   // 1.0.23: daqui em diante todo mundo le o fisico
     // v3zk: a supressao dos gatilhos passou a depender do PASSIVO (ver Suprime_Gatilhos).
     // Continua vindo DEPOIS da deteccao — que usa get_ival e nao e afetada por set_val —
     // e antes de qualquer return, para valer com a instancia ligada ou desligada.
@@ -4136,6 +4284,7 @@ function Set_Fa(num, v) {
 // Inicializa o estado lig/desl de todas as instâncias a partir do INIC
 function Inicializar_Estado() {
     Inst_Ativa = 0;
+    Ve_Zerar();      // 1.0.23
     // D-Sig: UM laco, nao dois. Antes, o primeiro montava Inst_Ativa e zerava a janela do
     // 2CLK, e um segundo, identico, zerava o resto. Podem ser um so porque o unico
     // cruzamento possivel foi conferido: Aplicar_RespOff_Inst pergunta a Inst_Esta_Ativa,
@@ -4950,10 +5099,20 @@ function Recalc_Um(i) {
     else if(Get_Fonte_Tipo(i) != FONTE_NENHUMA) Msk_Livre = Msk_Livre | Rc_B;
     if(Get_F1_Bloq(i)) Msk_Bloq = Msk_Bloq | Rc_B;
     if(Get_F1_Excl(i)) Msk_Excl = Msk_Excl | Rc_B;
+    // 1.0.23: os botoes vigiados pelos gatilhos que enxergam o DELTA. So para MOD que
+    // existe e esta no dominio — fora dele os gatilhos nem rodam.
+    if((Rc_A & 1) && CurrentMode > 0 && ((Rc_A >> CurrentMode) & 1) && (Get_Fin(i) >> SHIFT_VE)) {
+        Msk_Ve = Msk_Ve | Rc_B;
+        Ve_Marcar(i, 0, Get_Gatilho_Duplo_Btn(i));
+        Ve_Marcar(i, 1, Get_Gatilho_Final_Btn(i));
+        Ve_Marcar(i, 2, Get_Gatilho_Hphold_Btn(i));
+        Ve_Marcar(i, 3, Get_Gatilho_FinalAfter_Btn(i));
+    }
 }
 function Recalc_Mascaras() {
     Msk_Perf = 0; Msk_Run = 0; Msk_Apto_Est = 0; Msk_Orfao = 0;
     Msk_Assoc = 0; Msk_Bloq = 0; Msk_Excl = 0; Msk_GatEst = 0; Msk_Livre = 0;
+    Ve_Btns = 0; Msk_Ve = 0;
     Recalc_Um(1);
     Recalc_Um(2);
     Recalc_Um(3);
@@ -5011,6 +5170,7 @@ function Run_Pipeline() {
     if(Msk_Run & 524288) Run_Instance_v3(20);
     Spv_N = -1;               // v7l: o menu edita SPVARs direto; nada de cache fora daqui
     Aplicar_Acc();
+    Ve_Fechar();     // 1.0.23: o que os MODs escreveram vira o Dv_Agora da proxima volta
 }
 
 // =============================================================

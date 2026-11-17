@@ -161,7 +161,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.22";
+const string DS_VERSAO    = "D-Sig 1.0.23";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -499,6 +499,16 @@ int Fin_15=0; int Fin_16=0; int Fin_17=0; int Fin_18=0; int Fin_19=0; int Fin_20
 int Est_Tmp              = 0;
 int Gb_V                 = 0;
 int Gb_N                 = 0;
+define SHIFT_VE          = 4;
+int Ve_On                = FALSE;
+int Msk_Ve               = 0;
+int Ve_Btns              = 0;
+int Dv_Agora             = 0;
+int Cb_Antes             = 0;
+int Ve_I                 = 0;
+int Ve_M                 = 0;
+int Ct_00=0; int Ct_01=0; int Ct_02=0; int Ct_03=0; int Ct_04=0; int Ct_05=0; int Ct_06=0;
+int Ct_07=0; int Ct_08=0; int Ct_09=0; int Ct_10=0; int Ct_11=0; int Ct_12=0; int Ct_13=0;
 int Pipe_Val             = 0;
 int Pipe_Raw             = 0;
 int Pipe_Thr            = 0;
@@ -1994,16 +2004,118 @@ function Toggle_Inst(num) {
     Inst_Ativa = Inst_Ativa ^ (1 << (num - 1));
     Aplicar_RespOff_Inst(num);
 }
+function Get_Ct(b) {
+    if(b <= 6) {
+        if(b == 0) return Ct_00;
+        if(b == 1) return Ct_01;
+        if(b == 2) return Ct_02;
+        if(b == 3) return Ct_03;
+        if(b == 4) return Ct_04;
+        if(b == 5) return Ct_05;
+        return Ct_06;
+    }
+    if(b == 7) return Ct_07;
+    if(b == 8) return Ct_08;
+    if(b == 9) return Ct_09;
+    if(b == 10) return Ct_10;
+    if(b == 11) return Ct_11;
+    if(b == 12) return Ct_12;
+    if(b == 13) return Ct_13;
+    return 0;
+}
+function Set_Ct(b, v) {
+    if(b == 0) Ct_00 = v;
+    if(b == 1) Ct_01 = v;
+    if(b == 2) Ct_02 = v;
+    if(b == 3) Ct_03 = v;
+    if(b == 4) Ct_04 = v;
+    if(b == 5) Ct_05 = v;
+    if(b == 6) Ct_06 = v;
+    if(b == 7) Ct_07 = v;
+    if(b == 8) Ct_08 = v;
+    if(b == 9) Ct_09 = v;
+    if(b == 10) Ct_10 = v;
+    if(b == 11) Ct_11 = v;
+    if(b == 12) Ct_12 = v;
+    if(b == 13) Ct_13 = v;
+}
+function Ve_Liga(num, g, b) {
+    if(!((Get_Fin(num) >> (SHIFT_VE + g)) & 1)) return FALSE;
+    if(b > 13) return FALSE;
+    if(b > 9) {
+        if((Dst_Mask(num) >> (b + 4)) & 1) return FALSE;
+    } else {
+        if((Dst_Mask(num) >> b) & 1) return FALSE;
+    }
+    return TRUE;
+}
+function G_Ler(b) {
+    if(Ve_On && ((Dv_Agora >> b) & 1)) return 100;
+    return Ler_Btn_Fisico(b);
+}
+function G_Press(b) {
+    if(!Ve_On) return Press_Btn_Fisico(b);
+    if((Cb_Antes >> b) & 1) return 0;
+    return G_Ler(b) != 0;
+}
+function G_Ptime(b) {
+    if(!Ve_On) return Ptime_Btn(b);
+    return Get_Ct(b);
+}
+function Ve_Fechar() {
+    if(!Ve_Btns) return;
+    Cb_Antes = 0;
+    Ve_I = 0;
+    while(Ve_I < 14) {
+        if((Ve_Btns >> Ve_I) & 1) {
+            if(Ler_Btn_Fisico(Ve_I) || ((Dv_Agora >> Ve_I) & 1)) {
+                Cb_Antes = Cb_Antes | (1 << Ve_I);
+                Ve_M = Get_Ct(Ve_I) + get_rtime();
+                if(Ve_M > 30000) Ve_M = 30000;
+                Set_Ct(Ve_I, Ve_M);
+            } else {
+                Set_Ct(Ve_I, 0);
+            }
+        }
+        Ve_I++;
+    }
+    Ve_M = 0;
+    if(Acc_00) Ve_M = Ve_M | 1;
+    if(Acc_01) Ve_M = Ve_M | 2;
+    if(Acc_02) Ve_M = Ve_M | 4;
+    if(Acc_03) Ve_M = Ve_M | 8;
+    if(Acc_04) Ve_M = Ve_M | 16;
+    if(Acc_05) Ve_M = Ve_M | 32;
+    if(Acc_06) Ve_M = Ve_M | 64;
+    if(Acc_07) Ve_M = Ve_M | 128;
+    if(Acc_08) Ve_M = Ve_M | 256;
+    if(Acc_09) Ve_M = Ve_M | 512;
+    if(Acc_14) Ve_M = Ve_M | 1024;
+    if(Acc_15) Ve_M = Ve_M | 2048;
+    if(Acc_16) Ve_M = Ve_M | 4096;
+    if(Acc_17) Ve_M = Ve_M | 8192;
+    Dv_Agora = Ve_M;
+}
+function Ve_Zerar() {
+    Dv_Agora = 0; Cb_Antes = 0; Ve_On = FALSE;
+    Ct_00=0; Ct_01=0; Ct_02=0; Ct_03=0; Ct_04=0; Ct_05=0; Ct_06=0;
+    Ct_07=0; Ct_08=0; Ct_09=0; Ct_10=0; Ct_11=0; Ct_12=0; Ct_13=0;
+}
+function Ve_Marcar(i, g, btn) {
+    if(btn == 0) return;
+    if(Ve_Liga(i, g, btn - 1)) Ve_Btns = Ve_Btns | (1 << (btn - 1));
+}
 function Gatilho_HPHOLD_v3(num) {
     Work_A = Get_Gatilho_Hphold_Btn(num);
     if(Work_A == 0) return;
     Work_C = Work_A - 1;
+    Ve_On = FALSE; if((Msk_Ve >> (num - 1)) & 1) Ve_On = Ve_Liga(num, 2, Work_C);
     Work_B = Hphold_Tempo_Ms(Get_Gatilho_Hphold_Tempo(num));
     if(Get_Hold_Modo(num)) {
-        Work_D = Ler_Btn_Fisico(Work_C);
+        Work_D = G_Ler(Work_C);
         if(Work_D) {
             Hp_Press = Hp_Press | (1 << (num - 1));
-            if(Ptime_Btn(Work_C) >= Work_B) Hp_Travado = Hp_Travado | (1 << (num - 1));
+            if(G_Ptime(Work_C) >= Work_B) Hp_Travado = Hp_Travado | (1 << (num - 1));
             return;
         }
         if((Hp_Press >> (num - 1)) & 1) {
@@ -2020,7 +2132,7 @@ function Gatilho_HPHOLD_v3(num) {
         Hp_Travado = Hp_Travado & (~(1 << (num - 1)));
         return;
     }
-    if(Ler_Btn_Fisico(Work_C) && Ptime_Btn(Work_C) >= Work_B) {
+    if(G_Ler(Work_C) && G_Ptime(Work_C) >= Work_B) {
         if(!((Hp_Travado >> (num - 1)) & 1)) {
             if(Gatilho_Alterna_G(num, 2)) {
                 Toggle_Inst(num);
@@ -2030,7 +2142,7 @@ function Gatilho_HPHOLD_v3(num) {
             }
             Hp_Travado = Hp_Travado | (1 << (num - 1));
         }
-    } else if(!Ler_Btn_Fisico(Work_C)) {
+    } else if(!G_Ler(Work_C)) {
         Hp_Travado = Hp_Travado & (~(1 << (num - 1)));
     }
 }
@@ -2038,13 +2150,14 @@ function Gatilho_DUPLO_v3(num) {
     Work_A = Get_Gatilho_Duplo_Btn(num);
     if(Work_A == 0) return;
     Work_C = Work_A - 1;
+    Ve_On = FALSE; if((Msk_Ve >> (num - 1)) & 1) Ve_On = Ve_Liga(num, 0, Work_C);
     Work_E = Get_Dc(num);
     Work_D = Work_E;
     if(Work_D > 0) {
         Work_D = Work_D - get_rtime();
         if(Work_D < 0) Work_D = 0;
     }
-    if(Press_Btn_Fisico(Work_C)) {
+    if(G_Press(Work_C)) {
         if(Work_D > 0) {
             if(Gatilho_Alterna_G(num, 0)) {
                 Toggle_Inst(num);
@@ -2062,7 +2175,8 @@ function Gatilho_DUPLO_v3(num) {
 function BTN_FN_Finaliza_v3(num) {
     Work_A = Get_Gatilho_Final_Btn(num);
     if(Work_A == 0) return;
-    Work_C = Ler_Btn_Fisico(Work_A - 1);
+    Ve_On = FALSE; if((Msk_Ve >> (num - 1)) & 1) Ve_On = Ve_Liga(num, 1, Work_A - 1);
+    Work_C = G_Ler(Work_A - 1);
     if(Work_C) {
         if(!((Fz_Travado >> (num - 1)) & 1)) {
             if(Gatilho_Alterna_G(num, 1)) {
@@ -2080,7 +2194,8 @@ function BTN_FN_Finaliza_v3(num) {
 function BTN_FN_FinalAfter_v3(num) {
     Work_A = Get_Gatilho_FinalAfter_Btn(num);
     if(Work_A == 0) return;
-    Work_C = Ler_Btn_Fisico(Work_A - 1);
+    Ve_On = FALSE; if((Msk_Ve >> (num - 1)) & 1) Ve_On = Ve_Liga(num, 3, Work_A - 1);
+    Work_C = G_Ler(Work_A - 1);
     Work_E = Get_Fa(num);
     Work_B = Work_E & 1;
     Work_D = Work_E >> 1;
@@ -2554,6 +2669,7 @@ function Run_Instance_v3(num) {
     Gatilho_DUPLO_v3(num);
     BTN_FN_Finaliza_v3(num);
     BTN_FN_FinalAfter_v3(num);
+    Ve_On = FALSE;
     if(Get_Fonte_Passivo(num)) Suprime_Gatilhos(num);
     Religa_Fonte(num);
     if(Get_Fonte_Passivo(num)) Suprime_Fonte(num);
@@ -2710,6 +2826,7 @@ function Set_Fa(num, v) {
 }
 function Inicializar_Estado() {
     Inst_Ativa = 0;
+    Ve_Zerar();
     Work_N = 1;
     while(Work_N <= 20) {
         if(Get_Fonte_Tipo(Work_N) != FONTE_NENHUMA) Inst_Ativa = Inst_Ativa | (1 << (Work_N - 1));
@@ -3255,10 +3372,18 @@ function Recalc_Um(i) {
     else if(Get_Fonte_Tipo(i) != FONTE_NENHUMA) Msk_Livre = Msk_Livre | Rc_B;
     if(Get_F1_Bloq(i)) Msk_Bloq = Msk_Bloq | Rc_B;
     if(Get_F1_Excl(i)) Msk_Excl = Msk_Excl | Rc_B;
+    if((Rc_A & 1) && CurrentMode > 0 && ((Rc_A >> CurrentMode) & 1) && (Get_Fin(i) >> SHIFT_VE)) {
+        Msk_Ve = Msk_Ve | Rc_B;
+        Ve_Marcar(i, 0, Get_Gatilho_Duplo_Btn(i));
+        Ve_Marcar(i, 1, Get_Gatilho_Final_Btn(i));
+        Ve_Marcar(i, 2, Get_Gatilho_Hphold_Btn(i));
+        Ve_Marcar(i, 3, Get_Gatilho_FinalAfter_Btn(i));
+    }
 }
 function Recalc_Mascaras() {
     Msk_Perf = 0; Msk_Run = 0; Msk_Apto_Est = 0; Msk_Orfao = 0;
     Msk_Assoc = 0; Msk_Bloq = 0; Msk_Excl = 0; Msk_GatEst = 0; Msk_Livre = 0;
+    Ve_Btns = 0; Msk_Ve = 0;
     Recalc_Um(1);
     Recalc_Um(2);
     Recalc_Um(3);
@@ -3312,6 +3437,7 @@ function Run_Pipeline() {
     if(Msk_Run & 524288) Run_Instance_v3(20);
     Spv_N = -1;
     Aplicar_Acc();
+    Ve_Fechar();
 }
 function Ajust_Scroll_Down() {
     if(MenuCursor >= ScrollTop + VISIBLE_ROWS) {
@@ -5134,6 +5260,10 @@ function normMod(mm,idx){
   // a nota vai para um comentario de uma linha no script; quebra de linha sairia dele
   if(/[\r\n\t]/.test(mm.nota))mm.nota=mm.nota.replace(/[\r\n\t]+/g,' ');
   ['d1','d2','d3','d4','passivo','gHoldM','fin2clk','finTog','finHold','finAfter'].forEach(bit);
+  // as quatro do "enxerga o DELTA": conserta se existir, apaga se estiver desligada, e
+  // NUNCA cria (ver VE) — MOD sem a opcao tem de continuar com o mesmo JSON de antes
+  ['ve2clk','veTog','veHold','veAfter'].forEach(function(k){
+    if(k in mm){if(mm[k])mm[k]=1;else delete mm[k]}});
   faixa('fonte',FONTES.length); faixa('mult',MULT.length); faixa('tin',THR.length);
   // THR_OUT: 0..19. O 20 ("100") nao cabe no empacotamento base 20 e vira OFF, que e o
   // que uma janela que fecha em 100 significa.
@@ -5334,6 +5464,7 @@ function temVolatil(m){
   if(m.excl.length||m.assoc.length||m.bloq.length)return 1;
   if(m.gBlok)return 1;
   if(finReal(m))return 1;
+  if(veReal(m))return 1;
   return 0}
 // v7e: so conta o FINALIZA de gatilhos que REALMENTE existem. O flag sobrevivia quando
 // o usuario marcava FINALIZA e depois tirava o botao, e o app gerava Fin_NN para um
@@ -5346,12 +5477,33 @@ function finReal(m){
   if(m.gHold && m.finHold) v|=4;
   if(m.gAfter && m.finAfter) v|=8;
   return v}
+// 1.0.23: O GATILHO QUE ENXERGA O DELTA. Uma opcao por gatilho (ve2clk, veTog, veHold,
+// veAfter): alem do botao fisico, o gatilho passa a contar o que OUTRO MOD escreve
+// naquele botao pelo DELTA. Vai para os bits 4-7 do mesmo numero do FINALIZA (Zeta_Fin),
+// entao tambem vive em RAM e e reaplicada a cada boot.
+// ESTAS QUATRO CHAVES NAO ENTRAM NO modVazio() NEM SAO CRIADAS PELA NORMALIZACAO, e isso
+// e de proposito: o selo e o hash do JSON dos MODs. Uma chave nova em todo MOD mudaria o
+// selo de todo jogo, e o Cronus reaplicaria a configuracao por cima do que foi ajustado
+// no aparelho. A chave so existe no MOD em que a opcao foi marcada; ausente vale 0.
+var VE=[['g2clk','ve2clk','2CLK'],['gTog','veTog','TOGGLE'],['gHold','veHold','HOLD'],['gAfter','veAfter','AFTER']];
+// So conta para gatilho que existe, em botao que um DELTA pode escrever (TOUCH e SHARE
+// nao sao destino de ninguem) e que NAO e destino do proprio MOD — as mesmas tres
+// condicoes do Ve_Liga do script. Devolve os bits ja na posicao (16, 32, 64, 128).
+function veReal(m){
+  var v=0;
+  VE.forEach(function(g,k){var b=m[g[0]];
+    if(!b||!m[g[1]])return;
+    if(DESTINOS.indexOf(BOTOES[b])<0)return;
+    if(m.dst.some(function(d){return d&&DESTINOS[d]===BOTOES[b]}))return;
+    v|=16<<k});
+  return v}
 function listaVolatil(m){var v=[];
   if(m.excl.length)v.push('ZETA EXCL');
   if(m.assoc.length)v.push('ZETA ASSOC');
   if(m.bloq.length)v.push('ZETA BLOQ');
   if(m.gBlok)v.push('GAMA BLOK');
   if(finReal(m))v.push('modo FINALIZA dos GAMA');
+  if(veReal(m))v.push('GAMA que enxerga o DELTA');
   return v}
 function temDestino(m){return m.dst.some(function(d){return d>0})}
 // 1.0.21: espelha o Disparo_Unico do script — sem ALFA, TURBO de ciclos contados e um
@@ -5390,11 +5542,11 @@ function resumoLista(m){
     if(m.passivo)x+=' PASSIVO';   // v7n: mesma palavra do campo e do OLED
     P.push(['ALFA',x]);
   } else if(!temGatilhoEstado(m)&&m.assoc.length) P.push(['ALFA','órfão']);
-  var fz=function(f){return f?' FIN':''};
-  if(m.g2clk)g.push('2CLK '+BOTOES[m.g2clk]+fz(m.fin2clk));
-  if(m.gTog)g.push('TOG '+BOTOES[m.gTog]+fz(m.finTog));
-  if(m.gHold)g.push('HOLD '+BOTOES[m.gHold]+' '+THOLD[m.gHoldT]+' '+(m.gHoldM?'ATÉ':'APÓS')+fz(m.finHold));
-  if(m.gAfter)g.push('AFTER '+BOTOES[m.gAfter]+' '+TAFTER[m.gAfterT]+fz(m.finAfter));
+  var fz=function(f){return f?' FIN':''}, vr=veReal(m), vz=function(k){return (vr>>(4+k))&1?' +DELTA':''};
+  if(m.g2clk)g.push('2CLK '+BOTOES[m.g2clk]+fz(m.fin2clk)+vz(0));
+  if(m.gTog)g.push('TOG '+BOTOES[m.gTog]+fz(m.finTog)+vz(1));
+  if(m.gHold)g.push('HOLD '+BOTOES[m.gHold]+' '+THOLD[m.gHoldT]+' '+(m.gHoldM?'ATÉ':'APÓS')+fz(m.finHold)+vz(2));
+  if(m.gAfter)g.push('AFTER '+BOTOES[m.gAfter]+' '+TAFTER[m.gAfterT]+fz(m.finAfter)+vz(3));
   if(m.gBlok)g.push('BLOK '+BOTOES[m.gBlok]);
   if(g.length)P.push(['GAMA',g.join(', ')]);
   var ds=m.dst.filter(function(d){return d}).map(function(d){return DESTINOS[d]});
@@ -5517,6 +5669,10 @@ function resumo(j,i){
   if(fins.length)p.push('Modo <em>FINALIZA</em> em '+fins.join(', ')+
     ' — esse'+(fins.length>1?'s':'')+' gatilho'+(fins.length>1?'s':'')+' só desliga'+
     (fins.length>1?'m':'')+', nunca liga'+(fins.length>1?'m':'')+'. <em>(RAM)</em>');
+  var vv=veReal(m), vq=VE.filter(function(g,k){return (vv>>(4+k))&1});
+  if(vq.length)p.push('<em>Enxerga o DELTA</em> em '+vq.map(function(g){return g[2]+' ('+BOTOES[m[g[0]]]+')'}).join(', ')+
+    ': além do botão físico, '+(vq.length>1?'esses gatilhos contam':'esse gatilho conta')+
+    ' o que outro MOD escreve nele, com uma volta (10 ms) de atraso. <em>(RAM)</em>');
   if(m.excl.length)p.push('ZETA EXCL <em>(RAM)</em>: é <em>encerrado</em> quando '+listaAlvos(m.excl)+
     ' sobe. Vale só no instante da subida: com o alvo já de pé, este MOD liga normalmente.');
   if(m.assoc.length&&!orfao)p.push('ZETA ASSOC <em>(RAM)</em>: só responde <em>enquanto</em> '+listaAlvos(m.assoc)+' responder.');
@@ -5557,6 +5713,26 @@ function alertas(j,i){
       ' com o botão já solto: num DIRECT sem ALFA '+(soltura.length>1?'esses gatilhos não produzem':'esse gatilho não produz')+
       ' saída. Só os outros gatilhos deste MOD produzem.');
   }
+  // 1.0.23: a opcao "enxerga o DELTA" marcada onde ela nao pode valer. O script a
+  // ignora nesses casos, e opcao ignorada em silencio e opcao que mente.
+  VE.forEach(function(g){var b=m[g[0]];
+    if(!b||!m[g[1]])return;
+    var nb=BOTOES[b];
+    if(DESTINOS.indexOf(nb)<0){
+      O.push(g[2]+' marcado para enxergar o DELTA, mas nenhum MOD escreve no '+nb+
+        ' (ele não é um destino possível): o gatilho vê só o botão físico.');return}
+    if(m.dst.some(function(d){return d&&DESTINOS[d]===nb})){
+      O.push(g[2]+' marcado para enxergar o DELTA, mas o '+nb+' é destino deste mesmo MOD, e um MOD '+
+        'nunca enxerga o próprio DELTA: o gatilho vê só o botão físico.');return}
+    var quem=[];
+    j.mods.forEach(function(o,k){
+      if(k===i||!nomeMod(j,k))return;
+      if(![1,2,3,4].some(function(n){return m['d'+n]&&o['d'+n]}))return;
+      if(o.dst.some(function(d){return d&&DESTINOS[d]===nb}))quem.push('MOD_'+String(k+1).padStart(2,'0'))});
+    if(!quem.length)O.push(g[2]+' marcado para enxergar o DELTA, mas nenhum outro MOD dos mesmos domínios escreve no '+
+      nb+': por enquanto o gatilho vê só o botão físico.');
+    else O.push(g[2]+' enxerga o '+nb+' escrito por '+quem.join(', ')+': cada vez que '+
+      (quem.length>1?'um deles acionar':'ele acionar')+' o '+nb+', este gatilho conta como se o botão tivesse sido apertado.')});
   // 1.0.21: O GATILHO ARMADO. Sem ALFA, o gatilho liga o MOD mesmo com o alvo do ASSOC
   // parado; ele fica de pe em silencio e a resposta sobe sozinha quando o alvo subir.
   // Num STATIC isso costuma ser o desejado (a Corrida que volta ao andar); o que nao
@@ -5986,7 +6162,7 @@ function configGpc(j){
     var ex=maskZeta(mz.excl), as=maskZeta(mz.assoc), bl=maskZeta(mz.bloq);
     if(ex||as||bl)L.push('    Zeta_Um('+o+', '+ex+', '+as+', '+bl+');');
     if(mz.gBlok)L.push('    Zeta_Blk('+o+', '+mz.gBlok+');');
-    var fin=finReal(mz);   // v7e: nunca gera flag para gatilho que nao existe
+    var fin=finReal(mz)|veReal(mz);   // v7e: nunca gera flag para gatilho que nao existe
     if(fin)L.push('    Zeta_Fin('+o+', '+fin+');');
   }
   // As tres ANCORAS. Sem elas o ZenStudio avisa "funcao nunca chamada e foi removida"
@@ -6416,21 +6592,30 @@ function telaMod(A){
         ct.setAttribute('aria-label',pai+' '+lb.textContent);
       d.appendChild(c)});
     return d}
+  // O campo "· enxerga" de cada gatilho. A chave so e gravada quando ligada, e e apagada
+  // quando volta ao fisico — ver VE: MOD sem a opcao nao pode mudar de JSON.
+  var VEOP=['FISICO','FISICO + DELTA'];
+  function veFld(k){return fld('· enxerga',sel(m[k]?1:0,VEOP,function(v){
+    if(v)m[k]=1;else delete m[k];up()}))}
   sg.appendChild(gg('2clk',[
     fld('2CLK',sel(m.g2clk,BOTOES,function(v){m.g2clk=v;up()})),
-    m.g2clk&&fld('· modo',sel(m.fin2clk,['ALTERNA','FINALIZA'],function(v){m.fin2clk=v;up()}))]));
+    m.g2clk&&fld('· modo',sel(m.fin2clk,['ALTERNA','FINALIZA'],function(v){m.fin2clk=v;up()})),
+    m.g2clk&&veFld('ve2clk')]));
   sg.appendChild(gg('tog',[
     fld('TOGGLE',sel(m.gTog,BOTOES,function(v){m.gTog=v;up()})),
-    m.gTog&&fld('· modo',sel(m.finTog,['ALTERNA','FINALIZA'],function(v){m.finTog=v;up()}))]));
+    m.gTog&&fld('· modo',sel(m.finTog,['ALTERNA','FINALIZA'],function(v){m.finTog=v;up()})),
+    m.gTog&&veFld('veTog')]));
   sg.appendChild(gg('hold',[
     fld('HOLD',sel(m.gHold,BOTOES,function(v){m.gHold=v;up()})),
     m.gHold&&fld('· tempo',sel(m.gHoldT,THOLD,function(v){m.gHoldT=v;up()})),
     m.gHold&&fld('· modo',sel(m.gHoldM,['APOS','ATE'],function(v){m.gHoldM=v;up()})),
-    m.gHold&&fld('· liga/desl',sel(m.finHold,['ALTERNA','FINALIZA'],function(v){m.finHold=v;up()}))]));
+    m.gHold&&fld('· liga/desl',sel(m.finHold,['ALTERNA','FINALIZA'],function(v){m.finHold=v;up()})),
+    m.gHold&&veFld('veHold')]));
   sg.appendChild(gg('after',[
     fld('AFTER',sel(m.gAfter,BOTOES,function(v){m.gAfter=v;up()})),
     m.gAfter&&fld('· atraso',sel(m.gAfterT,TAFTER,function(v){m.gAfterT=v;up()})),
-    m.gAfter&&fld('· modo',sel(m.finAfter,['ALTERNA','FINALIZA'],function(v){m.finAfter=v;up()}))]));
+    m.gAfter&&fld('· modo',sel(m.finAfter,['ALTERNA','FINALIZA'],function(v){m.finAfter=v;up()})),
+    m.gAfter&&veFld('veAfter')]));
   sg.appendChild(gg('blok',[
     fld('BLOK',sel(m.gBlok,BOTOES,function(v){m.gBlok=v;up()}))]));
   A.appendChild(sg);
@@ -6633,8 +6818,8 @@ function telaInfo(A){
       'muda de lugar ou tamanho — e nesse caso o app e o script têm de ser atualizados juntos.']]);
 
   var av=document.createElement('div');av.className='obs';
-  av.innerHTML='<b>Três variáveis vivem em RAM:</b> as relações <b>ZETA</b>, o botão do '+
-    '<b>GAMA BLOK</b> e o <b>modo FINALIZA</b> dos gatilhos. Não há bits na EEPROM para elas. '+
+  av.innerHTML='<b>Quatro coisas vivem em RAM:</b> as relações <b>ZETA</b>, o botão do '+
+    '<b>GAMA BLOK</b>, o <b>modo FINALIZA</b> dos gatilhos e a opção de um gatilho <b>enxergar o DELTA</b>. Não há bits na EEPROM para elas. '+
     'Se o script for gerado aqui, são reaplicadas a cada boot — a configuração deste app '+
     'funciona como o padrão delas. Configurando só pelo OLED, se perdem ao desligar. '+
     'Os MODs afetados aparecem com a etiqueta RAM na lista.';
@@ -6706,6 +6891,11 @@ function telaInfo(A){
      'sequência a REINICIA do primeiro passo; quem cancela é um gatilho em FINALIZA ou um ZETA EXCL. Com ZETA ASSOC, '+
      'o toque dado com o alvo parado é descartado — não fica armado — e a sequência interrompida não retoma. '+
      'TURBO contínuo, STATIC e DIRECT seguem alternando e ficam armados sob ASSOC.'],
+    ['Gatilho que enxerga o DELTA','Todo gatilho do GAMA lê o botão FÍSICO. Marcando "FISICO + DELTA" num gatilho, ele '+
+     'passa a contar também o que OUTRO MOD escreve naquele botão — o AFTER no R2 que derruba a mira depois de um tiro '+
+     'disparado por um MOD, por exemplo. Vale com uma volta (10 ms) de atraso; um MOD nunca enxerga o próprio DELTA; e '+
+     'TOUCH e SHARE não entram, porque nenhum MOD escreve neles. Só se marca aqui no app: pelo OLED não aparece, e o menu '+
+     'do aparelho a preserva.'],
     ['EXCL é por subida','O EXCL encerra este MOD no instante em que o alvo SOBE. Com o alvo já de pé, este MOD liga normalmente.'],
     ['Troca de domínio e L3 / R3','L1 + L3 e R1 + R3 são comandos fixos. Um MOD que usa L3 ou R3 pode trocar o domínio sem querer se for acionado com o L1 ou o R1 apertado.'],
     ['Ordem dos MODs','A posição na lista decide o desempate do bloqueio mútuo e a propagação em '+
@@ -6785,7 +6975,7 @@ function telaDados(A){
         return '  '+x.jogo.nome+' — '+x.mods+' MOD(s)'}).join('\n');
       if(r.pulos.length)msg+='\n\nPulados:\n  '+r.pulos.join('\n  ');
       msg+='\n\nNão vêm do Cronus, porque não ficam na EEPROM: nome dos domínios, cores, '+
-        'anotações, relações ZETA, GAMA BLOK e modo FINALIZA. Confira esses antes de gerar o script.';
+        'anotações, relações ZETA, GAMA BLOK, modo FINALIZA e gatilho que enxerga o DELTA. Confira esses antes de gerar o script.';
       alert(msg);tela='cat';render();
     }).catch(function(e){alert('Não consegui importar este backup:\n'+e.message)})};
   var r2=document.createElement('div');r2.className='row';r2.appendChild(b3);A.appendChild(r2);A.appendChild(f)}

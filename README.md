@@ -105,10 +105,11 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.22.** Desde a 1.0.17 o script mudou duas vezes, as duas só no simulador: a
-1.0.18 corrige quatro defeitos de comportamento, e a 1.0.21 muda como o **disparo único**
-(TURBO de ciclos contados sem ALFA) responde ao gatilho — a lista está no
-[`LEIAME.md`](LEIAME.md). A 1.0.19, a 1.0.20 e a 1.0.22 mexem só no app e no ícone. **O script ainda não passou
+**Versão 1.0.23.** Desde a 1.0.17 o script mudou três vezes, todas só no simulador: a
+1.0.18 corrige quatro defeitos de comportamento, a 1.0.21 muda como o **disparo único**
+(TURBO de ciclos contados sem ALFA) responde ao gatilho, e a 1.0.23 traz o **gatilho que
+enxerga o DELTA** de outro MOD — a lista está no [`LEIAME.md`](LEIAME.md). A 1.0.19, a
+1.0.20 e a 1.0.22 mexem só no app e no ícone. **O script ainda não passou
 pelo compilador do Zen Studio nem pelo aparelho**: antes de confiar nela, faça o Build e
 confira 0 erros e 0 avisos.
 
@@ -116,7 +117,7 @@ A última validada em hardware é a **1.0.17**: compila com 0 erros e 0 avisos n
 do Zen Studio nos seis scripts de jogo e no pior caso (20 MODs com tudo no máximo, 53.216
 bytes, 81% do limite), e os ajustes feitos no aparelho sobrevivem ao desligamento.
 
-Cada publicação passa por um portão de **22 verificações** que executam o script num
+Cada publicação passa por um portão de **23 verificações** que executam o script num
 simulador — entre elas os tempos do TURBO, que foram medidos no PLOT do Device Monitor com
 o Cronus na mão e saíram iguais aos do simulador (150/50 ms configurados, 149,8/50,1 ms
 medidos). Nenhuma dessas verificações foi aceita sem antes ser provada contra uma sabotagem
@@ -144,7 +145,7 @@ rodou no aparelho tem as SPVARs zeradas e é pulado.
 | `D-Sig.gpc` | o script avulso, sem comentários, pronto para o Zen Studio |
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado.** É o arquivo que se edita |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação** |
-| `ferramentas/testa_sim.py` | o portão: as 22 verificações, que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão: as 23 verificações, que **executam** o script |
 | `ferramentas/sim/` | o simulador — transpila o GPC para C e roda os cenários |
 | `ferramentas/decodifica.py` | lê um `.znbk` e mostra os MODs de cada slot; `--confere` compara com um script |
 
