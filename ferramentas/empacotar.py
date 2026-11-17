@@ -81,7 +81,7 @@ RAIZ = [
     'index.html', 'D-Sig.gpc', 'manifest.json', 'sw.js',
     'README.md', 'LEIAME.md', 'LICENSE',
 ]
-ICO = ['icone-192.png', 'icone-512.png', 'icone-maskable.png']
+ICO = ['icone-192.png', 'icone-512.png', 'icone-maskable.png', 'mascote.png']
 BANCADA = [
     'D-Sig.fonte.gpc',
     'embutir.py', 'limpar.py', 'empacotar.py', 'verificar_gpc.py',
@@ -126,7 +126,7 @@ def monta(dest):
             shutil.copy2(o, os.path.join(dest, 'ferramentas', f))
         else:
             faltou.append(f)
-    for f in ('padrao.py', 'png2gpc.py', 'icone.py', 'traco.py', 'traco.png', 'traco-alternativa.png', 'traco-roteador.png'):
+    for f in ('padrao.py', 'png2gpc.py', 'icone.py', 'traco.py', 'mascote.py', 'traco.png', 'traco-alternativa.png', 'traco-roteador.png'):
         o = os.path.join(OLED, f)
         if os.path.isfile(o):
             shutil.copy2(o, os.path.join(dest, 'ferramentas', 'oled', f))

@@ -11,8 +11,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="D-Sig">
-<link rel="icon" type="image/png" href="./icone-192.png?v=1.0.25">
-<link rel="apple-touch-icon" href="./icone-192.png?v=1.0.25">
+<link rel="icon" type="image/png" href="./icone-192.png?v=1.0.26">
+<link rel="apple-touch-icon" href="./icone-192.png?v=1.0.26">
 <style>
 :root{
   --bg:#0d1117; --panel:#151b23; --panel2:#1c242e; --line:#2a3440;
@@ -114,6 +114,9 @@ pre{background:#0a0e14;border:1px solid var(--line);border-radius:10px;padding:1
   overflow:auto;font-size:12.5px;line-height:1.55;color:#c8d6e5;margin:0}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .vazio{text-align:center;color:var(--faint);padding:40px 20px;font-size:15px}
+/* A mascote. O PNG tem o fundo do proprio app, entao o quadro dele nao aparece. */
+.masc{display:block;margin:0 auto 6px;width:168px;height:168px;max-width:60%}
+.masc.peq{width:120px;height:120px}
 .hint{font-size:13px;color:var(--faint);margin:8px 0 0;line-height:1.5}
 textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line);
   color:#c8d6e5;border-radius:10px;padding:12px;font:12.5px/1.5 ui-monospace,Menlo,monospace}
@@ -122,7 +125,7 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 <body>
 <header>
   <button class="btn sm" id="volta" style="display:none" aria-label="Voltar">‹</button>
-  <img id="logo" src="./icone-192.png?v=1.0.25" alt="" width="34" height="34">
+  <img id="logo" src="./icone-192.png?v=1.0.26" alt="" width="34" height="34">
   <h1 id="titulo">D-Sig<span class="sub" id="subtitulo"></span></h1>
 </header>
 <div class="wrap" id="app"></div>
@@ -165,7 +168,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.25";
+const string DS_VERSAO    = "D-Sig 1.0.26";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -6307,7 +6310,9 @@ function telaCat(A){
   $('titulo').innerHTML='D-Sig <span class="sub">'+versaoDSig().replace('D-Sig ','')+'</span>';
   var noZen=D.jogos.filter(function(j){return j.noZen}).length;
   if(!D.jogos.length){var v=document.createElement('div');v.className='vazio';
-    v.textContent='Nenhum jogo cadastrado.';A.appendChild(v)}
+    // 1.0.26: a tela vazia e onde a mascote tem espaco. O icone do app continua o D.
+    v.innerHTML='<img class="masc" src="./mascote.png?v=1.0.26" alt="A mascote do D-Sig: uma vespa-marinha sorrindo, com um raio no peito e quatro tentáculos" width="168" height="168">'+
+      'Nenhum jogo cadastrado.';A.appendChild(v)}
   // v7m: a lista pode ficar na ordem que voce arrastou (manual) ou em ordem alfabetica.
   // A escolha fica gravada junto com o catalogo. Na ordem A-Z as setas somem, porque quem
   // manda e o nome; volte para manual para reordenar.
@@ -6814,6 +6819,16 @@ function telaInfo(A){
       d.innerHTML='<b style="color:var(--txt)">'+p[0]+'</b><br><span style="color:var(--dim)">'+p[1]+'</span>';
       s.appendChild(d)});
     A.appendChild(s)}
+
+  // 1.0.26: a mascote, e por que ela.
+  var sm=document.createElement('section');
+  sm.innerHTML='<h2>A mascote</h2>'+
+    '<img class="masc peq" src="./mascote.png?v=1.0.26" alt="" width="120" height="120">'+
+    '<div style="padding:9px 0;font-size:14px;line-height:1.55;color:var(--dim)">'+
+    '<b style="color:var(--txt)">Vespa-marinha</b><br>Uma água-viva em forma de cubo: quatro lados, e os tentáculos saem dos '+
+    'quatro cantos — os <b>quatro destinos</b> de um MOD e os <b>quatro domínios</b>. Ela não tem cérebro central: são quatro '+
+    'centros nervosos, cada um decidindo por si, como os MODs. E o toque dela é uma descarga, o raio do logo.</div>';
+  A.appendChild(sm);
 
   bloco('Versão', [
     [versaoDSig(), 'É a versão do script embutido neste app, e é a mesma que aparece no '+

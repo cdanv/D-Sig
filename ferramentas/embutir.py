@@ -413,7 +413,7 @@ else:
 # muda, o cache HTTP nao serve a imagem velha e o service worker a guarda como outra.
 # Vale para o manifest.json, o sw.js e o index.html, e sai do mesmo DS_VERSAO.
 _VQ = '?v=%d.%d.%d' % NUM
-_ICO = re.compile(r'(icone-(?:192|512|maskable)\.png)(\?v=[0-9.]+)?')
+_ICO = re.compile(r'((?:icone-(?:192|512|maskable)|mascote)\.png)(\?v=[0-9.]+)?')
 for _arq in (os.path.join(RAIZ, 'manifest.json'), SW, APP):
     _t = open(_arq, encoding='utf-8').read()
     _n = _ICO.sub(lambda m: m.group(1) + _VQ, _t)

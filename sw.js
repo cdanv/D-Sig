@@ -7,13 +7,13 @@
 // A contagem recomecou em v1 com o nome final do projeto. O 'activate' apaga todo
 // cache cujo nome seja diferente deste, entao o cache da versao anterior e descartado
 // sozinho na primeira abertura — nada a limpar a mao.
-const CACHE = 'dsig-1.0.25';
+const CACHE = 'dsig-1.0.26';
 
 // Separados de proposito: sem o index e o manifest o app nao abre; sem os icones ele
 // abre normalmente. Um icone faltando nao pode impedir a instalacao inteira, que era
 // o que acontecia com um addAll unico — ele falha em bloco se QUALQUER item falhar.
 const CRITICOS = ['./index.html', './manifest.json'];
-const OPCIONAIS = ['./icone-192.png?v=1.0.25', './icone-512.png?v=1.0.25', './icone-maskable.png?v=1.0.25'];
+const OPCIONAIS = ['./icone-192.png?v=1.0.26', './icone-512.png?v=1.0.26', './icone-maskable.png?v=1.0.26', './mascote.png?v=1.0.26'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

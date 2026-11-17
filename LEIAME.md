@@ -663,7 +663,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.25**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.26**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -1215,6 +1215,25 @@ deles no desenho:
 O que isso **não** resolve: o Android confere o manifest de um app instalado no máximo
 uma vez por dia, e troca o ícone depois, quando o aparelho está ocioso. Desinstalar e
 instalar de novo troca na hora.
+
+### 1.0.26 — a mascote (17/11/2026)
+
+**O script não mudou**, só o `DS_VERSAO`.
+
+O projeto ganhou uma mascote: a **vespa-marinha**. A ideia foi do Daniel, a partir do
+polvo que eu tinha proposto, e ela encaixa melhor: é uma água-viva em forma de cubo, com
+os tentáculos saindo dos **quatro** cantos (quatro destinos, quatro domínios); não tem
+cérebro central, e sim quatro centros nervosos que decidem cada um por si, como os MODs; e
+o toque dela é uma descarga, o raio do logo.
+
+Entre as versões desenhadas o Daniel escolheu a de olhos fechados em arco, com o raio no
+peito. **Ela não substitui o ícone**: em 48 px o rosto some e sobra a silhueta, e o D com
+o raio se lê melhor nesse tamanho. Ela aparece onde há espaço — na tela vazia do app, na
+tela de Informações e no README.
+
+O desenho sai do `ferramentas/oled/mascote.py`, que usa as cores do `icone.py` com os
+mesmos parâmetros. Os olhos têm o traço fino de propósito: ali as três cores não chegam a
+se sobrepor em branco e saem como dois pequenos arco-íris.
 
 ### O que continua em aberto, e não impede nada
 

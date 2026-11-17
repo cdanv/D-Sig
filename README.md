@@ -1,3 +1,5 @@
+<img src="mascote.png" alt="A mascote do D-Sig: uma vespa-marinha" width="150" align="right">
+
 # D-Sig
 
 **Roteador de sinais para Cronus Zen.** Um script GPC que recebe uma entrada do controle
@@ -105,11 +107,11 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.25.** Desde a 1.0.17 o script mudou três vezes, todas só no simulador: a
+**Versão 1.0.26.** Desde a 1.0.17 o script mudou três vezes, todas só no simulador: a
 1.0.18 corrige quatro defeitos de comportamento, a 1.0.21 muda como o **disparo único**
 (TURBO de ciclos contados sem ALFA) responde ao gatilho, e a 1.0.23 traz o **gatilho que
 enxerga o DELTA** de outro MOD — a lista está no [`LEIAME.md`](LEIAME.md). A 1.0.19, a
-1.0.20, a 1.0.22, a 1.0.24 e a 1.0.25 mexem só no app e no ícone. **O script ainda não passou
+1.0.20, a 1.0.22 e da 1.0.24 à 1.0.26 mexem só no app, no ícone e na mascote. **O script ainda não passou
 pelo compilador do Zen Studio nem pelo aparelho**: antes de confiar nela, faça o Build e
 confira 0 erros e 0 avisos.
 
@@ -175,6 +177,13 @@ mira, leitura de memória do jogo ou interação com o servidor.
 
 O que você faz com isso é sua responsabilidade. Muitos jogos online proíbem entrada
 automatizada nos termos de uso, e a punição é entre você e eles.
+
+## A mascote
+
+É uma **vespa-marinha**, uma água-viva em forma de cubo. Os tentáculos saem dos quatro
+cantos — os quatro destinos de um MOD e os quatro domínios —, ela não tem cérebro central
+(são quatro centros nervosos, cada um decidindo por si, como os MODs) e o toque dela é uma
+descarga, o raio do logo. O ícone do app continua sendo o D; ela aparece onde há espaço.
 
 ## Licença
 
