@@ -47,7 +47,7 @@ MODs. Cada MOD tem cinco seções:
 | seção | o que define | exemplo |
 |---|---|---|
 | **ALFA** | a **fonte**: qual entrada o MOD observa | o analógico esquerdo |
-| **BETA** | a **condição**: a partir de que valor ele conta como acionado | acima de 20% |
+| **BETA** | a **condição**: a partir de que valor ele conta como acionado — e, sem ALFA, a **intensidade** da resposta | acima de 20%; ou travar em 50% |
 | **GAMA** | o **gatilho**: o que liga e desliga o MOD | dois cliques no CROSS |
 | **DELTA** | a **saída**: para onde o sinal vai, e com que tempo | TURBO no CROSS, 150 ms |
 | **ZETA** | a **relação** com os outros MODs | exclui o MOD_04, bloqueia o MOD_07 |
@@ -107,11 +107,10 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.26.** Desde a 1.0.17 o script mudou três vezes, todas só no simulador: a
-1.0.18 corrige quatro defeitos de comportamento, a 1.0.21 muda como o **disparo único**
-(TURBO de ciclos contados sem ALFA) responde ao gatilho, e a 1.0.23 traz o **gatilho que
-enxerga o DELTA** de outro MOD — a lista está no [`LEIAME.md`](LEIAME.md). A 1.0.19, a
-1.0.20, a 1.0.22 e da 1.0.24 à 1.0.26 mexem só no app, no ícone e na mascote. **O script ainda não passou
+**Versão 1.0.27.** O **BETA passa a valer sem ALFA**: o MULT vira a intensidade da resposta
+do DELTA (um STATIC travado em 50%) e o DIR vira o sentido dos destinos de eixo. A versão
+anterior, a 1.0.26, compila sem erros no Zen Studio; a 1.0.27 mudou o script e ainda não
+passou por ele. O histórico de cada versão está no [`LEIAME.md`](LEIAME.md). **O script ainda não passou
 pelo compilador do Zen Studio nem pelo aparelho**: antes de confiar nela, faça o Build e
 confira 0 erros e 0 avisos.
 
@@ -119,7 +118,7 @@ A última validada em hardware é a **1.0.17**: compila com 0 erros e 0 avisos n
 do Zen Studio nos seis scripts de jogo e no pior caso (20 MODs com tudo no máximo, 53.216
 bytes, 81% do limite), e os ajustes feitos no aparelho sobrevivem ao desligamento.
 
-Cada publicação passa por um portão de **23 verificações** que executam o script num
+Cada publicação passa por um portão de **25 verificações** que executam o script num
 simulador — entre elas os tempos do TURBO, que foram medidos no PLOT do Device Monitor com
 o Cronus na mão e saíram iguais aos do simulador (150/50 ms configurados, 149,8/50,1 ms
 medidos). Nenhuma dessas verificações foi aceita sem antes ser provada contra uma sabotagem
@@ -147,7 +146,7 @@ rodou no aparelho tem as SPVARs zeradas e é pulado.
 | `D-Sig.gpc` | o script avulso, sem comentários, pronto para o Zen Studio |
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado.** É o arquivo que se edita |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação** |
-| `ferramentas/testa_sim.py` | o portão: as 23 verificações, que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão: as 25 verificações, que **executam** o script |
 | `ferramentas/sim/` | o simulador — transpila o GPC para C e roda os cenários |
 | `ferramentas/decodifica.py` | lê um `.znbk` e mostra os MODs de cada slot; `--confere` compara com um script |
 

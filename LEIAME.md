@@ -17,7 +17,7 @@ icone-*.png         /
 README.md           a porta de entrada
 LEIAME.md           este arquivo
 ferramentas/        nada disto vai ao ar; é a bancada
-  sim/              o simulador (7 arquivos)
+  sim/              o simulador (8 arquivos)
   oled/             a arte do OLED
 ```
 
@@ -28,7 +28,7 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado. É o único arquivo que se edita à mão** |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
 | `ferramentas/limpar.py` | o removedor de comentários e a lista das 11 âncoras que o app usa |
-| `ferramentas/testa_sim.py` | o portão de comportamento: 23 verificações que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão de comportamento: 25 verificações que **executam** o script |
 | `ferramentas/gera_molde.py` | **gera o molde sintético do portão** e declara os 34 itens de cobertura que ele tem de sustentar |
 | `ferramentas/testa_tabelas.py` | confere tabela por tabela entre o app e o script, por valor |
 | `ferramentas/testa_a11y.js` | nome acessível e alvo de toque, no Chromium de verdade |
@@ -41,7 +41,7 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/publicado.json` | o SHA-256 da última publicação. É com ele que o `embutir.py` recusa republicar conteúdo novo sob a mesma versão |
 | `ferramentas/oled/padrao.py` | **a fonte única da arte do OLED.** Dele saem os PNGs de revisão, o `timbre.png` e o código das telas |
 | `ferramentas/oled/png2gpc.py` | PNG de 1 bit → `const image` do GPC, no formato que o compilador exige |
-| `ferramentas/sim/` | **o simulador.** Sete arquivos: `gpc2c.py` (transpilador GPC→C), `gpcrt.h` (runtime das primitivas) e os cinco cenários em C — `harness`, `fuzz`, `tri`, `zeta`, `mig` |
+| `ferramentas/sim/` | **o simulador.** Oito arquivos: `gpc2c.py` (transpilador GPC→C), `gpcrt.h` (runtime das primitivas) e os seis cenários em C — `harness`, `fuzz`, `tri`, `zeta`, `mig`, `beta` |
 | `ferramentas/empacotar.py` | monta o repositório no layout público **e roda o `embutir.py` de dentro da cópia**, reprovando se ele não publicar o mesmo SHA-256. Roda tanto da bancada de desenvolvimento quanto de um clone: `python3 ferramentas/empacotar.py [destino]`. Recusa destino cujo apagamento levaria o projeto junto (`.`, `..`, `ferramentas`) |
 
 A cadeia da arte é reproduzível a partir do repositório: `python3 oled/padrao.py`
@@ -663,7 +663,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.26**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.27**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -1235,6 +1235,67 @@ O desenho sai do `ferramentas/oled/mascote.py`, que usa as cores do `icone.py` c
 mesmos parâmetros. Os olhos têm o traço fino de propósito: ali as três cores não chegam a
 se sobrepor em branco e saem como dois pequenos arco-íris.
 
+### 1.0.27 — o BETA sem ALFA (17/11/2026)
+
+**O script mudou.** A 1.0.26 compila com 0 erros no Zen Studio (confirmado pelo Daniel);
+a 1.0.27 ainda não passou por ele nem pelo aparelho.
+
+A ideia é do Daniel. Sem ALFA quem liga o MOD é o GAMA, e a resposta do DELTA saía sempre
+a 100% — ou, no DIRECT, espelhando o botão do gatilho. O BETA só aparecia com ALFA de eixo,
+gatilho ou touch. Mas o MULT faz sentido sem ALFA: é a **intensidade da resposta**. Travar
+um botão, um eixo ou um gatilho em 50% num STATIC era impossível.
+
+**Nenhum bit novo.** O MULT e o DIR já estão no SPVAR_B de todo MOD; sem ALFA eles só não
+eram lidos.
+
+| campo do BETA | sem ALFA | por quê |
+|---|---|---|
+| MULT | **vale**: escala a resposta, com teto em 100 | é a intensidade |
+| DIR | **vale** como **SINAL** dos destinos de eixo, no STATIC e no DIRECT | sem ALFA o STATIC em eixo travava sempre no positivo — no LY, "para trás" |
+| THR_IN, THR_OUT | **não vale** | compara a fonte com uma janela, e sem ALFA não há fonte. O botão do GAMA já decide; uma janela sobre ele brigaria com o 2CLK, o HOLD e o AFTER |
+
+Por tipo de DELTA:
+
+- **STATIC**: trava em 100 × MULT, e nos eixos com o sinal do DIR. x0.5 NEG no LY dá −50.
+- **DIRECT**: acompanha o botão do gatilho × MULT. Aqui MULT acima de x1.0 faz diferença,
+  porque L2 e R2 são analógicos. O **autoencerramento decide pelo valor cru**, antes do
+  MULT: um L2 leve com x0.1 pode dar zero na conta, e isso não é soltar o botão.
+- **TURBO**: pulsa a 100 × MULT. O sinal dos eixos continua sendo o do MODO (ABS, POS, NEG,
+  ABSF); o DIR não entra.
+- **Órfão adotado**: herda a intensidade do alvo, e o MULT dele escala por cima; o sinal
+  fica o do alvo.
+
+**No OLED**, o "---" deixou de pular o BETA: a tela tem duas linhas, MULT e SINAL (NEG ou
+POS). Isso entrou por uma categoria só do menu (`CAT_NENHUMA`, pelo `Beta_Cat`); o motor
+continua tratando o "---" como botão em todo o resto. De passagem, o `Mnu_Beta` deixou de
+guardar a categoria e o último cursor na Work_C e na Work_D, que o Update_OLED reescreve no
+meio da função.
+
+**No app**, o "---" ganhou a seção BETA com MULT e SINAL; a lista mostra o MULT e o NEG ao
+lado do DELTA; o resumo diz o número que vai sair ("trava em 50%"); e há observação para
+combinações que não fazem nada (MULT acima de x1.0 num STATIC ou TURBO, SINAL NEG sem
+destino de eixo ou num TURBO).
+
+**Nada muda no que já existe**, e isso foi conferido antes: nos seis jogos do Daniel e nos
+dois moldes do portão nenhum MOD sem ALFA tem MULT ou DIR fora do padrão (x1.0 e ABS). Os
+selos não mudam, porque nenhum campo é novo. O hash de comportamento dos moldes não mudou.
+
+**Um defeito antigo do app achado de passagem:** o alerta "DELTA STATIC em eixo" testava os
+destinos 12 a 15 — LY, RX, RY e UP —, deixando o LX de fora e avisando num UP. Os eixos são
+11 a 14.
+
+O portão foi a **25 verificações**. Uma liga três MODs sem ALFA pelo L2 (um STATIC, um
+DIRECT, um TURBO) e confere a intensidade e o sinal de cada um; a outra (`sim/beta.c`)
+navega pelo menu do OLED com o controle simulado — abre o MOD, entra no BETA, ajusta MULT
+e SINAL, sai e confere o que foi gravado e o que o MOD faz. As duas reprovam no script da
+1.0.26.
+
+**A auditoria, além do portão:** os 109 cenários dos cinco jogos do Daniel dão o mesmo
+resultado da 1.0.23; boot, EEPROM e 800 mil voltas de fuzz por jogo, idem; 240
+configurações sem ALFA sorteadas batem com um modelo independente; o órfão, o
+autoencerramento com valor pequeno e o teto de 100 conferidos à parte; e 1,6 milhão de
+voltas com 20 MODs sem ALFA sorteados, sem saída fora da faixa nem gravação na EEPROM.
+
 ### O que continua em aberto, e não impede nada
 
 0. **Deletar um MOD grava dezenas de SPVARs numa única volta do `main`.** Medido no
@@ -1261,6 +1322,6 @@ se sobrepor em branco e saem como dois pequenos arco-íris.
 python3 ferramentas/embutir.py
 ```
 
-Ele audita a estrutura **e** roda o portão de comportamento: 23
+Ele audita a estrutura **e** roda o portão de comportamento: 25
 verificações, cada uma conferida contra uma sabotagem deliberada. Se
 fechar, não publicou nada.

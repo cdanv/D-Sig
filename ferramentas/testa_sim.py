@@ -175,7 +175,7 @@ def constroi(gpc, nome, tmp):
     if r.returncode != 0:
         return False, 'transpilar: ' + (r.stderr.strip().split('\n')[-1] if r.stderr else '?')
     exes = {}
-    for prog in ('harness', 'fuzz', 'tri', 'zeta', 'mig'):
+    for prog in ('harness', 'fuzz', 'tri', 'zeta', 'mig', 'beta'):
         fonte = os.path.join(SIM, prog + '.c')
         if not os.path.exists(fonte):
             return False, f'{prog}.c nao existe em ../sim'
@@ -318,6 +318,14 @@ try:
               f'hash {m.group(1)}' if m else (r.stderr or '')[:80])
         if m:
             hashes['avulso'] = m.group(1)
+        # O MENU do BETA (1.0.27): navega pelo OLED com o controle simulado. Sobre o
+        # avulso, com tres MODs postos na EEPROM; ver o cabecalho do sim/beta.c.
+        r = roda([res['beta']])
+        _lb = (r.stdout or '').strip().split('\n')
+        passo('o menu do OLED abre e grava o BETA sem ALFA', r.returncode == 0,
+              ('%d conferencias' % sum(1 for _x in _lb if _x.strip().startswith('ok')))
+              if r.returncode == 0 else
+              '; '.join(_x.strip()[5:70] for _x in _lb if _x.strip().startswith('NAO'))[:150])
 
     # --- 2. o gerado pelo app, com O TEMPLATE QUE VAI SER PUBLICADO ----------
     # O index.html real ainda tem o template antigo neste ponto do embutir.py, entao
@@ -604,6 +612,11 @@ try:
                       dst=[3, 0, 0, 0])                                       # sem a opcao -> L3
                 _dmod(11, tipo=1, gHold=15, gHoldT=0, gTog=4, finTog=1,      # o proprio destino (R1) no
                       veTog=1, dst=[4, 0, 0, 0])                              # TOGGLE FIN: nao pode se ver
+                # item 11 (BETA sem ALFA), os tres tipos de DELTA ligados pelo mesmo L2:
+                _dmod(12, tipo=1, gTog=2, mult=4, dir=0, dst=[12, 15, 0, 0])   # STATIC x0.5 NEG -> LY, UP
+                _dmod(13, tipo=0, gTog=2, mult=4, dir=0, dst=[13, 16, 0, 0])   # DIRECT x0.5 NEG -> RX, DOWN
+                _dmod(14, tipo=2, gTog=2, mult=2, ciclos=1, lat=0,             # TURBO x0.3, 1 ciclo -> LEFT
+                      tmp=[4, 3, 3, 3], dst=[17, 0, 0, 0])
                 _dc = os.path.join(tmp, 'direct.json')
                 json.dump(_dj, open(_dc, 'w', encoding='utf-8'))
                 _dg = os.path.join(tmp, 'direct.gpc')
@@ -690,6 +703,31 @@ try:
                     passo('o gatilho marcado enxerga o DELTA de outro MOD, e so ele',
                           not _difv, '; '.join(_difv) if _difv else
                           'AFTER ve o R2 escrito; o de controle nao; o proprio DELTA nao conta')
+
+                    # --- 11. o BETA SEM ALFA (1.0.27) --------------------------
+                    # Tres MODs sem ALFA ligados pelo TOGGLE no L2 (indice 1), apertado a
+                    # 80% duas vezes. O MULT e a intensidade e o DIR NEG e o sinal:
+                    #   a) STATIC x0.5 NEG trava LY em -50 e UP em 50 (era LY +100, UP 100);
+                    #   b) DIRECT x0.5 NEG acompanha o L2: RX -40 e DOWN 40, e se encerra ao
+                    #      soltar — o autoencerramento olha o valor CRU, nao o escalado;
+                    #   c) TURBO x0.3 pulsa LEFT a 30 por 150 ms (era 100).
+                    # O 2o aperto desliga o STATIC e religa os outros dois. Provado contra o
+                    # script da 1.0.26, que ignora o BETA sem ALFA e reprova nos tres.
+                    _tb = _du('500 1 80\n800 1 0\n1200 1 80\n1300 1 0\nEND 2000\n',
+                              [19, 10, 20, 11, 12])
+                    _espb = {'19': [(0, 0), (500, -50), (1200, 0)],
+                             '10': [(0, 0), (500, 50), (1200, 0)],
+                             '20': [(0, 0), (500, -40), (800, 0), (1200, -40), (1300, 0)],
+                             '11': [(0, 0), (500, 40), (800, 0), (1200, 40), (1300, 0)],
+                             '12': [(0, 0), (500, 30), (650, 0), (1200, 30), (1350, 0)]}
+                    _difb = ['%s: %s' % (_n, ' '.join('%d:%d' % x for x in _tb[_k]))
+                             for _k, _n in (('19', 'LY do STATIC'), ('10', 'UP do STATIC'),
+                                            ('20', 'RX do DIRECT'), ('11', 'DOWN do DIRECT'),
+                                            ('12', 'LEFT do TURBO'))
+                             if _tb[_k] != _espb[_k]]
+                    passo('o BETA sem ALFA da a intensidade e o sinal da resposta',
+                          not _difb, '; '.join(_difb) if _difb else
+                          'STATIC LY -50, DIRECT RX -40 ate soltar, TURBO a 30')
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

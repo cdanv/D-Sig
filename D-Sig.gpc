@@ -36,7 +36,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.26";
+const string DS_VERSAO    = "D-Sig 1.0.27";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -83,6 +83,7 @@ const string F1_PASSIV  = "PASSIVO";
 const string F1_TIN_LBL  = "THR_IN:";
 const string F1_TOUT_LBL = "THR_OUT:";
 const string F1_DIR_LBL  = "DIR:";
+const string F1_SINAL_LBL = "SINAL:";
 const string F1_DIR_NEG  = "NEG";
 const string F1_DIR_ABS  = "ABS";
 const string F1_DIR_POS  = "POS";
@@ -251,6 +252,7 @@ define CAT_TOUCH   = 0;
 define CAT_EIXO    = 1;
 define CAT_GATILHO = 2;
 define CAT_BOTAO   = 3;
+define CAT_NENHUMA = 4;
 define SHIFT_COND_PACK    = 0;
 define SHIFT_COND_THR     = 6;
 define BIT_HOLD_MODO      = 15;
@@ -374,6 +376,10 @@ int Fin_15=0; int Fin_16=0; int Fin_17=0; int Fin_18=0; int Fin_19=0; int Fin_20
 int Est_Tmp              = 0;
 int Gb_V                 = 0;
 int Gb_N                 = 0;
+int Gv_V                 = 0;
+int Bt_Cat               = 0;
+int Bt_Max               = 0;
+int Bt_Campo             = 0;
 define SHIFT_VE          = 4;
 int Ve_On                = FALSE;
 int Msk_Ve               = 0;
@@ -926,7 +932,7 @@ function Mnu_Alfa() {
     if(Wz_Entrando) { Wz_Entrando = FALSE; Load_Wz_Fonte(WzSlot); }
     if(event_press(PS5_R1) && !get_ival(PS5_OPTIONS)) {
         Commit_Wz_Fonte(WzSlot);
-        if(Get_Fonte_Categoria(Wz_Fonte_Tipo) == CAT_BOTAO) {
+        if(Beta_Cat(Wz_Fonte_Tipo) == CAT_BOTAO) {
             MenuDin = 102;
         } else {
             Load_Wz_Cond(WzSlot);
@@ -959,10 +965,11 @@ function Mnu_Alfa() {
 function Mnu_Beta() {
     set_val(PS5_OPTIONS, 0);
     if(Wz_Entrando) { Wz_Entrando = FALSE; Wz_ScrTop = 0; }
-    Work_C = Get_Fonte_Categoria(Wz_Fonte_Tipo);
-    if(Work_C == CAT_TOUCH)        Work_D = 0;
-    else if(Work_C == CAT_GATILHO) Work_D = 2;
-    else                           Work_D = 3;
+    Bt_Cat = Beta_Cat(Wz_Fonte_Tipo);
+    if(Bt_Cat == CAT_TOUCH)          Bt_Max = 0;
+    else if(Bt_Cat == CAT_GATILHO)   Bt_Max = 2;
+    else if(Bt_Cat == CAT_NENHUMA)   Bt_Max = 1;
+    else                             Bt_Max = 3;
     if(event_press(PS5_R1) && !get_ival(PS5_OPTIONS)) {
         Commit_Wz_Cond(WzSlot);
         MenuDin = 102; Wz_SubCursor = 0; Wz_Entrando = TRUE;
@@ -973,20 +980,28 @@ function Mnu_Beta() {
         MenuDin = 100; Wz_SubCursor = 0; Wz_Entrando = TRUE;
         Update_OLED();
     }
-    if(event_press(PS5_UP))   { Wz_SubCursor--; if(Wz_SubCursor < 0) Wz_SubCursor = Work_D; Ajust_Scr_Cond(); Update_OLED(); }
-    if(event_press(PS5_DOWN)) { Wz_SubCursor++; if(Wz_SubCursor > Work_D) Wz_SubCursor = 0; Ajust_Scr_Cond(); Update_OLED(); }
+    if(event_press(PS5_UP))   { Wz_SubCursor--; if(Wz_SubCursor < 0) Wz_SubCursor = Bt_Max; Ajust_Scr_Cond(); Update_OLED(); }
+    if(event_press(PS5_DOWN)) { Wz_SubCursor++; if(Wz_SubCursor > Bt_Max) Wz_SubCursor = 0; Ajust_Scr_Cond(); Update_OLED(); }
+    Bt_Campo = Wz_SubCursor;
+    if(Bt_Cat == CAT_NENHUMA && Wz_SubCursor == 1) Bt_Campo = 3;
+    if(Bt_Cat == CAT_NENHUMA && Bt_Campo == 3 && (event_press(PS5_LEFT) || event_press(PS5_RIGHT))) {
+        if(Wz_Cond_Dir == F1_DIR_NEGATIVO) Wz_Cond_Dir = F1_DIR_ABSOLUTO;
+        else                               Wz_Cond_Dir = F1_DIR_NEGATIVO;
+        Update_OLED();
+        return;
+    }
     if(event_press(PS5_LEFT)) {
-        if(Wz_SubCursor == 0) { Wz_Cond_Mult--; if(Wz_Cond_Mult < 0) Wz_Cond_Mult = 0; }
-        else if(Wz_SubCursor == 1) { Wz_Cond_ThrIn--; if(Wz_Cond_ThrIn < 0) Wz_Cond_ThrIn = 0; }
-        else if(Wz_SubCursor == 2) { Wz_Cond_ThrOut--; if(Wz_Cond_ThrOut < 0) Wz_Cond_ThrOut = 0; }
-        else if(Wz_SubCursor == 3) { Wz_Cond_Dir--; if(Wz_Cond_Dir < 0) Wz_Cond_Dir = 2; }
+        if(Bt_Campo == 0) { Wz_Cond_Mult--; if(Wz_Cond_Mult < 0) Wz_Cond_Mult = 0; }
+        else if(Bt_Campo == 1) { Wz_Cond_ThrIn--; if(Wz_Cond_ThrIn < 0) Wz_Cond_ThrIn = 0; }
+        else if(Bt_Campo == 2) { Wz_Cond_ThrOut--; if(Wz_Cond_ThrOut < 0) Wz_Cond_ThrOut = 0; }
+        else if(Bt_Campo == 3) { Wz_Cond_Dir--; if(Wz_Cond_Dir < 0) Wz_Cond_Dir = 2; }
         Update_OLED();
     }
     if(event_press(PS5_RIGHT)) {
-        if(Wz_SubCursor == 0) { Wz_Cond_Mult++; if(Wz_Cond_Mult > 18) Wz_Cond_Mult = 18; }
-        else if(Wz_SubCursor == 1) { Wz_Cond_ThrIn++; if(Wz_Cond_ThrIn > 20) Wz_Cond_ThrIn = 20; }
-        else if(Wz_SubCursor == 2) { Wz_Cond_ThrOut++; if(Wz_Cond_ThrOut > 19) Wz_Cond_ThrOut = 19; }
-        else if(Wz_SubCursor == 3) { Wz_Cond_Dir++; if(Wz_Cond_Dir > 2) Wz_Cond_Dir = 0; }
+        if(Bt_Campo == 0) { Wz_Cond_Mult++; if(Wz_Cond_Mult > 18) Wz_Cond_Mult = 18; }
+        else if(Bt_Campo == 1) { Wz_Cond_ThrIn++; if(Wz_Cond_ThrIn > 20) Wz_Cond_ThrIn = 20; }
+        else if(Bt_Campo == 2) { Wz_Cond_ThrOut++; if(Wz_Cond_ThrOut > 19) Wz_Cond_ThrOut = 19; }
+        else if(Bt_Campo == 3) { Wz_Cond_Dir++; if(Wz_Cond_Dir > 2) Wz_Cond_Dir = 0; }
         Update_OLED();
     }
 }
@@ -1001,8 +1016,8 @@ function Mnu_Gama_Lista() {
     }
     if(event_press(PS5_L1) || event_release(PS5_CIRCLE)) {
         Commit_Wz_Gatilho(WzSlot);
-        if(Get_Fonte_Categoria(Wz_Fonte_Tipo) == CAT_BOTAO) { MenuDin = 100; }
-        else                                                 { MenuDin = 101; }
+        if(Beta_Cat(Wz_Fonte_Tipo) == CAT_BOTAO) { MenuDin = 100; }
+        else                                      { MenuDin = 101; }
         Wz_SubCursor = 0; Wz_Entrando = TRUE;
         Update_OLED();
     }
@@ -2519,8 +2534,18 @@ function Gatilho_Btn_Val(num) {
     if(Gb_N == 0) return 100;
     return Gb_V;
 }
+function Gama_Val(num, v) {
+    Gv_V = (v * (Get_Cond_Mult(num) + 1)) / 10;
+    if(Gv_V > 100)  Gv_V = 100;
+    if(Gv_V < -100) Gv_V = -100;
+    return Gv_V;
+}
+function Gama_Sinal(num) {
+    if(Get_Cond_Dir(num) == F1_DIR_NEGATIVO) return -1;
+    return 1;
+}
 function Trb_Aplicar_Cond(num, v) {
-    if(Get_Fonte_Tipo(num) == FONTE_NENHUMA) return v;
+    if(Get_Fonte_Tipo(num) == FONTE_NENHUMA) return Gama_Val(num, v);
     if(Get_Fonte_Categoria(Get_Fonte_Tipo(num)) == CAT_BOTAO) return v;
     Pipe_Val = (v * (Get_Cond_Mult(num) + 1)) / 10;
     if(Pipe_Val > 100)  Pipe_Val = 100;
@@ -2568,20 +2593,22 @@ function Run_Instance_v3(num) {
         if(Get_F1_Tipo(num) == DST_TIPO_TURBO) { Executar_Turbo_Fonte(num); return; }
         if(Get_F1_Tipo(num) == DST_TIPO_DIRECT) {
             Gb_V = Gatilho_Btn_Val(num);
+            Gb_N = Gama_Sinal(num);
             if(Orfao_Adotado(num)) {
                 Est_Tmp = Valor_Alvo_Assoc(num);
-                if(Est_Tmp != VA_NADA) Gb_V = Est_Tmp;
+                if(Est_Tmp != VA_NADA) { Gb_V = Est_Tmp; Gb_N = 1; }
             }
             Work_D = Gb_V;
             if(Work_D) {
-                Escrever_Destino(Dst_Mask(num), Work_D);
+                Escrever_Destino(Dst_Mask(num), Gama_Val(num, Work_D) * Gb_N);
             } else {
                 Inst_Ativa = Inst_Ativa & (~(1 << (num - 1)));
                 Aplicar_RespOff_Inst(num);
             }
             return;
         }
-        Estatc_Escrever_Dst(Dst_Mask(num));
+        Gama_Val(num, 100);
+        Estatc_Escrever_Dst_Val(Dst_Mask(num), Gv_V, Gv_V * Gama_Sinal(num));
         return;
     }
     if(Get_F1_Tipo(num) == DST_TIPO_DIRECT) {
@@ -2721,26 +2748,6 @@ function Inicializar_Estado() {
     Excl_RespAnt = 0;
     Src_Acima_Fonte = 0;
     Assoc_Mask = 0;
-}
-function Estatc_Escrever_Dst(mask) {
-    if((mask >> 0)  & 1) Acc_Um(0,  100);
-    if((mask >> 1)  & 1) Acc_Um(1,  100);
-    if((mask >> 2)  & 1) Acc_Um(2,  100);
-    if((mask >> 3)  & 1) Acc_Um(3,  100);
-    if((mask >> 4)  & 1) Acc_Um(4,  100);
-    if((mask >> 5)  & 1) Acc_Um(5,  100);
-    if((mask >> 6)  & 1) Acc_Um(6,  100);
-    if((mask >> 7)  & 1) Acc_Um(7,  100);
-    if((mask >> 8)  & 1) Acc_Um(8,  100);
-    if((mask >> 9)  & 1) Acc_Um(9,  100);
-    if((mask >> 10) & 1) Acc_Um(10, 100);
-    if((mask >> 11) & 1) Acc_Um(11, 100);
-    if((mask >> 12) & 1) Acc_Um(12, 100);
-    if((mask >> 13) & 1) Acc_Um(13, 100);
-    if((mask >> 14) & 1) Acc_Um(14, 100);
-    if((mask >> 15) & 1) Acc_Um(15, 100);
-    if((mask >> 16) & 1) Acc_Um(16, 100);
-    if((mask >> 17) & 1) Acc_Um(17, 100);
 }
 function Estatc_Escrever_Dst_Val(mask, v, sinal) {
     if((mask >> 0)  & 1) Acc_Um(0,  v);
@@ -4009,6 +4016,10 @@ function Set_Fonte_Passivo(num, v) {
     if(v) Work_A = Work_A | (1 << SHIFT_FONTE_PASSIVO);
     Set_Spvar_A(num, Work_A);
 }
+function Beta_Cat(tipo) {
+    if(tipo == FONTE_NENHUMA) return CAT_NENHUMA;
+    return Get_Fonte_Categoria(tipo);
+}
 function Get_Fonte_Categoria(tipo) {
     if(tipo == FONTE_FINGER_X || tipo == FONTE_FINGER_Y) return CAT_TOUCH;
     if(tipo == FONTE_LX || tipo == FONTE_LY || tipo == FONTE_RX || tipo == FONTE_RY) return CAT_EIXO;
@@ -4398,8 +4409,11 @@ function Update_OLED() {
         print(5, 2, 0, 1, WZ_COND[0]);
         Print_Inst_Label(WzSlot, 78, 2);
         rect_oled(0, 11, 128, 1, 0, 1);
-        Work_C = Get_Fonte_Categoria(Wz_Fonte_Tipo);
-        if(Work_C == CAT_TOUCH) {
+        Work_C = Beta_Cat(Wz_Fonte_Tipo);
+        if(Work_C == CAT_NENHUMA) {
+            Print_Cond_Row(0, ROW0_Y, Work_C);
+            Print_Sinal_Row(ROW1_Y);
+        } else if(Work_C == CAT_TOUCH) {
             rect_oled(0, 18, 128, 20, 0, 1);
             print(3, 22, 1, 1, F1_MULT_LBL[0]);
             Print_Mult_Label(78, 22, Wz_Cond_Mult);
@@ -4698,6 +4712,12 @@ function Print_Cond_Row(idx, y, categoria) {
         if(Wz_Cond_Dir == 1) print(89, y, 1, 1, F1_DIR_ABS[0]);
         if(Wz_Cond_Dir == 2) print(89, y, 1, 1, F1_DIR_POS[0]);
     }
+}
+function Print_Sinal_Row(y) {
+    if(Wz_SubCursor == 1) rect_oled(0, y - 2, 128, 18, 0, 1);
+    print(3, y, 1, 1, F1_SINAL_LBL[0]);
+    if(Wz_Cond_Dir == F1_DIR_NEGATIVO) print(89, y, 1, 1, F1_DIR_NEG[0]);
+    else                               print(89, y, 1, 1, F1_DIR_POS[0]);
 }
 function Print_Dst_Label(x, y, idx) {
     if(idx ==  0) print(x, y, 0, 1, DST_L1[0]);

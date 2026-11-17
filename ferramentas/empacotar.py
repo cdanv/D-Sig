@@ -75,7 +75,7 @@ else:
 # simulador de fora e o pacote reprovou na propria prova, com "nao achei o simulador" —
 # que e exatamente o erro que o usuario receberia ao clonar o repositorio. Pacote que
 # nunca foi executado da propria pasta e pacote que ninguem testou.
-SIMFILES = ['gpc2c.py', 'gpcrt.h', 'harness.c', 'fuzz.c', 'tri.c', 'zeta.c', 'mig.c']
+SIMFILES = ['gpc2c.py', 'gpcrt.h', 'harness.c', 'fuzz.c', 'tri.c', 'zeta.c', 'mig.c', 'beta.c']
 
 RAIZ = [
     'index.html', 'D-Sig.gpc', 'manifest.json', 'sw.js',

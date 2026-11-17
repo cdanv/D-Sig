@@ -11,8 +11,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="D-Sig">
-<link rel="icon" type="image/png" href="./icone-192.png?v=1.0.26">
-<link rel="apple-touch-icon" href="./icone-192.png?v=1.0.26">
+<link rel="icon" type="image/png" href="./icone-192.png?v=1.0.27">
+<link rel="apple-touch-icon" href="./icone-192.png?v=1.0.27">
 <style>
 :root{
   --bg:#0d1117; --panel:#151b23; --panel2:#1c242e; --line:#2a3440;
@@ -125,7 +125,7 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 <body>
 <header>
   <button class="btn sm" id="volta" style="display:none" aria-label="Voltar">‹</button>
-  <img id="logo" src="./icone-192.png?v=1.0.26" alt="" width="34" height="34">
+  <img id="logo" src="./icone-192.png?v=1.0.27" alt="" width="34" height="34">
   <h1 id="titulo">D-Sig<span class="sub" id="subtitulo"></span></h1>
 </header>
 <div class="wrap" id="app"></div>
@@ -168,7 +168,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.26";
+const string DS_VERSAO    = "D-Sig 1.0.27";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -215,6 +215,7 @@ const string F1_PASSIV  = "PASSIVO";
 const string F1_TIN_LBL  = "THR_IN:";
 const string F1_TOUT_LBL = "THR_OUT:";
 const string F1_DIR_LBL  = "DIR:";
+const string F1_SINAL_LBL = "SINAL:";
 const string F1_DIR_NEG  = "NEG";
 const string F1_DIR_ABS  = "ABS";
 const string F1_DIR_POS  = "POS";
@@ -383,6 +384,7 @@ define CAT_TOUCH   = 0;
 define CAT_EIXO    = 1;
 define CAT_GATILHO = 2;
 define CAT_BOTAO   = 3;
+define CAT_NENHUMA = 4;
 define SHIFT_COND_PACK    = 0;
 define SHIFT_COND_THR     = 6;
 define BIT_HOLD_MODO      = 15;
@@ -506,6 +508,10 @@ int Fin_15=0; int Fin_16=0; int Fin_17=0; int Fin_18=0; int Fin_19=0; int Fin_20
 int Est_Tmp              = 0;
 int Gb_V                 = 0;
 int Gb_N                 = 0;
+int Gv_V                 = 0;
+int Bt_Cat               = 0;
+int Bt_Max               = 0;
+int Bt_Campo             = 0;
 define SHIFT_VE          = 4;
 int Ve_On                = FALSE;
 int Msk_Ve               = 0;
@@ -1058,7 +1064,7 @@ function Mnu_Alfa() {
     if(Wz_Entrando) { Wz_Entrando = FALSE; Load_Wz_Fonte(WzSlot); }
     if(event_press(PS5_R1) && !get_ival(PS5_OPTIONS)) {
         Commit_Wz_Fonte(WzSlot);
-        if(Get_Fonte_Categoria(Wz_Fonte_Tipo) == CAT_BOTAO) {
+        if(Beta_Cat(Wz_Fonte_Tipo) == CAT_BOTAO) {
             MenuDin = 102;
         } else {
             Load_Wz_Cond(WzSlot);
@@ -1091,10 +1097,11 @@ function Mnu_Alfa() {
 function Mnu_Beta() {
     set_val(PS5_OPTIONS, 0);
     if(Wz_Entrando) { Wz_Entrando = FALSE; Wz_ScrTop = 0; }
-    Work_C = Get_Fonte_Categoria(Wz_Fonte_Tipo);
-    if(Work_C == CAT_TOUCH)        Work_D = 0;
-    else if(Work_C == CAT_GATILHO) Work_D = 2;
-    else                           Work_D = 3;
+    Bt_Cat = Beta_Cat(Wz_Fonte_Tipo);
+    if(Bt_Cat == CAT_TOUCH)          Bt_Max = 0;
+    else if(Bt_Cat == CAT_GATILHO)   Bt_Max = 2;
+    else if(Bt_Cat == CAT_NENHUMA)   Bt_Max = 1;
+    else                             Bt_Max = 3;
     if(event_press(PS5_R1) && !get_ival(PS5_OPTIONS)) {
         Commit_Wz_Cond(WzSlot);
         MenuDin = 102; Wz_SubCursor = 0; Wz_Entrando = TRUE;
@@ -1105,20 +1112,28 @@ function Mnu_Beta() {
         MenuDin = 100; Wz_SubCursor = 0; Wz_Entrando = TRUE;
         Update_OLED();
     }
-    if(event_press(PS5_UP))   { Wz_SubCursor--; if(Wz_SubCursor < 0) Wz_SubCursor = Work_D; Ajust_Scr_Cond(); Update_OLED(); }
-    if(event_press(PS5_DOWN)) { Wz_SubCursor++; if(Wz_SubCursor > Work_D) Wz_SubCursor = 0; Ajust_Scr_Cond(); Update_OLED(); }
+    if(event_press(PS5_UP))   { Wz_SubCursor--; if(Wz_SubCursor < 0) Wz_SubCursor = Bt_Max; Ajust_Scr_Cond(); Update_OLED(); }
+    if(event_press(PS5_DOWN)) { Wz_SubCursor++; if(Wz_SubCursor > Bt_Max) Wz_SubCursor = 0; Ajust_Scr_Cond(); Update_OLED(); }
+    Bt_Campo = Wz_SubCursor;
+    if(Bt_Cat == CAT_NENHUMA && Wz_SubCursor == 1) Bt_Campo = 3;
+    if(Bt_Cat == CAT_NENHUMA && Bt_Campo == 3 && (event_press(PS5_LEFT) || event_press(PS5_RIGHT))) {
+        if(Wz_Cond_Dir == F1_DIR_NEGATIVO) Wz_Cond_Dir = F1_DIR_ABSOLUTO;
+        else                               Wz_Cond_Dir = F1_DIR_NEGATIVO;
+        Update_OLED();
+        return;
+    }
     if(event_press(PS5_LEFT)) {
-        if(Wz_SubCursor == 0) { Wz_Cond_Mult--; if(Wz_Cond_Mult < 0) Wz_Cond_Mult = 0; }
-        else if(Wz_SubCursor == 1) { Wz_Cond_ThrIn--; if(Wz_Cond_ThrIn < 0) Wz_Cond_ThrIn = 0; }
-        else if(Wz_SubCursor == 2) { Wz_Cond_ThrOut--; if(Wz_Cond_ThrOut < 0) Wz_Cond_ThrOut = 0; }
-        else if(Wz_SubCursor == 3) { Wz_Cond_Dir--; if(Wz_Cond_Dir < 0) Wz_Cond_Dir = 2; }
+        if(Bt_Campo == 0) { Wz_Cond_Mult--; if(Wz_Cond_Mult < 0) Wz_Cond_Mult = 0; }
+        else if(Bt_Campo == 1) { Wz_Cond_ThrIn--; if(Wz_Cond_ThrIn < 0) Wz_Cond_ThrIn = 0; }
+        else if(Bt_Campo == 2) { Wz_Cond_ThrOut--; if(Wz_Cond_ThrOut < 0) Wz_Cond_ThrOut = 0; }
+        else if(Bt_Campo == 3) { Wz_Cond_Dir--; if(Wz_Cond_Dir < 0) Wz_Cond_Dir = 2; }
         Update_OLED();
     }
     if(event_press(PS5_RIGHT)) {
-        if(Wz_SubCursor == 0) { Wz_Cond_Mult++; if(Wz_Cond_Mult > 18) Wz_Cond_Mult = 18; }
-        else if(Wz_SubCursor == 1) { Wz_Cond_ThrIn++; if(Wz_Cond_ThrIn > 20) Wz_Cond_ThrIn = 20; }
-        else if(Wz_SubCursor == 2) { Wz_Cond_ThrOut++; if(Wz_Cond_ThrOut > 19) Wz_Cond_ThrOut = 19; }
-        else if(Wz_SubCursor == 3) { Wz_Cond_Dir++; if(Wz_Cond_Dir > 2) Wz_Cond_Dir = 0; }
+        if(Bt_Campo == 0) { Wz_Cond_Mult++; if(Wz_Cond_Mult > 18) Wz_Cond_Mult = 18; }
+        else if(Bt_Campo == 1) { Wz_Cond_ThrIn++; if(Wz_Cond_ThrIn > 20) Wz_Cond_ThrIn = 20; }
+        else if(Bt_Campo == 2) { Wz_Cond_ThrOut++; if(Wz_Cond_ThrOut > 19) Wz_Cond_ThrOut = 19; }
+        else if(Bt_Campo == 3) { Wz_Cond_Dir++; if(Wz_Cond_Dir > 2) Wz_Cond_Dir = 0; }
         Update_OLED();
     }
 }
@@ -1133,8 +1148,8 @@ function Mnu_Gama_Lista() {
     }
     if(event_press(PS5_L1) || event_release(PS5_CIRCLE)) {
         Commit_Wz_Gatilho(WzSlot);
-        if(Get_Fonte_Categoria(Wz_Fonte_Tipo) == CAT_BOTAO) { MenuDin = 100; }
-        else                                                 { MenuDin = 101; }
+        if(Beta_Cat(Wz_Fonte_Tipo) == CAT_BOTAO) { MenuDin = 100; }
+        else                                      { MenuDin = 101; }
         Wz_SubCursor = 0; Wz_Entrando = TRUE;
         Update_OLED();
     }
@@ -2651,8 +2666,18 @@ function Gatilho_Btn_Val(num) {
     if(Gb_N == 0) return 100;
     return Gb_V;
 }
+function Gama_Val(num, v) {
+    Gv_V = (v * (Get_Cond_Mult(num) + 1)) / 10;
+    if(Gv_V > 100)  Gv_V = 100;
+    if(Gv_V < -100) Gv_V = -100;
+    return Gv_V;
+}
+function Gama_Sinal(num) {
+    if(Get_Cond_Dir(num) == F1_DIR_NEGATIVO) return -1;
+    return 1;
+}
 function Trb_Aplicar_Cond(num, v) {
-    if(Get_Fonte_Tipo(num) == FONTE_NENHUMA) return v;
+    if(Get_Fonte_Tipo(num) == FONTE_NENHUMA) return Gama_Val(num, v);
     if(Get_Fonte_Categoria(Get_Fonte_Tipo(num)) == CAT_BOTAO) return v;
     Pipe_Val = (v * (Get_Cond_Mult(num) + 1)) / 10;
     if(Pipe_Val > 100)  Pipe_Val = 100;
@@ -2700,20 +2725,22 @@ function Run_Instance_v3(num) {
         if(Get_F1_Tipo(num) == DST_TIPO_TURBO) { Executar_Turbo_Fonte(num); return; }
         if(Get_F1_Tipo(num) == DST_TIPO_DIRECT) {
             Gb_V = Gatilho_Btn_Val(num);
+            Gb_N = Gama_Sinal(num);
             if(Orfao_Adotado(num)) {
                 Est_Tmp = Valor_Alvo_Assoc(num);
-                if(Est_Tmp != VA_NADA) Gb_V = Est_Tmp;
+                if(Est_Tmp != VA_NADA) { Gb_V = Est_Tmp; Gb_N = 1; }
             }
             Work_D = Gb_V;
             if(Work_D) {
-                Escrever_Destino(Dst_Mask(num), Work_D);
+                Escrever_Destino(Dst_Mask(num), Gama_Val(num, Work_D) * Gb_N);
             } else {
                 Inst_Ativa = Inst_Ativa & (~(1 << (num - 1)));
                 Aplicar_RespOff_Inst(num);
             }
             return;
         }
-        Estatc_Escrever_Dst(Dst_Mask(num));
+        Gama_Val(num, 100);
+        Estatc_Escrever_Dst_Val(Dst_Mask(num), Gv_V, Gv_V * Gama_Sinal(num));
         return;
     }
     if(Get_F1_Tipo(num) == DST_TIPO_DIRECT) {
@@ -2853,26 +2880,6 @@ function Inicializar_Estado() {
     Excl_RespAnt = 0;
     Src_Acima_Fonte = 0;
     Assoc_Mask = 0;
-}
-function Estatc_Escrever_Dst(mask) {
-    if((mask >> 0)  & 1) Acc_Um(0,  100);
-    if((mask >> 1)  & 1) Acc_Um(1,  100);
-    if((mask >> 2)  & 1) Acc_Um(2,  100);
-    if((mask >> 3)  & 1) Acc_Um(3,  100);
-    if((mask >> 4)  & 1) Acc_Um(4,  100);
-    if((mask >> 5)  & 1) Acc_Um(5,  100);
-    if((mask >> 6)  & 1) Acc_Um(6,  100);
-    if((mask >> 7)  & 1) Acc_Um(7,  100);
-    if((mask >> 8)  & 1) Acc_Um(8,  100);
-    if((mask >> 9)  & 1) Acc_Um(9,  100);
-    if((mask >> 10) & 1) Acc_Um(10, 100);
-    if((mask >> 11) & 1) Acc_Um(11, 100);
-    if((mask >> 12) & 1) Acc_Um(12, 100);
-    if((mask >> 13) & 1) Acc_Um(13, 100);
-    if((mask >> 14) & 1) Acc_Um(14, 100);
-    if((mask >> 15) & 1) Acc_Um(15, 100);
-    if((mask >> 16) & 1) Acc_Um(16, 100);
-    if((mask >> 17) & 1) Acc_Um(17, 100);
 }
 function Estatc_Escrever_Dst_Val(mask, v, sinal) {
     if((mask >> 0)  & 1) Acc_Um(0,  v);
@@ -4141,6 +4148,10 @@ function Set_Fonte_Passivo(num, v) {
     if(v) Work_A = Work_A | (1 << SHIFT_FONTE_PASSIVO);
     Set_Spvar_A(num, Work_A);
 }
+function Beta_Cat(tipo) {
+    if(tipo == FONTE_NENHUMA) return CAT_NENHUMA;
+    return Get_Fonte_Categoria(tipo);
+}
 function Get_Fonte_Categoria(tipo) {
     if(tipo == FONTE_FINGER_X || tipo == FONTE_FINGER_Y) return CAT_TOUCH;
     if(tipo == FONTE_LX || tipo == FONTE_LY || tipo == FONTE_RX || tipo == FONTE_RY) return CAT_EIXO;
@@ -4530,8 +4541,11 @@ function Update_OLED() {
         print(5, 2, 0, 1, WZ_COND[0]);
         Print_Inst_Label(WzSlot, 78, 2);
         rect_oled(0, 11, 128, 1, 0, 1);
-        Work_C = Get_Fonte_Categoria(Wz_Fonte_Tipo);
-        if(Work_C == CAT_TOUCH) {
+        Work_C = Beta_Cat(Wz_Fonte_Tipo);
+        if(Work_C == CAT_NENHUMA) {
+            Print_Cond_Row(0, ROW0_Y, Work_C);
+            Print_Sinal_Row(ROW1_Y);
+        } else if(Work_C == CAT_TOUCH) {
             rect_oled(0, 18, 128, 20, 0, 1);
             print(3, 22, 1, 1, F1_MULT_LBL[0]);
             Print_Mult_Label(78, 22, Wz_Cond_Mult);
@@ -4830,6 +4844,12 @@ function Print_Cond_Row(idx, y, categoria) {
         if(Wz_Cond_Dir == 1) print(89, y, 1, 1, F1_DIR_ABS[0]);
         if(Wz_Cond_Dir == 2) print(89, y, 1, 1, F1_DIR_POS[0]);
     }
+}
+function Print_Sinal_Row(y) {
+    if(Wz_SubCursor == 1) rect_oled(0, y - 2, 128, 18, 0, 1);
+    print(3, y, 1, 1, F1_SINAL_LBL[0]);
+    if(Wz_Cond_Dir == F1_DIR_NEGATIVO) print(89, y, 1, 1, F1_DIR_NEG[0]);
+    else                               print(89, y, 1, 1, F1_DIR_POS[0]);
 }
 function Print_Dst_Label(x, y, idx) {
     if(idx ==  0) print(x, y, 0, 1, DST_L1[0]);
@@ -5513,6 +5533,18 @@ function listaVolatil(m){var v=[];
   if(veReal(m))v.push('GAMA que enxerga o DELTA');
   return v}
 function temDestino(m){return m.dst.some(function(d){return d>0})}
+// Destino de EIXO: LX, LY, RX, RY (indices 11 a 14 em DESTINOS).
+function eixoDst(d){return d>=11&&d<=14}
+function temEixo(m){return m.dst.some(eixoDst)}
+// 1.0.27: O BETA SEM ALFA. Sem ALFA o MULT vira a intensidade da resposta e o DIR vira o
+// SINAL dos destinos de eixo (STATIC e DIRECT; no TURBO o sinal e do MODO). Espelha o
+// Gama_Val e o Gama_Sinal do script. Devolve o texto curto para a lista, ou ''.
+function betaSemAlfa(m){
+  if(m.fonte)return '';
+  var t=[];
+  if(m.mult!==9)t.push(MULT[m.mult]);
+  if(m.dir===0&&m.tipo!==2&&temEixo(m))t.push('NEG');
+  return t.join(' ')}
 // 1.0.21: espelha o Disparo_Unico do script — sem ALFA, TURBO de ciclos contados e um
 // gatilho que liga. Para ele o gatilho REINICIA a sequencia em vez de alternar, e o
 // ZETA ASSOC o encerra em vez de deixa-lo armado.
@@ -5558,6 +5590,7 @@ function resumoLista(m){
   if(g.length)P.push(['GAMA',g.join(', ')]);
   var ds=m.dst.filter(function(d){return d}).map(function(d){return DESTINOS[d]});
   x=['DIRECT','STATIC','TURBO'][m.tipo]+' '+(ds.length?ds.join(m.tipo===2?' → ':' '):'sem saída');
+  if(betaSemAlfa(m))x+=' '+betaSemAlfa(m);   // 1.0.27
   if(m.delay)x+=' após '+TDELAY[m.delay];
   P.push(['DELTA',x]);
   if(m.excl.length)z.push('EXCL '+m.excl.map(mm).join(','));
@@ -5661,6 +5694,15 @@ function resumo(j,i){
     p.push('Havendo ALFA, o GAMA <em>só desliga</em> — o ALFA religa.');
   if(cat==='nenhuma'&&m.tipo===0&&temGatilhoEstado(m))
     p.push('DIRECT sem ALFA <em>encerra ao soltar</em> o botão, então cada toque aciona de novo.');
+  // 1.0.27: o BETA sem ALFA, dito com o numero que vai sair
+  if(!m.fonte&&temDestino(m)&&(m.mult!==9||(m.dir===0&&m.tipo!==2&&temEixo(m)))){
+    var pc=Math.min(100,(m.mult+1)*10), b=[];
+    if(m.tipo===1)b.push('trava em <em>'+pc+'%</em>');
+    else if(m.tipo===2)b.push('pulsa a <em>'+pc+'%</em>');
+    else b.push('sai a <em>'+MULT[m.mult]+'</em> do botão do gatilho (no máximo 100%)');
+    if(m.dir===0&&m.tipo!==2&&temEixo(m))b.push('com os eixos no sentido <em>negativo</em>');
+    p.push('BETA sem ALFA: a resposta '+b.join(', ')+(orfao?'. Herdando do alvo, o MULT escala o valor herdado.':'.'));
+  }
   if(m.delay)p.push('DELAY: a resposta só sobe <em>'+TDELAY[m.delay]+'</em> depois de ser acionada.');
   if(m.gBlok)p.push('GAMA BLOK: segurar <em>'+BOTOES[m.gBlok]+'</em> suspende enquanto pressionado. <em>(RAM)</em>');
   if(m.passivo&&cat!=='nenhuma')p.push('PASSIVO: a entrada e os botões do GAMA <em>não chegam ao jogo</em>.');
@@ -5800,8 +5842,20 @@ function alertas(j,i){
         THOLD[Math.min(a,b)]+' e '+THOLD[Math.max(a,b)]+' não aciona nada.')}
     if(m.gHold&&o.g2clk===m.gHold&&m.gHoldM)
       O.push('MOD_'+String(k+1).padStart(2,'0')+' usa GAMA 2CLK no mesmo botão: o primeiro clique já dispara este MOD.')});
-  if(m.tipo===1&&m.dst.some(function(d){return d>=12&&d<=15}))
-    O.push('DELTA STATIC em eixo trava no sentido para onde o ALFA foi empurrado.');
+  // 1.0.27 CORRIGIDO: o teste era d>=12&&d<=15 — LY, RX, RY e UP —, deixando o LX de fora
+  // e avisando num UP. Os eixos sao 11 a 14 (eixoDst). E sem ALFA a frase mentia: nao ha
+  // ALFA para empurrar, e o sentido e o do SINAL.
+  if(m.tipo===1&&temEixo(m))
+    O.push(m.fonte?'DELTA STATIC em eixo trava no sentido para onde o ALFA foi empurrado.'
+      :'DELTA STATIC em eixo sem ALFA trava no sentido do SINAL do BETA: '+(m.dir===0?'negativo':'positivo')+
+       ' (no LY e no RY, negativo é para cima/frente).');
+  // 1.0.27: combinacoes do BETA sem ALFA que nao fazem nada — melhor a tela dizer
+  if(!m.fonte&&temDestino(m)){
+    if(m.mult>9&&m.tipo!==0)O.push('MULT '+MULT[m.mult]+' sem ALFA num '+['','STATIC','TURBO'][m.tipo]+
+      ' não passa de 100%: a resposta já sai inteira em x1.0.');
+    if(m.dir===0&&m.tipo===2)O.push('SINAL NEG não vale no TURBO: o sentido dos eixos é o do MODO (ABS, POS, NEG, ABSF).');
+    else if(m.dir===0&&!temEixo(m))O.push('SINAL NEG só vale para destino de eixo (LX, LY, RX, RY); nos botões não muda nada.');
+  }
   // v7k: o timer do combo no script tem 11 bits — espera e pausa acima de 2047ms sao
   // cortadas em 2047. Antes o app mostrava o valor cheio (3000ms) e o Cronus fazia 2047.
   // v7m: outro MOD com a MESMA entrada em PASSIVO. A supressao e da ENTRADA, não do MOD:
@@ -6311,7 +6365,7 @@ function telaCat(A){
   var noZen=D.jogos.filter(function(j){return j.noZen}).length;
   if(!D.jogos.length){var v=document.createElement('div');v.className='vazio';
     // 1.0.26: a tela vazia e onde a mascote tem espaco. O icone do app continua o D.
-    v.innerHTML='<img class="masc" src="./mascote.png?v=1.0.26" alt="A mascote do D-Sig: uma vespa-marinha sorrindo, com um raio no peito e quatro tentáculos" width="168" height="168">'+
+    v.innerHTML='<img class="masc" src="./mascote.png?v=1.0.27" alt="A mascote do D-Sig: uma vespa-marinha sorrindo, com um raio no peito e quatro tentáculos" width="168" height="168">'+
       'Nenhum jogo cadastrado.';A.appendChild(v)}
   // v7m: a lista pode ficar na ordem que voce arrastou (manual) ou em ordem alfabetica.
   // A escolha fica gravada junto com o catalogo. Na ordem A-Z as setas somem, porque quem
@@ -6583,6 +6637,17 @@ function telaMod(A){
     sb.appendChild(fld('THR_OUT',sel(m.tout,['OFF'].concat(THR.slice(1,20)),function(v){m.tout=v;up()})));
     if(cat==='eixo')sb.appendChild(fld('DIR',sel(m.dir,['NEG','ABS','POS'],function(v){m.dir=v;up()})));
     A.appendChild(sb)}
+  // 1.0.27: o BETA SEM ALFA. So o MULT (a intensidade) e o SINAL (o DIR, dos eixos).
+  // O THR_IN e o THR_OUT nao aparecem: comparam a fonte com uma janela, e sem ALFA nao ha
+  // fonte. O SINAL tem dois valores: NEG grava dir=0, POS grava dir=1 (o ABS de sempre).
+  if(cat==='nenhuma'){
+    var sb2=document.createElement('section');sb2.innerHTML='<h2>BETA</h2>';
+    sb2.appendChild(fld('MULT',sel(m.mult,MULT,function(v){m.mult=v;up()})));
+    sb2.appendChild(fld('SINAL',sel(m.dir===0?0:1,['NEG','POS'],function(v){m.dir=v?1:0;up()})));
+    var hb=document.createElement('p');hb.className='hint';
+    hb.textContent='Sem ALFA, o MULT é a intensidade da resposta do DELTA (x0.5 trava em 50%) e o SINAL é o sentido '+
+      'dos destinos de eixo no STATIC e no DIRECT. No TURBO o sentido é o do MODO.';
+    sb2.appendChild(hb);A.appendChild(sb2)}
 
   var sg=document.createElement('section');sg.innerHTML='<h2>GAMA</h2>';
   // Cada alternativa vira um GRUPO com barra lateral no seu matiz; os sub-campos entram
@@ -6823,7 +6888,7 @@ function telaInfo(A){
   // 1.0.26: a mascote, e por que ela.
   var sm=document.createElement('section');
   sm.innerHTML='<h2>A mascote</h2>'+
-    '<img class="masc peq" src="./mascote.png?v=1.0.26" alt="" width="120" height="120">'+
+    '<img class="masc peq" src="./mascote.png?v=1.0.27" alt="" width="120" height="120">'+
     '<div style="padding:9px 0;font-size:14px;line-height:1.55;color:var(--dim)">'+
     '<b style="color:var(--txt)">Vespa-marinha</b><br>Uma água-viva em forma de cubo: quatro lados, e os tentáculos saem dos '+
     'quatro cantos — os <b>quatro destinos</b> de um MOD e os <b>quatro domínios</b>. Ela não tem cérebro central: são quatro '+
@@ -6889,7 +6954,13 @@ function telaInfo(A){
     ['Latência em ---','Sem latência, os passos emendam um no outro, sem silêncio entre eles.'],
     ['GAMA ALTERNA x FINALIZA','Com ALFA, o gatilho só desliga. Sem ALFA, ele alterna — e com dois '+
      'gatilhos os dois abrem e fecham. Marcando um como FINALIZA, ele passa a só encerrar.'],
-    ['STATIC em eixo','Trava no sentido para onde o ALFA foi empurrado. Com DIR ABS, um MOD cobre os dois lados.'],
+    ['STATIC em eixo','Trava no sentido para onde o ALFA foi empurrado. Com DIR ABS, um MOD cobre os dois lados. '+
+     'Sem ALFA, trava no sentido do SINAL do BETA.'],
+    ['BETA sem ALFA','Sem ALFA, quem liga o MOD é o GAMA, e o BETA mostra só dois campos. O MULT é a intensidade da '+
+     'resposta: x0.5 trava um STATIC em 50%, pulsa um TURBO a 50% e faz um DIRECT sair à metade do botão do gatilho. '+
+     'Acima de x1.0 só o DIRECT muda, porque a base dos outros já é 100%. O SINAL é o sentido dos destinos de eixo no '+
+     'STATIC e no DIRECT (no LY e no RY, NEG é para cima/frente); no TURBO quem decide é o MODO. Num órfão, o MULT '+
+     'escala a intensidade herdada do alvo.'],
     ['DELAY','Atrasa a SUBIDA da resposta — não importa quem acionou: o ALFA entrando na zona, '+
      'o GAMA ligando ou um ZETA liberando. Sair da zona rearma: a próxima subida recomeça a contagem.'],
     ['Órfão herda a intensidade','Um MOD órfão com DELTA DIRECT ou TURBO responde com a '+
