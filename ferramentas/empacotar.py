@@ -126,7 +126,7 @@ def monta(dest):
             shutil.copy2(o, os.path.join(dest, 'ferramentas', f))
         else:
             faltou.append(f)
-    for f in ('padrao.py', 'png2gpc.py', 'icone.py', 'traco.png', 'traco-alternativa.png', 'traco-roteador.png'):
+    for f in ('padrao.py', 'png2gpc.py', 'icone.py', 'traco.py', 'traco.png', 'traco-alternativa.png', 'traco-roteador.png'):
         o = os.path.join(OLED, f)
         if os.path.isfile(o):
             shutil.copy2(o, os.path.join(dest, 'ferramentas', 'oled', f))

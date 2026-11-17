@@ -36,6 +36,11 @@ deixavam o desenho carregado, e o pulso so diz "sinal" a quem ja sabe o que e um
 quadrada. Ficou o D, um RAIO dentro dele, uma entrada e uma saida: o sinal entra, passa
 pelo D, sai. O raio e solido (um poligono, nao um traco), e por isso a separacao das
 tres cores aparece nele como bordas coloridas em volta de um miolo branco.
+1.0.24 — O D ENGORDOU E AS CORES ACOMPANHARAM. O traco.png passou a sair do traco.py, com
+o D em 40 px de espessura no lugar de 26. O DESLOC subiu de 1,6% para 2,4% do lado: e a
+mesma razao franja/espessura de antes (0,31), entao as tres cores tem o mesmo destaque num
+traco mais largo — e, em pixels, a franja ficou 50% maior. Com 2,6% o miolo branco do raio
+some e ele vira um borrao colorido; 2,4% e o maior valor em que o raio ainda se le.
 Guardados ao lado, para trocar copiando sobre o traco.png e rodando este script:
   traco-alternativa.png   so o D e o raio, sem entrada nem saida
   traco-roteador.png      o da 1.0.21: pulso por dentro e tres saidas
@@ -50,7 +55,7 @@ AQUI   = os.path.dirname(os.path.abspath(__file__))
 RAIZ   = os.path.dirname(os.path.dirname(AQUI))
 FUNDO  = (13, 17, 23)        # #0d1117, o mesmo de sempre
 RAIO   = 0.18                # canto arredondado, fracao do lado
-DESLOC = 0.016               # deslocamento de cada canal com ESCALA = 1, fracao do lado
+DESLOC = 0.024               # deslocamento de cada canal com ESCALA = 1, fracao do lado
 ANGULOS = (90, 210, 330)     # R, G, B — 120 graus entre si
 ESCALA = 1.0                 # tamanho do desenho em relacao ao traco.png
 # O maskable e recortado pelo sistema num circulo (ou outra forma) inscrito; a zona que

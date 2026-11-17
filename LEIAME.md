@@ -663,7 +663,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.23**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.24**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -1182,6 +1182,20 @@ de atraso). O R2 físico continua derrubando a mira como antes.
 
 O portão foi a **23 verificações**. A nova monta a mira, o tiro, uma mira de controle sem
 a opção e uma com o gatilho no próprio destino, e reprova no script da 1.0.22.
+
+### 1.0.24 — o D mais gordo (17/11/2026)
+
+**O script não mudou**, só o `DS_VERSAO`, para o cache trocar e o ícone chegar a quem já
+tem o app instalado.
+
+O Daniel pediu o D do logo mais "gordinho", sem as cores perderem destaque. A espessura
+do D foi de 26 para 40 px; a entrada, a saída, os nós e o raio cresceram junto. O
+deslocamento das três cores subiu de 1,6% para 2,4% do lado, que mantém a razão entre a
+franja colorida e a espessura do traço (0,31): o mesmo destaque num traço mais largo.
+Acima disso (2,6%) o miolo branco do raio some.
+
+O traço deixou de ser um PNG sem fonte. Ele sai agora do `ferramentas/oled/traco.py`, com
+cada medida num parâmetro; o `icone.py` continua aplicando as cores sobre ele.
 
 ### O que continua em aberto, e não impede nada
 
