@@ -161,7 +161,7 @@ const image DS_TIMBRE[] = {
 const string DS_N1 = "1"; const string DS_N2 = "2";
 const string DS_N3 = "3"; const string DS_N4 = "4";
 const string DS_TITULO    = "D-Sig";
-const string DS_VERSAO    = "D-Sig 1.0.20";
+const string DS_VERSAO    = "D-Sig 1.0.21";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -1979,7 +1979,18 @@ function Aplicar_RespOff_Inst(num) {
         Set_TrbSt_X(num, 0);
     }
 }
+function Disparo_Unico(num) {
+    if(Get_Fonte_Tipo(num) != FONTE_NENHUMA) return 0;
+    if(Get_F1_Tipo(num) != DST_TIPO_TURBO) return 0;
+    if(Get_Turbo_Ciclos(num) == 0) return 0;
+    return Tem_Gatilho_Estado(num);
+}
 function Toggle_Inst(num) {
+    if(((Inst_Ativa >> (num - 1)) & 1) && Disparo_Unico(num)) {
+        Set_TrbSt_X(num, 0);
+        Delay_Zerar(num);
+        return;
+    }
     Inst_Ativa = Inst_Ativa ^ (1 << (num - 1));
     Aplicar_RespOff_Inst(num);
 }
@@ -2551,7 +2562,14 @@ function Run_Instance_v3(num) {
         return;
     }
     if((Excl_Veto  >> (num - 1)) & 1) return;
-    if((Assoc_Mask >> (num - 1)) & 1) { Delay_Zerar(num); return; }
+    if((Assoc_Mask >> (num - 1)) & 1) {
+        if(Disparo_Unico(num)) {
+            Inst_Ativa = Inst_Ativa & (~(1 << (num - 1)));
+            Aplicar_RespOff_Inst(num);
+        }
+        Delay_Zerar(num);
+        return;
+    }
     if(BTN_FN_Bloqueia_v3(num)) return;
     if((Resp_Off_Fonte >> (num - 1)) & 1) return;
     if(!Delay_Passou(num)) return;
@@ -5336,6 +5354,28 @@ function listaVolatil(m){var v=[];
   if(finReal(m))v.push('modo FINALIZA dos GAMA');
   return v}
 function temDestino(m){return m.dst.some(function(d){return d>0})}
+// 1.0.21: espelha o Disparo_Unico do script — sem ALFA, TURBO de ciclos contados e um
+// gatilho que liga. Para ele o gatilho REINICIA a sequencia em vez de alternar, e o
+// ZETA ASSOC o encerra em vez de deixa-lo armado.
+function disparoUnico(m){return !m.fonte&&m.tipo===2&&m.ciclos>0&&!!temGatilhoEstado(m)}
+// OS BOTOES QUE NAO CHEGAM AO JOGO, por dominio. Um MOD em PASSIVO engole a entrada do
+// ALFA e todos os botoes do GAMA — e essa informacao so existia espalhada, MOD por MOD.
+// Foi assim que o R2 do Tomb Raiden e o TRIANGLE do Mad Max "pararam de funcionar".
+// Devolve, para o dominio n (1..4), [{nome, mods:[indices], escrito:[indices]}]: quem
+// engole, e quem ESCREVE naquele mesmo botao pelo DELTA (a escrita chega ao jogo).
+function engolidos(j,n){
+  var mapa={}, ordem=[];
+  function poe(nome,k){if(!mapa[nome]){mapa[nome]={nome:nome,mods:[],escrito:[]};ordem.push(nome)}
+    if(mapa[nome].mods.indexOf(k)<0)mapa[nome].mods.push(k)}
+  j.mods.forEach(function(m,k){
+    if(!nomeMod(j,k)||!m['d'+n]||!m.passivo)return;
+    if(m.fonte)poe(FONTES[m.fonte],k);
+    ['g2clk','gTog','gHold','gAfter','gBlok'].forEach(function(g){if(m[g])poe(BOTOES[m[g]],k)})});
+  j.mods.forEach(function(m,k){
+    if(!nomeMod(j,k)||!m['d'+n])return;
+    m.dst.forEach(function(d){var e=d&&mapa[DESTINOS[d]];
+      if(e&&e.escrito.indexOf(k)<0)e.escrito.push(k)})});
+  return ordem.map(function(x){return mapa[x]})}
 // v7l: resumo da lista na ordem das telas — ALFA/BETA · GAMA · DELTA · ZETA —, cada parte
 // so quando existe (pedido do Daniel). Devolve HTML ja escapado.
 function resumoLista(m){
@@ -5451,6 +5491,10 @@ function resumo(j,i){
     p.push('DELTA TURBO: '+seq.join(' → ')+
       (m.lat?', com '+TLAT[m.lat]+' entre cada.':', <em>emendados</em> (sem latência).')+
       (m.ciclos?' Repete '+m.ciclos+'× e encerra.':' Repete enquanto acionado.'));
+    if(disparoUnico(m))p.push('É um <em>disparo único</em>: acionar de novo durante a sequência a '+
+      '<em>reinicia</em> do primeiro passo, não cancela.'+
+      (m.assoc.length?' Acionado enquanto '+listaAlvos(m.assoc)+' não responde, o toque é '+
+        '<em>descartado</em>; se o alvo cair no meio, a sequência é encerrada e não retoma.':''));
   }
 
   // regras derivadas
@@ -5473,7 +5517,8 @@ function resumo(j,i){
   if(fins.length)p.push('Modo <em>FINALIZA</em> em '+fins.join(', ')+
     ' — esse'+(fins.length>1?'s':'')+' gatilho'+(fins.length>1?'s':'')+' só desliga'+
     (fins.length>1?'m':'')+', nunca liga'+(fins.length>1?'m':'')+'. <em>(RAM)</em>');
-  if(m.excl.length)p.push('ZETA EXCL <em>(RAM)</em>: é <em>encerrado</em> quando '+listaAlvos(m.excl)+' sobe.');
+  if(m.excl.length)p.push('ZETA EXCL <em>(RAM)</em>: é <em>encerrado</em> quando '+listaAlvos(m.excl)+
+    ' sobe. Vale só no instante da subida: com o alvo já de pé, este MOD liga normalmente.');
   if(m.assoc.length&&!orfao)p.push('ZETA ASSOC <em>(RAM)</em>: só responde <em>enquanto</em> '+listaAlvos(m.assoc)+' responder.');
   if(m.bloq.length)p.push('ZETA BLOQ <em>(RAM)</em>: fica <em>suspenso</em> enquanto '+listaAlvos(m.bloq)+' responder.');
   return p}
@@ -5512,6 +5557,22 @@ function alertas(j,i){
       ' com o botão já solto: num DIRECT sem ALFA '+(soltura.length>1?'esses gatilhos não produzem':'esse gatilho não produz')+
       ' saída. Só os outros gatilhos deste MOD produzem.');
   }
+  // 1.0.21: O GATILHO ARMADO. Sem ALFA, o gatilho liga o MOD mesmo com o alvo do ASSOC
+  // parado; ele fica de pe em silencio e a resposta sobe sozinha quando o alvo subir.
+  // Num STATIC isso costuma ser o desejado (a Corrida que volta ao andar); o que nao
+  // pode e acontecer sem a tela ter dito. O disparo unico nao arma mais (ver resumo).
+  if(cat==='nenhuma'&&temGatilhoEstado(m)&&m.assoc.length&&temDestino(m)&&!disparoUnico(m))
+    O.push('O gatilho liga este MOD mesmo enquanto '+listaAlvos(m.assoc)+' não responde: ele fica '+
+      '<em>armado</em>, sem saída, e a resposta sobe sozinha quando o alvo subir. Para desarmar, acione o gatilho de novo.');
+  // 1.0.21: L1 + L3 e R1 + R3 sao os COMANDOS DE TROCA DE DOMINIO, fixos no script. Um
+  // MOD que usa L3 ou R3 convive com eles no mesmo botao — medido: com o L1 segurado,
+  // dois toques no L3 desligam o dominio e todos os MODs param, sem nada na tela do jogo.
+  [['L3','L1','D1','D3'],['R3','R1','D2','D4']].forEach(function(c){
+    var usa=FONTES[m.fonte]===c[0];
+    ['g2clk','gTog','gHold','gAfter','gBlok'].forEach(function(g){if(BOTOES[m[g]]===c[0])usa=true});
+    if(usa)O.push('Este MOD usa o '+c[0]+', e <em>'+c[1]+' + '+c[0]+'</em> é comando de troca de domínio: com o '+
+      c[1]+' segurado, dois toques no '+c[0]+' em 0,25 s alternam o '+c[2]+', e o '+c[0]+
+      ' segurado por 0,5 s alterna o '+c[3]+'. Evite acionar este MOD com o '+c[1]+' apertado.')});
   if(m.tout>0&&m.tin===m.tout)
     A.push('THR_IN igual ao THR_OUT: janela de largura zero, praticamente nunca responde.');
   // alvos de outro driver
@@ -5571,9 +5632,16 @@ function alertas(j,i){
       pas.push('MOD_'+String(k+1).padStart(2,'0'))});
     // v7n: era um alerta de "não vai funcionar", e não é isso — o MOD funciona normalmente.
     // O que não acontece é a entrada chegar ao jogo, porque a supressão é da ENTRADA.
+    // 1.0.21 CORRIGIDO: a frase dizia sempre que a entrada "nao chega ao jogo". Quando o
+    // DESTINO deste MOD e a propria entrada (LY -> LY), ela chega — reescrita por este
+    // DELTA. Medido no Mad Max: no veiculo, o LY saia em 120% apesar do PASSIVO dos
+    // MOD_12 e MOD_13, e a tela afirmava o contrario.
+    var proprio=m.dst.some(function(d){return d&&DESTINOS[d]===FONTES[m.fonte]});
     if(pas.length)O.push('Este MOD está em ATIVO, mas '+pas.join(', ')+' usa a mesma entrada ('+
-      FONTES[m.fonte]+') em PASSIVO. Este MOD responde normalmente; o que não chega ao jogo é o '+
-      FONTES[m.fonte]+' em si, porque a supressão vale para a entrada, não para o MOD.');
+      FONTES[m.fonte]+') em PASSIVO. Este MOD responde normalmente; '+(proprio
+        ?'e como o destino dele é o próprio '+FONTES[m.fonte]+', o '+FONTES[m.fonte]+
+         ' <em>continua chegando ao jogo</em>, com o valor que este DELTA escreve — o PASSIVO do outro MOD só tira o sinal cru.'
+        :'o que não chega ao jogo é o '+FONTES[m.fonte]+' em si, porque a supressão vale para a entrada, não para o MOD.'));
   }
   // 1.0f: o PASSIVO engole TODOS os botoes de GAMA deste MOD, e nao apenas a entrada
   // do ALFA. No script quem faz isso e o Suprime_Gatilhos(), que zera o BLOK, o 2CLK, o
@@ -6188,6 +6256,15 @@ function telaJogo(A){
       'Marcados com <span class="tag vo">RAM</span> na lista. Se o script for gerado aqui, '+
       'são reaplicados a cada boot; configurando só pelo OLED, se perdem ao desligar.';
     A.appendChild(av)}
+  // 1.0.21: o quadro dos botoes que nao chegam ao jogo, por dominio.
+  var eng=[1,2,3,4].map(function(n){return{n:n,l:engolidos(j,n)}}).filter(function(x){return x.l.length});
+  if(eng.length){var qe=document.createElement('div');qe.className='obs';qe.id='engolidos';
+    var mm2=function(a){return a.map(function(k){return String(k+1).padStart(2,'0')}).join(', ')};
+    qe.innerHTML='<b>Botões que não chegam ao jogo.</b> MODs em PASSIVO engolem a entrada do ALFA e os botões do GAMA:'+
+      eng.map(function(x){return '<br><b>D'+x.n+(j.dom[x.n-1]?' '+h(j.dom[x.n-1]):'')+':</b> '+
+        x.l.map(function(e){return h(e.nome)+' <span style="color:var(--faint)">(MOD '+mm2(e.mods)+
+          (e.escrito.length?'; chega pelo DELTA do MOD '+mm2(e.escrito):'')+')</span>'}).join(', ')}).join('');
+    A.appendChild(qe)}
   var s2=document.createElement('section');
   s2.innerHTML='<h2>MODs'+(modo==='mover'?' — reordenando':'')+'</h2>';
   var lista=document.createElement('div');lista.className='mods';
@@ -6625,6 +6702,12 @@ function telaInfo(A){
      'espera e até 3,75s de pausa.'],
     ['ATIVO / PASSIVO sem ALFA','Com a entrada em ---, o campo continua valendo: em PASSIVO, os '+
      'botões do GAMA acionam o MOD mas não chegam ao jogo. Em ATIVO, chegam.'],
+    ['Disparo único','MOD sem ALFA com TURBO de ciclos contados (um Passe, um Pulo). Acionar de novo durante a '+
+     'sequência a REINICIA do primeiro passo; quem cancela é um gatilho em FINALIZA ou um ZETA EXCL. Com ZETA ASSOC, '+
+     'o toque dado com o alvo parado é descartado — não fica armado — e a sequência interrompida não retoma. '+
+     'TURBO contínuo, STATIC e DIRECT seguem alternando e ficam armados sob ASSOC.'],
+    ['EXCL é por subida','O EXCL encerra este MOD no instante em que o alvo SOBE. Com o alvo já de pé, este MOD liga normalmente.'],
+    ['Troca de domínio e L3 / R3','L1 + L3 e R1 + R3 são comandos fixos. Um MOD que usa L3 ou R3 pode trocar o domínio sem querer se for acionado com o L1 ou o R1 apertado.'],
     ['Ordem dos MODs','A posição na lista decide o desempate do bloqueio mútuo e a propagação em '+
      'cadeia — o pipeline avalia do MOD_01 ao MOD_20. Reordenar muda esse desempate.']]);
 

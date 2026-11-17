@@ -587,6 +587,12 @@ try:
                 _dmod(2, assoc=[1], dst=[5, 0, 0, 0])                   #    orfao DIRECT -> R2
                 _dmod(3, tipo=1, gTog=12, dst=[3, 0, 0, 0])             # c) alvo sem ALFA: DOWN trava o L3
                 _dmod(4, assoc=[3], gTog=13, finTog=1, dst=[6, 0, 0, 0])  # orfao -> R3, LEFT finaliza
+                # item 9 (disparo unico), no mesmo script:
+                _dmod(5, fonte=3, tin=4, dst=[11, 0, 0, 0])                # alvo: LX >= 20 -> LX
+                _dmod(6, gTog=9, tipo=2, ciclos=1, lat=0, tmp=[5, 3, 3, 3],  # SQUARE: CIRCLE 250 ms
+                      dst=[8, 0, 0, 0], assoc=[5])
+                _dmod(7, gTog=14, tipo=2, ciclos=1, lat=0, tmp=[5, 3, 3, 3],  # RIGHT: L1 250 ms
+                      dst=[1, 0, 0, 0])
                 _dc = os.path.join(tmp, 'direct.json')
                 json.dump(_dj, open(_dc, 'w', encoding='utf-8'))
                 _dg = os.path.join(tmp, 'direct.gpc')
@@ -615,6 +621,43 @@ try:
                     passo(_nomed, not _dif,
                           '; '.join(_dif) if _dif else 'dois gatilhos, orfao de STATIC travado e '
                           'orfao com FINALIZA')
+
+                    # --- 9. o DISPARO UNICO: nao arma, nao retoma, reinicia ---
+                    # TURBO de ciclos contados sem ALFA (Passe, Pulo, Nitro). Tres regras
+                    # da 1.0.21, no mesmo molde do item 8 (MODs 06 a 08), cada uma provada
+                    # contra o script da 1.0.20, que reprova nas tres:
+                    #   a) tocado com o alvo do ASSOC parado, o toque e DESCARTADO — antes
+                    #      ficava armado e a sequencia saia quando o alvo subisse;
+                    #   b) interrompido no meio pelo ASSOC, NAO RETOMA depois;
+                    #   c) um segundo toque durante a sequencia a REINICIA — antes cancelava.
+                    # No harness: SQUARE=8 dispara o MOD_07 (CIRCLE=7 por 250 ms, com ASSOC
+                    # no MOD_06, que e o LX=18); RIGHT=13 dispara o MOD_08 (L1=0 por 250 ms,
+                    # sem ASSOC).
+                    def _du(rot, saidas):
+                        _r = roda([_resd['harness']] + [str(x) for x in saidas], entrada=rot)
+                        _t = {str(x): [] for x in saidas}
+                        for _l in (_r.stdout or '').split('\n'):
+                            _mm = re.match(r'\s*(\d+)\s+out(\d+)=(-?\d+)', _l)
+                            if _mm:
+                                _t[_mm.group(2)].append((int(_mm.group(1)), int(_mm.group(3))))
+                        return _t
+                    _difu = []
+                    # a) toque aos 500 com o LX parado; LX sobe aos 1500: nada pode sair
+                    _ta = _du('500 8 100\n580 8 0\n1500 18 80\n3000 18 0\nEND 3500\n', [7])['7']
+                    if _ta != [(0, 0)]:
+                        _difu.append('armado: ' + ' '.join('%d:%d' % x for x in _ta))
+                    # b) LX=80, toque aos 1000, LX cai aos 1100 e volta aos 1500: 100 ms e fim
+                    _tb = _du('500 18 80\n1000 8 100\n1050 8 0\n1100 18 0\n1500 18 80\n'
+                              '3000 18 0\nEND 3500\n', [7])['7']
+                    if _tb != [(0, 0), (1000, 100), (1100, 0)]:
+                        _difu.append('retomou: ' + ' '.join('%d:%d' % x for x in _tb))
+                    # c) dois toques no RIGHT a 100 ms: 100 + 250 ms continuos
+                    _tc = _du('500 13 100\n540 13 0\n600 13 100\n640 13 0\nEND 2000\n', [0])['0']
+                    if _tc != [(0, 0), (500, 100), (850, 0)]:
+                        _difu.append('2o toque: ' + ' '.join('%d:%d' % x for x in _tc))
+                    passo('o disparo unico nao arma, nao retoma e reinicia no 2o toque',
+                          not _difu, '; '.join(_difu) if _difu else
+                          'toque vetado descartado, interrompido nao volta, 2o toque reinicia')
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

@@ -28,7 +28,7 @@ ferramentas/        nada disto vai ao ar; é a bancada
 | `ferramentas/D-Sig.fonte.gpc` | **o mesmo script, comentado. É o único arquivo que se edita à mão** |
 | `ferramentas/embutir.py` | **a única ferramenta de publicação.** Limpa, publica, embute, propaga a versão e recusa entregar algo errado |
 | `ferramentas/limpar.py` | o removedor de comentários e a lista das 11 âncoras que o app usa |
-| `ferramentas/testa_sim.py` | o portão de comportamento: 21 verificações que **executam** o script |
+| `ferramentas/testa_sim.py` | o portão de comportamento: 22 verificações que **executam** o script |
 | `ferramentas/gera_molde.py` | **gera o molde sintético do portão** e declara os 34 itens de cobertura que ele tem de sustentar |
 | `ferramentas/testa_tabelas.py` | confere tabela por tabela entre o app e o script, por valor |
 | `ferramentas/testa_a11y.js` | nome acessível e alvo de toque, no Chromium de verdade |
@@ -662,7 +662,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.20**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.21**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -1080,6 +1080,53 @@ ZETA para outro jogo (o jogo de destino era vazio, e num jogo vazio nenhum alvo 
 o número só engana onde há um MOD naquela posição). Consertado o teste, as seis reprovam.
 O portão foi a **21 verificações**.
 
+### 1.0.21 — o disparo único, os alertas e o logo novo (16/11/2026)
+
+Saiu de uma auditoria dos cinco jogos do Daniel: os GPCs gerados pelo app conferidos
+contra a biblioteca (selo, arquivo byte a byte, 1.380 campos decodificados por fora do
+app) e 123 cenários no simulador. **Nenhuma divergência entre app e GPC**, e nenhum
+defeito no motor; o que apareceu foram combinações em que o MOD fazia o configurado e
+não o desejado. Duas viraram mudança no script, **que não passou pelo Zen Studio nem
+pelo aparelho**.
+
+**O disparo único.** É o MOD sem ALFA com TURBO de ciclos contados e gatilho que liga: o
+Passe, o Pulo, o Nitro. O motor o tratava como estado que alterna, e ele é um comando.
+
+1. **O segundo toque reinicia a sequência, em vez de cancelá-la** (decisão do Daniel).
+   Medido antes: dois toques rápidos no L3 do "Mudar jogador" davam L1 por 80 ms e o R3
+   nem saía. Quem cancela continua sendo o gatilho em FINALIZA, o EXCL e o fim dos ciclos.
+2. **O toque vetado pelo ZETA ASSOC é descartado, e a sequência interrompida não
+   retoma.** Antes o MOD ficava *armado*: o Pulo do Mad Max, tocado parado, disparava
+   sozinho ao começar a andar (medido: 2,7 s depois), e o Nitro tocado sem o acelerador
+   travado soltava 4 s de CROSS quando ele fosse travado. Escolhi cancelar também a
+   sequência interrompida no meio: um pulo que termina sozinho depois é pior que um pulo
+   perdido.
+
+O que **não** muda: MOD com ALFA, STATIC, DIRECT e TURBO contínuo seguem alternando e
+seguem armados sob ASSOC — a Corrida do Mad Max depende disso. O BLOQ segue suspendendo e
+retomando, inclusive o disparo único. O hash de comportamento do molde não mudou.
+
+**No app:** o resumo do MOD diz quando ele é disparo único e que o EXCL só vale na
+subida do alvo; alerta para gatilho que fica armado (os que ainda ficam: STATIC, DIRECT e
+TURBO contínuo sem ALFA com ASSOC); alerta para MOD que usa L3 ou R3, porque L1 + L3 e
+R1 + R3 são os comandos de domínio (medido: L1 segurado + dois toques no L3 desliga o
+domínio); e, na tela do jogo, o quadro dos **botões que não chegam ao jogo** em cada
+domínio, com quem os engole e quem os reescreve pelo DELTA. Um texto corrigido: o app
+dizia que o LY "não chega ao jogo" num MOD cujo destino é o próprio LY.
+
+**O logo é outro.** A letra D como corpo do roteador: um nó de entrada, um pulso
+atravessando o D por dentro e três saídas sobre o arco. O efeito das três cores é o
+mesmo. A outra proposta (o D só com o pulso) ficou em `oled/traco-alternativa.png`.
+
+O portão foi a **22 verificações**: a nova prova as três regras do disparo único e
+reprova no script da 1.0.20 nas três.
+
+**Em aberto, pedido pelo Daniel:** no Tomb Raiden ele esperava que o AFTER no R2 do
+"Mirar arma" enxergasse o R2 escrito pelo DELTA do "Disparo". Não enxerga: todo gatilho
+lê o botão FÍSICO. Fazer os gatilhos lerem as saídas dos outros MODs mudaria os jogos que
+já existem (no FIFA o L1 do "Mudar jogador" dispararia a "Enfiada"; no Mad Max a mira se
+auto-encerraria), então precisa ser uma opção por gatilho, não uma regra.
+
 ### O que continua em aberto, e não impede nada
 
 0. **Deletar um MOD grava dezenas de SPVARs numa única volta do `main`.** Medido no
@@ -1106,6 +1153,6 @@ O portão foi a **21 verificações**.
 python3 ferramentas/embutir.py
 ```
 
-Ele audita a estrutura **e** roda o portão de comportamento: 21
+Ele audita a estrutura **e** roda o portão de comportamento: 22
 verificações, cada uma conferida contra uma sabotagem deliberada. Se
 fechar, não publicou nada.

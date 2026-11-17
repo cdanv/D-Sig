@@ -2,7 +2,7 @@
 * D-Sig 1.0 — Sistema Universal de Roteamento de Sinais
 * -----------------------------------------------------------------------------------
 * DISPOSITIVO : Cronus Zen + PlayStation 5 (DualSense)   |   GPC 32-bit
-* VERSAO      : script 1.0.20  |   LAYOUT DE BITS 6   |   app D-Sig (cache dsig-1.0.20)
+* VERSAO      : script 1.0.21  |   LAYOUT DE BITS 6   |   app D-Sig (cache dsig-1.0.21)
 *   Os tres numeros andam separados de proposito. O SCRIPT e a versao deste arquivo. O
 *   LAYOUT e a posicao dos campos dentro dos SPVARs, e so muda quando um campo muda de
 *   lugar ou tamanho — mudar o layout sem mudar o app junto e o unico jeito de este
@@ -227,7 +227,7 @@ const string DS_TITULO    = "D-Sig";   // v3zz
 // a 1.0d gravada mostrar uma letra MAIOR que a do app, e o LEIAME diz que letra maior no
 // aparelho significa app desatualizado — o selo passaria a mentir exatamente na pergunta
 // que ele existe para responder.
-const string DS_VERSAO    = "D-Sig 1.0.20";
+const string DS_VERSAO    = "D-Sig 1.0.21";
 const string DS_NOVO      = "[+] NOVA";
 const string DS_RAM       = "[RAM]";
 const string DS_EEP       = "[EEP]";
@@ -3082,7 +3082,41 @@ function Aplicar_RespOff_Inst(num) {
         Set_TrbSt_X(num, 0);
     }
 }
+// 1.0.21 — O DISPARO UNICO. Um MOD sem ALFA, com TURBO de CICLOS contados e gatilho que
+// liga: Passe, Pulo, Nitro, Mudar jogador. Ele nao e um estado que se liga e desliga, e
+// um comando: aperta, a sequencia sai uma vez, acabou. O motor o tratava como estado
+// (o gatilho ALTERNA), e a auditoria dos cinco jogos do Daniel mostrou duas consequencias,
+// as duas medidas no simulador nos GPCs dele:
+//
+//   1. O SEGUNDO TOQUE CANCELAVA. Dois toques rapidos no L3 (Mudar jogador, FIFA) davam
+//      L1 por 80 ms e o R3 nem saia: o segundo toque alternava o MOD para desligado no
+//      meio da sequencia. Agora, com a sequencia em curso, o gatilho a REINICIA do
+//      primeiro passo (decisao do Daniel). Quem cancela e o gatilho em FINALIZA, o EXCL e
+//      o fim dos ciclos — como sempre.
+//   2. O TOQUE FICAVA ARMADO. Com ZETA ASSOC e o alvo parado, o gatilho ligava o MOD, o
+//      ASSOC o impedia de responder, e a sequencia saia sozinha quando o alvo subisse —
+//      o Pulo do Mad Max, tocado parado, disparava 2,7 s depois, ao comecar a andar.
+//      Agora o veto do ASSOC ENCERRA o disparo unico (ver Run_Instance_v3): tocado com o
+//      alvo parado, o toque e descartado; interrompido no meio, nao retoma depois.
+//
+// O que NAO muda: MOD com ALFA, STATIC, DIRECT e TURBO continuo (CICLOS em ATIVO)
+// seguem alternando e seguem armados sob ASSOC — a Corrida do Mad Max depende disso:
+// liga uma vez, cai ao parar e volta sozinha ao andar. E o BLOQ segue suspendendo e
+// retomando de onde parou, inclusive o disparo unico.
+// Suja a Work_A (Get_F1_Tipo). Os quatro gatilhos que chamam o Toggle_Inst nao a leem
+// depois da chamada — conferido pelo checador de Work_.
+function Disparo_Unico(num) {
+    if(Get_Fonte_Tipo(num) != FONTE_NENHUMA) return 0;
+    if(Get_F1_Tipo(num) != DST_TIPO_TURBO) return 0;
+    if(Get_Turbo_Ciclos(num) == 0) return 0;
+    return Tem_Gatilho_Estado(num);
+}
 function Toggle_Inst(num) {
+    if(((Inst_Ativa >> (num - 1)) & 1) && Disparo_Unico(num)) {
+        Set_TrbSt_X(num, 0);     // volta ao primeiro passo; zera tambem o resto da espera
+        Delay_Zerar(num);        // e o DELAY recomeca, como numa subida nova
+        return;
+    }
     Inst_Ativa = Inst_Ativa ^ (1 << (num - 1));
     Aplicar_RespOff_Inst(num);   // gatilho/finalizador-relig agem na instância inteira
 }
@@ -3858,7 +3892,15 @@ function Run_Instance_v3(num) {
         return;
     }
     if((Excl_Veto  >> (num - 1)) & 1) return;    // MOD_EXCL
-    if((Assoc_Mask >> (num - 1)) & 1) { Delay_Zerar(num); return; }   // v7i: rearma o DELAY    // MOD_ASSOC
+    if((Assoc_Mask >> (num - 1)) & 1) {                                // MOD_ASSOC
+        // 1.0.21: o disparo unico nao espera armado. Ver Disparo_Unico.
+        if(Disparo_Unico(num)) {
+            Inst_Ativa = Inst_Ativa & (~(1 << (num - 1)));
+            Aplicar_RespOff_Inst(num);
+        }
+        Delay_Zerar(num);   // v7i: rearma o DELAY
+        return;
+    }
     if(BTN_FN_Bloqueia_v3(num)) return;   // v6c: BLOK segurado suspende a resposta
     if((Resp_Off_Fonte >> (num - 1)) & 1) return; // suprimida (desligada)
     // v5: DELAY — ultimo gate antes de responder. Fica aqui de proposito: neste ponto

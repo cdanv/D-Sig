@@ -23,6 +23,17 @@ mesma proporcao: e a razao entre os dois que faz o prisma — crescer so o traco
 a franja colorida relativamente mais fina e o efeito de profundidade encolheria. O
 desenho tambem passou a ser CENTRADO pela caixa do traco; estava 24 px a esquerda.
 
+1.0.21 — O DESENHO E OUTRO. O traco antigo (um no que se abre em tres) dizia "roteador"
+e nao dizia "D-Sig". O novo e a letra D como CORPO do roteador: um no de entrada a
+esquerda, um PULSO atravessando o D por dentro (o sinal — e o TURBO), e tres saidas sobre
+o arco. Nome e filosofia no mesmo desenho: entra um sinal, ele e condicionado, sai por
+varias rotas. De quebra lembra o simbolo de uma porta logica, que e o que um MOD e.
+O efeito das tres cores e o mesmo; so o traco.png mudou. Como o traco novo ja foi
+desenhado no tamanho final, ESCALA voltou a 1 e o DESLOC subiu de 1,4% para 1,6% do lado,
+que e a mesma razao franja/espessura de antes para um traco de 24 px.
+O traco-alternativa.png e a outra proposta (o D so com o pulso, uma entrada e uma saida):
+para usa-la, copie-a sobre o traco.png e rode este script.
+
 uso:  python3 icone.py            grava os tres PNG na raiz do repositorio
       python3 icone.py <pasta>    grava na pasta dada (para revisar antes)
 """
@@ -33,9 +44,9 @@ AQUI   = os.path.dirname(os.path.abspath(__file__))
 RAIZ   = os.path.dirname(os.path.dirname(AQUI))
 FUNDO  = (13, 17, 23)        # #0d1117, o mesmo de sempre
 RAIO   = 0.18                # canto arredondado, fracao do lado
-DESLOC = 0.014               # deslocamento de cada canal com ESCALA = 1, fracao do lado
+DESLOC = 0.016               # deslocamento de cada canal com ESCALA = 1, fracao do lado
 ANGULOS = (90, 210, 330)     # R, G, B — 120 graus entre si
-ESCALA = 1.22                # tamanho do desenho em relacao ao da 1.0.17
+ESCALA = 1.0                 # tamanho do desenho em relacao ao traco.png
 # O maskable e recortado pelo sistema num circulo (ou outra forma) inscrito; a zona que
 # nunca e cortada e o circulo de raio 40% do lado. MASK e a fracao do lado que o icone
 # inteiro ocupa la dentro, e o __main__ CONFERE que a tinta fica aquem dos 40%.
