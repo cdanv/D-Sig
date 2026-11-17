@@ -662,7 +662,7 @@ comentário não conta, porque não altera o publicado.
 O **script**, o **layout de bits** e o **cache do app** têm numeração
 separada.
 
-O script está na **1.0.21**; o `LAYOUT_VER` está em **6** desde que as
+O script está na **1.0.22**; o `LAYOUT_VER` está em **6** desde que as
 SPVARs 61-63 deixaram de guardar o MOD 21 e passaram a guardar a
 permutação. Incremente o `LAYOUT_VER` apenas quando um campo mudar de
 posição ou tamanho — e, ao fazer isso, atualize o app junto. App e
@@ -1126,6 +1126,16 @@ reprova no script da 1.0.20 nas três.
 lê o botão FÍSICO. Fazer os gatilhos lerem as saídas dos outros MODs mudaria os jogos que
 já existem (no FIFA o L1 do "Mudar jogador" dispararia a "Enfiada"; no Mad Max a mira se
 auto-encerraria), então precisa ser uma opção por gatilho, não uma regra.
+
+### 1.0.22 — o logo com o raio (16/11/2026)
+
+**O script não mudou**, só o `DS_VERSAO`, para o cache trocar e o ícone novo chegar a
+quem já tem o app instalado.
+
+O logo da 1.0.21 ficou carregado: pulso quadrado por dentro e três saídas. O Daniel pediu
+mais limpo e com um raio no lugar do pulso. Ficou o D, um raio sólido dentro dele, uma
+entrada e uma saída. As outras duas versões estão em `ferramentas/oled/`
+(`traco-alternativa.png`, só o D e o raio; `traco-roteador.png`, o da 1.0.21).
 
 ### O que continua em aberto, e não impede nada
 

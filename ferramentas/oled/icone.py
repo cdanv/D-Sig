@@ -31,8 +31,14 @@ varias rotas. De quebra lembra o simbolo de uma porta logica, que e o que um MOD
 O efeito das tres cores e o mesmo; so o traco.png mudou. Como o traco novo ja foi
 desenhado no tamanho final, ESCALA voltou a 1 e o DESLOC subiu de 1,4% para 1,6% do lado,
 que e a mesma razao franja/espessura de antes para um traco de 24 px.
-O traco-alternativa.png e a outra proposta (o D so com o pulso, uma entrada e uma saida):
-para usa-la, copie-a sobre o traco.png e rode este script.
+1.0.22 — MAIS LIMPO, E COM UM RAIO (pedido do Daniel). O pulso quadrado e as tres saidas
+deixavam o desenho carregado, e o pulso so diz "sinal" a quem ja sabe o que e uma onda
+quadrada. Ficou o D, um RAIO dentro dele, uma entrada e uma saida: o sinal entra, passa
+pelo D, sai. O raio e solido (um poligono, nao um traco), e por isso a separacao das
+tres cores aparece nele como bordas coloridas em volta de um miolo branco.
+Guardados ao lado, para trocar copiando sobre o traco.png e rodando este script:
+  traco-alternativa.png   so o D e o raio, sem entrada nem saida
+  traco-roteador.png      o da 1.0.21: pulso por dentro e tres saidas
 
 uso:  python3 icone.py            grava os tres PNG na raiz do repositorio
       python3 icone.py <pasta>    grava na pasta dada (para revisar antes)

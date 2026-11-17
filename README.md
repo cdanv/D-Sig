@@ -105,10 +105,10 @@ palavras** — 60 para os 20 MODs, 3 para a permutação, 1 para o selo.
 
 ## Estado
 
-**Versão 1.0.21.** Desde a 1.0.17 o script mudou duas vezes, as duas só no simulador: a
+**Versão 1.0.22.** Desde a 1.0.17 o script mudou duas vezes, as duas só no simulador: a
 1.0.18 corrige quatro defeitos de comportamento, e a 1.0.21 muda como o **disparo único**
 (TURBO de ciclos contados sem ALFA) responde ao gatilho — a lista está no
-[`LEIAME.md`](LEIAME.md). A 1.0.19 e a 1.0.20 mexem só no app. **O script ainda não passou
+[`LEIAME.md`](LEIAME.md). A 1.0.19, a 1.0.20 e a 1.0.22 mexem só no app e no ícone. **O script ainda não passou
 pelo compilador do Zen Studio nem pelo aparelho**: antes de confiar nela, faça o Build e
 confira 0 erros e 0 avisos.
 
